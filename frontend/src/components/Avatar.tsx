@@ -8,33 +8,29 @@ interface AvatarProps {
   className?: string;
 }
 
-const SIZES = { sm: "w-8 h-8 text-sm", md: "w-10 h-10 text-base", lg: "w-14 h-14 text-xl" };
-const COLORS = ["#0071e3","#7c3aed","#22c55e","#eab308","#ec4899","#06b6d4","#f97316","#14b8a6"];
+const SIZES = {
+  sm: "w-8 h-8 text-xs",
+  md: "w-10 h-10 text-sm",
+  lg: "w-14 h-14 text-base",
+};
 
 export function Avatar({ name, url, size = "md", className }: AvatarProps) {
   const [failed, setFailed] = useState(false);
-  const colorIdx = Math.abs(name.split("").reduce((a, c) => a + c.charCodeAt(0), 0)) % COLORS.length;
-  const bg = COLORS[colorIdx];
-  const initial = name.charAt(0).toUpperCase();
 
-  if (!url || failed) {
-    return (
-      <div className={cn("rounded-full flex items-center justify-center font-semibold shrink-0", SIZES[size], className)}
-        style={{ backgroundColor: `${bg}20`, color: bg }}>
-        {initial}
-      </div>
-    );
-  }
+  const initial = name.trim().charAt(0).toUpperCase();
+  const initials = name.trim().split(/\s+/).map((w) => w.charAt(0)).join("").slice(0, 2).toUpperCase();
+
+  const fallbackUrl = `https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(name)}&backgroundColor=FAFAFA&textColor=1D1D1F&fontSize=38&fontWeight=300&bold=false`;
+
+  const effectiveUrl = !url || failed ? fallbackUrl : url;
 
   return (
     <img
-      src={url}
+      src={effectiveUrl}
       alt={name}
       crossOrigin="anonymous"
       onError={() => setFailed(true)}
-      className={cn("rounded-full shrink-0", SIZES[size], className,
-        url.includes("dicebear.com") ? "" : "object-cover")}
-      style={{ backgroundColor: `${bg}15` }}
+      className={cn("rounded-full shrink-0 object-cover border border-[rgba(0,0,0,0.06)]", SIZES[size], className)}
     />
   );
 }
