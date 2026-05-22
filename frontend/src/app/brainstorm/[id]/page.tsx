@@ -52,11 +52,13 @@ export default function BrainstormPage() {
   const router = useRouter();
   const id = params.id as string;
 
-  // messages[] — all loaded messages from backend, appended in arrival order
   const [messages, setMessages] = useState<BrainstormMessageOut[]>([]);
-  // index of the message currently being typed (-1 = no active typing)
   const [typingIdx, setTypingIdx] = useState(-1);
+  // tracks whether typing is currently happening (set by handleTypeDone)
   const isTypingRef = useRef(false);
+  // tracks how many messages existed when typing MOST RECENTLY started
+  // used to detect "new messages arrived while typing" vs "typing just finished"
+  const typingStartedRef = useRef(0);
   const [summary, setSummary] = useState<string | null>(null);
   const [status, setStatus] = useState<"loading" | "running" | "done" | "failed">("loading");
   const [error, setError] = useState<string | null>(null);
@@ -68,28 +70,22 @@ export default function BrainstormPage() {
 
   // ── Typing done: advance to next message ───────────────────────────────────
   const handleTypeDone = () => {
-    isTypingRef.current = false;
-    // typingIdx is the index of the message that just finished
-    // next message is at typingIdx + 1 (if it exists)
-    const nextIdx = typingIdx + 1;
-    if (nextIdx < messages.length) {
-      setTypingIdx(nextIdx);
-      isTypingRef.current = true;
-    } else {
-      setTypingIdx(-1);
-    }
+    isTypingRef.current = false; // MUST be set before state change
+    setTypingIdx(-1);
   };
 
-  // Effect: when a new message arrives and nothing is typing, start typing it
+  // Effect: start / advance typing when state changes
   useEffect(() => {
-    if (isTypingRef.current) return;
-    if (messages.length === 0) return;
-    // Find the first message that isn't done yet
-    const firstNotDone = messages.findIndex((_, i) => i >= typingIdx + 1 || typingIdx === -1);
-    // OR simply: if typingIdx === -1, start from 0; else typingIdx + 1
-    const targetIdx = typingIdx === -1 ? 0 : typingIdx + 1;
-    if (targetIdx < messages.length) {
-      setTypingIdx(targetIdx);
+    // Case 1: typing just finished (typingIdx = -1, isTypingRef just set to false)
+    // → DON'T restart; wait for new messages
+    if (typingIdx === -1 && !isTypingRef.current) return;
+
+    // Case 2: new message arrived while typing (messages.length > typingStartedRef)
+    // → queue it (handled by poll), don't interrupt current typing
+    if (isTypingRef.current && messages.length > typingStartedRef.current) return;
+
+    // Case 3: nothing typing && has messages → start typing from typingIdx
+    if (messages.length > 0 && typingIdx >= 0) {
       isTypingRef.current = true;
     }
   }, [messages.length, typingIdx]);
@@ -108,12 +104,9 @@ export default function BrainstormPage() {
         const n = d.messages.length;
 
         if (n > lastCountRef.current) {
-          const newCount = n - lastCountRef.current;
           const newMsgs = d.messages.slice(lastCountRef.current);
           lastCountRef.current = n;
-
           setMessages((prev) => {
-            // Only append messages we don't already have (by id)
             const existingIds = new Set(prev.map((m) => m.id));
             const unseen = newMsgs.filter((m) => !existingIds.has(m.id));
             return [...prev, ...unseen];
