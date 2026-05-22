@@ -25,7 +25,7 @@ def _now():
 
 
 def _check_persona(persona_id: str, user_id: str, db: AsyncSession) -> None:
-    result = db.execute(select(Persona).where(Persona.id == persona_id, Persona.user_id == user_id))
+    result = await db.execute(select(Persona).where(Persona.id == persona_id, Persona.user_id == user_id))
     if not result.scalar_one_or_none():
         raise HTTPException(status_code=404, detail="Persona not found")
 
