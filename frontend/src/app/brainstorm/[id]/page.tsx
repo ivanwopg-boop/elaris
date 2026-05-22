@@ -15,16 +15,8 @@ function TypeText({ text, speed = 55, onDone }: { text: string; speed?: number; 
     doneRef.current = false;
     let i = 0;
     const t = window.setInterval(() => {
-      if (i < text.length) {
-        setD(text.slice(0, i + 1));
-        i++;
-      } else {
-        window.clearInterval(t);
-        if (!doneRef.current) {
-          doneRef.current = true;
-          onDone?.();
-        }
-      }
+      if (i < text.length) { setD(text.slice(0, i + 1)); i++; }
+      else { window.clearInterval(t); if (!doneRef.current) { doneRef.current = true; onDone?.(); } }
     }, speed);
     return () => { window.clearInterval(t); doneRef.current = true; };
   }, [text, speed, onDone]);
@@ -54,11 +46,7 @@ export default function BrainstormPage() {
 
   const [messages, setMessages] = useState<BrainstormMessageOut[]>([]);
   const [typingIdx, setTypingIdx] = useState(-1);
-  // tracks whether typing is currently happening (set by handleTypeDone)
-  const isTypingRef = useRef(false);
-  // tracks how many messages existed when typing MOST RECENTLY started
-  // used to detect "new messages arrived while typing" vs "typing just finished"
-  const typingStartedRef = useRef(0);
+  const isTyping = useRef(false);
   const [summary, setSummary] = useState<string | null>(null);
   const [status, setStatus] = useState<"loading" | "running" | "done" | "failed">("loading");
   const [error, setError] = useState<string | null>(null);
@@ -66,27 +54,22 @@ export default function BrainstormPage() {
   const ref = useRef<HTMLDivElement>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startedRef = useRef(false);
-  const lastCountRef = useRef(0);
+  const lastCount = useRef(0);
 
-  // ── Typing done: advance to next message ───────────────────────────────────
+  // Called when typing finishes for the current bubble
   const handleTypeDone = () => {
-    isTypingRef.current = false; // MUST be set before state change
+    isTyping.current = false;
     setTypingIdx(-1);
   };
 
-  // Effect: start / advance typing when state changes
+  // When messages change, decide whether to start typing a new bubble
   useEffect(() => {
-    // Case 1: typing just finished (typingIdx = -1, isTypingRef just set to false)
-    // → DON'T restart; wait for new messages
-    if (typingIdx === -1 && !isTypingRef.current) return;
-
-    // Case 2: new message arrived while typing (messages.length > typingStartedRef)
-    // → queue it (handled by poll), don't interrupt current typing
-    if (isTypingRef.current && messages.length > typingStartedRef.current) return;
-
-    // Case 3: nothing typing && has messages → start typing from typingIdx
-    if (messages.length > 0 && typingIdx >= 0) {
-      isTypingRef.current = true;
+    if (isTyping.current) return;          // already typing — queue will handle
+    if (messages.length === 0) return;     // no messages yet
+    const next = typingIdx === -1 ? 0 : typingIdx + 1;
+    if (next < messages.length) {
+      setTypingIdx(next);
+      isTyping.current = true;
     }
   }, [messages.length, typingIdx]);
 
@@ -102,25 +85,19 @@ export default function BrainstormPage() {
       try {
         const d = await api.getBrainstorm(id);
         const n = d.messages.length;
-
-        if (n > lastCountRef.current) {
-          const newMsgs = d.messages.slice(lastCountRef.current);
-          lastCountRef.current = n;
+        if (n > lastCount.current) {
+          lastCount.current = n;
           setMessages((prev) => {
-            const existingIds = new Set(prev.map((m) => m.id));
-            const unseen = newMsgs.filter((m) => !existingIds.has(m.id));
-            return [...prev, ...unseen];
+            const existing = new Set(prev.map((m) => m.id));
+            return [...prev, ...d.messages.filter((m: BrainstormMessageOut) => !existing.has(m.id))];
           });
         }
-
         if (d.session.summary) { setSummary(d.session.summary); setStatus("done"); stopPoll(); return; }
         if (d.session.status === "completed" && n > 0) { setStatus("done"); stopPoll(); return; }
-
         if (!triggered) {
           triggered = true;
           fetch(`/api/v1/brainstorm/${id}/start-blocking`, { method: "POST" }).catch(() => {});
         }
-
         if (waitCount > 300) { setError("Discussion timed out"); setStatus("failed"); stopPoll(); }
       } catch {}
     };
@@ -128,7 +105,7 @@ export default function BrainstormPage() {
     const stopPoll = () => { if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; } };
 
     api.getBrainstorm(id).then(async (d) => {
-      lastCountRef.current = d.messages.length;
+      lastCount.current = d.messages.length;
       setMessages(d.messages);
       try {
         const allP = await api.listPersonas();
@@ -153,31 +130,22 @@ export default function BrainstormPage() {
 
   const handleExport = async (fmt: "docx") => {
     try {
-      const res = await fetch(`/api/v1/brainstorm/${id}/export`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ format: fmt }),
-      });
+      const res = await fetch(`/api/v1/brainstorm/${id}/export`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ format: fmt }) });
       if (!res.ok) { alert("Export failed"); return; }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
-      a.href = url;
-      a.download = `brainstorm.${fmt}`;
+      a.href = url; a.download = `brainstorm.${fmt}`;
       document.body.appendChild(a);
       a.click();
       setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 10000);
-    } catch (e: any) {
-      alert("Export failed: " + e.message);
-    }
+    } catch (e: any) { alert("Export failed: " + e.message); }
   };
 
   useEffect(() => { ref.current?.scrollIntoView({ behavior: "smooth" }); }, [messages.length, typingIdx]);
 
-  const getCi = (m: BrainstormMessageOut, i: number) => {
-    if (m.persona_id) return Math.abs(m.persona_id.length) % COLORS.length;
-    return i % COLORS.length;
-  };
+  const getCi = (m: BrainstormMessageOut, i: number) =>
+    m.persona_id ? Math.abs(m.persona_id.length) % COLORS.length : i % COLORS.length;
 
   return (
     <div className="h-screen flex flex-col bg-white">
@@ -186,14 +154,9 @@ export default function BrainstormPage() {
           <button onClick={() => router.push("/brainstorms")} className="text-[#86868B] hover:text-[#1D1D1F] text-2xl font-light leading-none">‹</button>
           <div className="text-sm font-light flex-1 truncate">Brainstorm</div>
           {status === "running" && <span className="text-[11px] text-[#6E6E73] animate-pulse font-light">Discussing...</span>}
-          {status === "done" && (
-            <div className="flex gap-1">
-              <button onClick={() => handleExport("docx")} className="text-[11px] text-[#86868B] hover:text-[#1D1D1F] px-2 py-1 font-light">DOCX</button>
-            </div>
-          )}
+          {status === "done" && <button onClick={() => handleExport("docx")} className="text-[11px] text-[#86868B] hover:text-[#1D1D1F] px-2 py-1 font-light">DOCX</button>}
         </div>
       </header>
-
       <div className="flex-1 overflow-y-auto px-4 py-6">
         <div className="max-w-3xl mx-auto">
           {messages.length === 0 && status === "running" && (
@@ -206,39 +169,29 @@ export default function BrainstormPage() {
               <div className="text-sm text-[#86868B] font-light">Personas are preparing for discussion...</div>
             </div>
           )}
-
           {messages.map((m, i) => (
-            <Bubble key={m.id || i}
-              name={m.persona_name}
-              content={m.content}
-              ci={getCi(m, i)}
-              avatarUrl={personaMap[m.persona_id]?.avatar_url || undefined}
-              onDone={i === typingIdx ? handleTypeDone : undefined}
-            />
+            <Bubble key={m.id || i} name={m.persona_name} content={m.content}
+              ci={getCi(m, i)} avatarUrl={personaMap[m.persona_id]?.avatar_url || undefined}
+              onDone={i === typingIdx ? handleTypeDone : undefined} />
           ))}
-
           {error && <div className="text-center text-sm text-red-400 py-8 font-light">⚠️ {error}</div>}
-
           {summary && (
             <div className="mt-6 p-5 rounded-[12px]" style={{ backgroundColor: `${COLORS[0]}06`, border: `1px solid ${COLORS[0]}15` }}>
               <div className="text-xs font-light mb-3 text-[#6E6E73] tracking-wide">Summary</div>
               <div className="text-sm text-[#1D1D1F] font-light whitespace-pre-wrap leading-relaxed max-h-96 overflow-y-auto">
-                {summary.split("\n").map((l: string, i: number) => {
-                  if (l.startsWith("#")) return <div key={i} className="font-medium mt-2 mb-1">{l.replace(/#/g, "").trim()}</div>;
-                  return <div key={i} className="mb-0.5">{l}</div>;
-                })}
+                {summary.split("\n").map((l: string, i: number) =>
+                  l.startsWith("#") ? <div key={i} className="font-medium mt-2 mb-1">{l.replace(/#/g, "").trim()}</div>
+                    : <div key={i} className="mb-0.5">{l}</div>
+                )}
               </div>
-
               {status === "done" && (
                 <div className="mt-5 space-y-3">
-                  <button onClick={() => handleExport("docx")}
-                    className="w-full py-3 rounded-[10px] text-sm font-light bg-[#1D1D1F] text-white hover:bg-[#2a2a2e] transition-colors">Export DOCX</button>
+                  <button onClick={() => handleExport("docx")} className="w-full py-3 rounded-[10px] text-sm font-light bg-[#1D1D1F] text-white hover:bg-[#2a2a2e] transition-colors">Export DOCX</button>
                   <p className="text-xs text-[#86868B] text-center font-light">To discuss a new topic, go back and create a new session</p>
                 </div>
               )}
             </div>
           )}
-
           <div ref={ref} />
         </div>
       </div>
