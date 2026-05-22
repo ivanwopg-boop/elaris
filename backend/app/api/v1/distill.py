@@ -24,7 +24,7 @@ def _now():
     return datetime.now(timezone.utc)
 
 
-def _check_persona(persona_id: str, user_id: str, db: AsyncSession) -> None:
+async def _check_persona(persona_id: str, user_id: str, db: AsyncSession) -> None:
     result = await db.execute(select(Persona).where(Persona.id == persona_id, Persona.user_id == user_id))
     if not result.scalar_one_or_none():
         raise HTTPException(status_code=404, detail="Persona not found")
@@ -38,7 +38,7 @@ async def add_manual_input(
     user: User = Depends(require_auth),
     db: AsyncSession = Depends(get_db),
 ):
-    _check_persona(persona_id, user.id, db)
+    await _check_persona(persona_id, user.id, db)
     batch = str(uuid.uuid4())
     now = _now()
     outs = []
@@ -63,7 +63,7 @@ async def add_manual_input(
 
 @router.get("/manual-input", response_model=list[ManualInputOut])
 async def list_manual_inputs(persona_id: str, user: User = Depends(require_auth), db: AsyncSession = Depends(get_db)):
-    _check_persona(persona_id, user.id, db)
+    await _check_persona(persona_id, user.id, db)
     result = await db.execute(
         select(PersonaManualInput)
         .where(PersonaManualInput.persona_id == persona_id)
@@ -87,7 +87,7 @@ async def trigger_web_search(
     user: User = Depends(require_auth),
     db: AsyncSession = Depends(get_db),
 ):
-    _check_persona(persona_id, user.id, db)
+    await _check_persona(persona_id, user.id, db)
     search_results = await search_web(data.queries)
     batch = str(uuid.uuid4())
     now = _now()
@@ -113,7 +113,7 @@ async def trigger_web_search(
 
 @router.get("/web-search", response_model=list[WebSearchResultOut])
 async def list_web_searches(persona_id: str, user: User = Depends(require_auth), db: AsyncSession = Depends(get_db)):
-    _check_persona(persona_id, user.id, db)
+    await _check_persona(persona_id, user.id, db)
     result = await db.execute(
         select(WebSearchResult)
         .where(WebSearchResult.persona_id == persona_id)
@@ -132,7 +132,7 @@ async def list_web_searches(persona_id: str, user: User = Depends(require_auth),
 # ── Distill ──────────────────────────────────────────────
 @router.post("/distill", response_model=DistillResponse)
 async def run_distillation(persona_id: str, user: User = Depends(require_auth), db: AsyncSession = Depends(get_db)):
-    _check_persona(persona_id, user.id, db)
+    await _check_persona(persona_id, user.id, db)
     try:
         await ensure_web_search_results(persona_id, db)
         result = await distill_persona(persona_id, db)
@@ -147,7 +147,7 @@ async def run_distillation(persona_id: str, user: User = Depends(require_auth), 
 
 @router.get("/soul")
 async def get_current_soul(persona_id: str, user: User = Depends(require_auth), db: AsyncSession = Depends(get_db)):
-    _check_persona(persona_id, user.id, db)
+    await _check_persona(persona_id, user.id, db)
     result = await db.execute(
         select(PersonaSoul)
         .where(PersonaSoul.persona_id == persona_id)
@@ -168,7 +168,7 @@ async def get_current_soul(persona_id: str, user: User = Depends(require_auth), 
 
 @router.get("/soul/history", response_model=list[SoulOut])
 async def get_soul_history(persona_id: str, user: User = Depends(require_auth), db: AsyncSession = Depends(get_db)):
-    _check_persona(persona_id, user.id, db)
+    await _check_persona(persona_id, user.id, db)
     result = await db.execute(
         select(PersonaSoul)
         .where(PersonaSoul.persona_id == persona_id)
