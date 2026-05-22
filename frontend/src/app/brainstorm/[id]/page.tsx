@@ -3,7 +3,6 @@
 import { useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Avatar } from "@/components/Avatar";
-import { Button } from "@/components/ui/button";
 import { api, BrainstormMessageOut } from "@/lib/api";
 
 const COLORS = ["#0071E3","#7c3aed","#22c55e","#eab308","#ec4899","#06b6d4"];
@@ -53,50 +52,47 @@ export default function BrainstormPage() {
   const router = useRouter();
   const id = params.id as string;
 
-  const [displayQueue, setDisplayQueue] = useState<any[]>([]);
-  const [pendingQueue, setPendingQueue] = useState<any[]>([]);
+  // messages[] — all loaded messages from backend, appended in arrival order
+  const [messages, setMessages] = useState<BrainstormMessageOut[]>([]);
+  // index of the message currently being typed (-1 = no active typing)
   const [typingIdx, setTypingIdx] = useState(-1);
   const isTypingRef = useRef(false);
   const [summary, setSummary] = useState<string | null>(null);
   const [status, setStatus] = useState<"loading" | "running" | "done" | "failed">("loading");
   const [error, setError] = useState<string | null>(null);
   const [personaMap, setPersonaMap] = useState<Record<string, {name: string; avatar_url: string | null}>>({});
-  const [sessionPersonaIds, setSessionPersonaIds] = useState<string[]>([]);
   const ref = useRef<HTMLDivElement>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startedRef = useRef(false);
-  const lastCount = useRef(0);
+  const lastCountRef = useRef(0);
 
-  // ── Core queue logic ────────────────────────────────────────────────────────
-  // handleTypeDone: called when TypeText finishes displaying a message
+  // ── Typing done: advance to next message ───────────────────────────────────
   const handleTypeDone = () => {
     isTypingRef.current = false;
-    setTypingIdx(-1);
-    setPendingQueue((prev) => {
-      if (prev.length === 0) return prev;
-      const [next, ...rest] = prev;
-      setDisplayQueue((dq) => [...dq, next]);
-      setTypingIdx(-2); // signal: a new message is queued, pick it up
-      return rest;
-    });
+    // typingIdx is the index of the message that just finished
+    // next message is at typingIdx + 1 (if it exists)
+    const nextIdx = typingIdx + 1;
+    if (nextIdx < messages.length) {
+      setTypingIdx(nextIdx);
+      isTypingRef.current = true;
+    } else {
+      setTypingIdx(-1);
+    }
   };
 
-  // Effect: typingIdx === -2 → a new message was just queued to displayQueue
-  // Pick it up and start typing it
+  // Effect: when a new message arrives and nothing is typing, start typing it
   useEffect(() => {
-    if (typingIdx !== -2) return;
-    if (displayQueue.length === 0) return;
-    const newIdx = displayQueue.length - 1;
-    setTypingIdx(newIdx);
-    isTypingRef.current = true;
-  }, [typingIdx]);
-
-  // Effect: typingIdx === -1 and displayQueue has items → start typing the next one
-  useEffect(() => {
-    if (typingIdx !== -1) return;
-    if (displayQueue.length === 0) return;
-    setTypingIdx(-2);
-  }, [typingIdx, displayQueue.length]);
+    if (isTypingRef.current) return;
+    if (messages.length === 0) return;
+    // Find the first message that isn't done yet
+    const firstNotDone = messages.findIndex((_, i) => i >= typingIdx + 1 || typingIdx === -1);
+    // OR simply: if typingIdx === -1, start from 0; else typingIdx + 1
+    const targetIdx = typingIdx === -1 ? 0 : typingIdx + 1;
+    if (targetIdx < messages.length) {
+      setTypingIdx(targetIdx);
+      isTypingRef.current = true;
+    }
+  }, [messages.length, typingIdx]);
 
   useEffect(() => {
     if (startedRef.current) return;
@@ -111,25 +107,17 @@ export default function BrainstormPage() {
         const d = await api.getBrainstorm(id);
         const n = d.messages.length;
 
-        if (n > lastCount.current) {
-          const newMsgs = d.messages.slice(lastCount.current).map((m: BrainstormMessageOut) => ({
-            ...m, _loaded: true,
-          }));
-          lastCount.current = n;
+        if (n > lastCountRef.current) {
+          const newCount = n - lastCountRef.current;
+          const newMsgs = d.messages.slice(lastCountRef.current);
+          lastCountRef.current = n;
 
-          if (isTypingRef.current) {
-            // queue new messages while typing
-            setPendingQueue((prev) => [...prev, ...newMsgs]);
-          } else {
-            // start typing first new message, queue rest
-            if (newMsgs.length > 0) {
-              const [first, ...rest] = newMsgs;
-              setDisplayQueue((prev) => [...prev, first]);
-              setPendingQueue(rest);
-              setTypingIdx(-2);
-              isTypingRef.current = true;
-            }
-          }
+          setMessages((prev) => {
+            // Only append messages we don't already have (by id)
+            const existingIds = new Set(prev.map((m) => m.id));
+            const unseen = newMsgs.filter((m) => !existingIds.has(m.id));
+            return [...prev, ...unseen];
+          });
         }
 
         if (d.session.summary) { setSummary(d.session.summary); setStatus("done"); stopPoll(); return; }
@@ -147,8 +135,8 @@ export default function BrainstormPage() {
     const stopPoll = () => { if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; } };
 
     api.getBrainstorm(id).then(async (d) => {
-      lastCount.current = d.messages.length;
-      setSessionPersonaIds(d.session.persona_ids);
+      lastCountRef.current = d.messages.length;
+      setMessages(d.messages);
       try {
         const allP = await api.listPersonas();
         const map: Record<string, {name: string; avatar_url: string | null}> = {};
@@ -164,14 +152,6 @@ export default function BrainstormPage() {
         setStatus("running");
         pollRef.current = setInterval(doPoll, 2000);
         doPoll();
-        if (d.messages.length > 0) {
-          const all = d.messages.map((m: BrainstormMessageOut) => ({ ...m, _loaded: true }));
-          const [first, ...rest] = all;
-          setDisplayQueue(first ? [first] : []);
-          setPendingQueue(rest);
-          setTypingIdx(-2);
-          isTypingRef.current = true;
-        }
       }
     }).catch(() => router.push("/brainstorms"));
 
@@ -199,9 +179,9 @@ export default function BrainstormPage() {
     }
   };
 
-  useEffect(() => { ref.current?.scrollIntoView({ behavior: "smooth" }); }, [displayQueue.length, typingIdx]);
+  useEffect(() => { ref.current?.scrollIntoView({ behavior: "smooth" }); }, [messages.length, typingIdx]);
 
-  const getCi = (m: any, i: number) => {
+  const getCi = (m: BrainstormMessageOut, i: number) => {
     if (m.persona_id) return Math.abs(m.persona_id.length) % COLORS.length;
     return i % COLORS.length;
   };
@@ -223,7 +203,7 @@ export default function BrainstormPage() {
 
       <div className="flex-1 overflow-y-auto px-4 py-6">
         <div className="max-w-3xl mx-auto">
-          {displayQueue.length === 0 && status === "running" && (
+          {messages.length === 0 && status === "running" && (
             <div className="text-center pt-28">
               <div className="flex justify-center gap-1 mb-4">
                 <div className="w-2 h-2 rounded-full bg-[#6E6E73] animate-bounce [animation-delay:0ms]" />
@@ -234,10 +214,14 @@ export default function BrainstormPage() {
             </div>
           )}
 
-          {displayQueue.map((m: any, i: number) => (
-            <Bubble key={m.id || i} name={m.sender_name || m.persona_name} content={m.content}
-              ci={getCi(m, i)} avatarUrl={personaMap[m.persona_id]?.avatar_url || undefined}
-              onDone={i === typingIdx ? handleTypeDone : undefined} />
+          {messages.map((m, i) => (
+            <Bubble key={m.id || i}
+              name={m.sender_name || m.persona_name}
+              content={m.content}
+              ci={getCi(m, i)}
+              avatarUrl={personaMap[m.persona_id]?.avatar_url || undefined}
+              onDone={i === typingIdx ? handleTypeDone : undefined}
+            />
           ))}
 
           {error && <div className="text-center text-sm text-red-400 py-8 font-light">⚠️ {error}</div>}
