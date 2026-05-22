@@ -1,6 +1,7 @@
-"""MiniMax API client wrapper."""
+"""Unified LLM client — supports MiniMax and DeepSeek API."""
 
 import json
+import re
 import httpx
 from typing import AsyncGenerator
 from app.config import get_settings
@@ -9,12 +10,20 @@ settings = get_settings()
 
 
 class MiniMaxClient:
-    """Async client for MiniMax chat completion API."""
+    """Async client for LLM chat completion (MiniMax or DeepSeek)."""
 
     def __init__(self) -> None:
-        self.base_url = settings.MINIMAX_BASE_URL
-        self.api_key = settings.MINIMAX_API_KEY
-        self.model = settings.MINIMAX_MODEL
+        self.provider = settings.LLM_PROVIDER
+        if self.provider == "deepseek":
+            self.base_url = settings.LLM_BASE_URL
+            self.api_key = settings.LLM_API_KEY
+            self.model = settings.LLM_MODEL
+            self._chat_endpoint = f"{self.base_url}/chat/completions"
+        else:
+            self.base_url = settings.MINIMAX_BASE_URL
+            self.api_key = settings.MINIMAX_API_KEY
+            self.model = settings.MINIMAX_MODEL
+            self._chat_endpoint = f"{self.base_url}/text/chatcompletion_v2"
 
     async def chat(
         self,
@@ -40,19 +49,19 @@ class MiniMaxClient:
         async with httpx.AsyncClient(timeout=120.0) as client:
             try:
                 resp = await client.post(
-                    f"{self.base_url}/text/chatcompletion_v2",
+                    self._chat_endpoint,
                     headers=headers,
                     json=payload,
                 )
             except httpx.HTTPStatusError as e:
-                raise RuntimeError(f"MiniMax HTTP {e.response.status_code}: {e.response.text[:500]}")
+                raise RuntimeError(f"LLM HTTP {e.response.status_code}: {e.response.text[:500]}")
             resp.raise_for_status()
             data = resp.json()
             if not data.get("choices"):
-                raise RuntimeError(f"MiniMax API returned no choices: {data}")
+                raise RuntimeError(f"LLM API returned no choices: {data}")
             choice = data["choices"][0]
             msg = choice.get("message", {})
-            # MiniMax-M2.7 uses reasoning_content field
+            # Some reasoning models (MiniMax-M2.7) put content in reasoning_content
             content = msg.get("content") or msg.get("reasoning_content") or ""
             return content
 
@@ -62,10 +71,7 @@ class MiniMaxClient:
         temperature: float = 0.3,
         max_tokens: int = 4096,
     ) -> AsyncGenerator[str, None]:
-        """
-        Send a chat completion request and yield assistant message content
-        word-by-word (streaming). Yields empty string on no-content choices.
-        """
+        """Send a chat completion request and yield assistant message content word-by-word."""
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
@@ -81,7 +87,7 @@ class MiniMaxClient:
         async with httpx.AsyncClient(timeout=120.0) as client:
             async with client.stream(
                 "POST",
-                f"{self.base_url}/text/chatcompletion_v2",
+                self._chat_endpoint,
                 headers=headers,
                 json=payload,
             ) as resp:
@@ -108,7 +114,7 @@ class MiniMaxClient:
         max_tokens: int = 4096,
     ) -> dict:
         """Send a chat request expecting JSON response."""
-        # Add instruction to return JSON
+        # Add instruction to return JSON for providers that don't handle response_format well
         system_msg = messages[0] if messages and messages[0]["role"] == "system" else {"role": "system", "content": ""}
         system_msg["content"] += "\n\nOutput strictly in valid JSON with no other text."
         if messages and messages[0]["role"] == "system":
@@ -122,7 +128,6 @@ class MiniMaxClient:
             max_tokens=max_tokens,
             response_format={"type": "json_object"},
         )
-
         return _extract_json(raw)
 
 
@@ -130,7 +135,7 @@ def _extract_json(text: str) -> dict:
     """Extract a JSON dict from text that may contain reasoning noise."""
     text = text.strip()
 
-    # 1. Try direct parse
+    # 1. Direct parse
     try:
         return json.loads(text)
     except json.JSONDecodeError:
@@ -149,9 +154,7 @@ def _extract_json(text: str) -> dict:
         except json.JSONDecodeError:
             pass
 
-    # 3. Use regex to find the first top-level {…} or […] block
-    import re as _re
-    # Find the first top-level JSON object (handles nested braces)
+    # 3. Regex: find the first top-level {…} block
     brace_depth = 0
     start = -1
     for i, ch in enumerate(text):
@@ -166,9 +169,10 @@ def _extract_json(text: str) -> dict:
                 try:
                     return json.loads(candidate)
                 except json.JSONDecodeError:
-                    start = -1  # Try next block
+                    start = -1
                     continue
-    # Try array
+
+    # 4. Try array block
     bracket_depth = 0
     start = -1
     for i, ch in enumerate(text):
@@ -188,15 +192,14 @@ def _extract_json(text: str) -> dict:
                 except json.JSONDecodeError:
                     start = -1
 
-    # 4. Last resort: strip HTML/think tags and search again
-    import re as _re
-    cleaned = _re.sub(r'<think>.*?</think>', '', text, flags=_re.DOTALL).strip()
-    # Try steps 1-3 on cleaned text
+    # 5. Strip HTML/think tags and retry
+    cleaned = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
+    # Direct parse
     try:
         return json.loads(cleaned)
     except json.JSONDecodeError:
         pass
-    # Cleaned code block
+    # Code block
     if cleaned.startswith("```"):
         lines = cleaned.split("\n")
         if len(lines) >= 3:
@@ -207,7 +210,7 @@ def _extract_json(text: str) -> dict:
             return json.loads(cleaned)
         except json.JSONDecodeError:
             pass
-    # Cleaned regex block search
+    # Brace search in cleaned
     for i, ch in enumerate(cleaned):
         if ch == '{':
             depth = 1
@@ -222,7 +225,7 @@ def _extract_json(text: str) -> dict:
                         except json.JSONDecodeError:
                             break
 
-    raise RuntimeError(f"Failed to extract JSON from MiniMax response. Text (first 300 chars): {text[:300]}")
+    raise RuntimeError(f"Failed to extract JSON from LLM response. First 300 chars: {text[:300]}")
 
 
 # Singleton

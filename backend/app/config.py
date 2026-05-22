@@ -5,7 +5,13 @@ from functools import lru_cache
 
 
 class Settings(BaseSettings):
-    # MiniMax API
+    # LLM Provider — "minimax" or "deepseek"
+    LLM_PROVIDER: str = "minimax"
+    LLM_API_KEY: str = ""
+    LLM_BASE_URL: str = "https://api.deepseek.com/v1"
+    LLM_MODEL: str = "deepseek-chat"
+
+    # MiniMax API (legacy)
     MINIMAX_API_KEY: str = ""
     MINIMAX_BASE_URL: str = "https://api.minimax.chat/v1"
     MINIMAX_MODEL: str = "MiniMax-M2.7"
