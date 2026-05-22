@@ -113,8 +113,21 @@ class MiniMaxClient:
         raw = raw.strip()
         if raw.startswith("```"):
             lines = raw.split("\n")
-            raw = "\n".join(lines[1:-1])
-        return json.loads(raw)
+            # Only strip if there are at least 3 lines (open, content, close)
+            if len(lines) >= 3:
+                raw = "\n".join(lines[1:-1])
+            else:
+                raw = "\n".join(lines[1:])
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError:
+            # Last attempt: strip any remaining markdown tokens
+            import re
+            cleaned = re.sub(r'^```[a-zA-Z]*\s*', '', raw).strip()
+            try:
+                return json.loads(cleaned)
+            except Exception:
+                raise RuntimeError(f"Failed to parse MiniMax response as JSON: {raw[:200]}")
 
 
 # Singleton

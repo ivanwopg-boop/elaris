@@ -90,7 +90,7 @@ async def distill_persona(persona_id: str, db: AsyncSession) -> dict:
     except Exception as e:
         import traceback
         traceback.print_exc()
-        raise RuntimeError(f"MiniMax API call failed: {e}")
+        raise RuntimeError(f"Distillation failed: {type(e).__name__}: {e}")
 
     # Validate it's a proper PersonaProfile
     try:
