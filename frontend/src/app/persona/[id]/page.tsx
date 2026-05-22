@@ -70,11 +70,8 @@ export default function PersonaDetailPage() {
     setDistillStatus("distilling");
     setDistillError(undefined);
     try {
-      const result = await api.distill(id);
-      setSoul(result.soul);
-      setSoulVersion(result.version);
-      setDistillStatus("done");
-      loadData();
+      await api.distill(id);
+      // Response returns immediately; polling picks up soul when done
     } catch (e: any) {
       setDistillStatus("error");
       setDistillError(e.message);

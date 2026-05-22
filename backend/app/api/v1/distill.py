@@ -2,13 +2,14 @@
 
 import uuid
 import json
+import asyncio
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.core.auth_deps import require_auth
-from app.database import get_db_with_retry as get_db
+from app.database import get_db_with_retry as get_db, async_session
 from app.models.db_models import Persona, WebSearchResult, PersonaSoul, PersonaManualInput, User
 from app.models.schemas import (
     WebSearchRequest, WebSearchResultOut,
@@ -129,20 +130,26 @@ async def list_web_searches(persona_id: str, user: User = Depends(require_auth),
     ]
 
 
-# ── Distill ──────────────────────────────────────────────
-@router.post("/distill", response_model=DistillResponse)
-async def run_distillation(persona_id: str, user: User = Depends(require_auth), db: AsyncSession = Depends(get_db)):
+# ── Distill (async background) ────────────────────────────
+@router.post("/distill")
+async def start_distillation(persona_id: str, user: User = Depends(require_auth), db: AsyncSession = Depends(get_db)):
+    """Start distillation in background. Returns immediately; frontend polls for soul."""
     await _check_persona(persona_id, user.id, db)
-    try:
-        await ensure_web_search_results(persona_id, db)
-        result = await distill_persona(persona_id, db)
-        return DistillResponse(**result)
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Distillation failed: {str(e)}")
+
+    async def _background_distill(pid: str):
+        """Run distillation in a background asyncio task."""
+        try:
+            async with async_session() as bdb:
+                await ensure_web_search_results(pid, bdb)
+                await distill_persona(pid, bdb)
+                await bdb.commit()
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            print(f"[DISTILL] Background distillation failed for {pid}: {e}")
+
+    asyncio.create_task(_background_distill(persona_id))
+    return {"status": "started", "persona_id": persona_id}
 
 
 @router.get("/soul")
