@@ -209,7 +209,7 @@ export default function BrainstormPage() {
 
           {messages.map((m, i) => (
             <Bubble key={m.id || i}
-              name={m.sender_name || m.persona_name}
+              name={m.persona_name}
               content={m.content}
               ci={getCi(m, i)}
               avatarUrl={personaMap[m.persona_id]?.avatar_url || undefined}
