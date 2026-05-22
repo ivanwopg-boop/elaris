@@ -85,7 +85,12 @@ async def distill_persona(persona_id: str, db: AsyncSession) -> dict:
         {"role": "user", "content": prompt},
     ]
 
-    soul_data = await minimax_client.chat_json(messages, temperature=0.2, max_tokens=4096)
+    try:
+        soul_data = await minimax_client.chat_json(messages, temperature=0.2, max_tokens=4096)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise RuntimeError(f"MiniMax API call failed: {e}")
 
     # Validate it's a proper PersonaProfile
     try:

@@ -137,6 +137,10 @@ async def run_distillation(persona_id: str, db: AsyncSession = Depends(get_db)):
         return DistillResponse(**result)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Distillation failed: {str(e)}")
 
 
 @router.get("/soul")
