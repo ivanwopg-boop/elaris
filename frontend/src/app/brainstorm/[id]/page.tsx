@@ -72,14 +72,14 @@ export default function BrainstormPage() {
       setTypingIdx(newIdx);
       isTypingRef.current = true;
     }
-  }, [typingIdx, displayQueue.length]);
+  }, [typingIdx]);
 
   useEffect(() => {
     if (typingIdx === -1 && displayQueue.length > 0 && pendingQueue.length === 0) {
       setTypingIdx(0);
       isTypingRef.current = true;
     }
-  }, [displayQueue.length, typingIdx, pendingQueue.length]);
+  }, [typingIdx, pendingQueue.length]);
 
   useEffect(() => {
     if (startedRef.current) return;
