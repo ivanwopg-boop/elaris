@@ -9,12 +9,23 @@ import { api, BrainstormMessageOut } from "@/lib/api";
 const COLORS = ["#0071E3","#7c3aed","#22c55e","#eab308","#ec4899","#06b6d4"];
 
 function TypeText({ text, speed = 55, onDone }: { text: string; speed?: number; onDone?: () => void }) {
-  const [d, setD] = useState(""); const doneRef = useRef(false);
+  const [d, setD] = useState("");
+  const doneRef = useRef(false);
   useEffect(() => {
-    setD(""); doneRef.current = false; let i = 0;
+    setD("");
+    doneRef.current = false;
+    let i = 0;
     const t = window.setInterval(() => {
-      if (i < text.length) { setD(text.slice(0, i + 1)); i++; }
-      else { window.clearInterval(t); if (!doneRef.current) { doneRef.current = true; onDone?.(); } }
+      if (i < text.length) {
+        setD(text.slice(0, i + 1));
+        i++;
+      } else {
+        window.clearInterval(t);
+        if (!doneRef.current) {
+          doneRef.current = true;
+          onDone?.();
+        }
+      }
     }, speed);
     return () => { window.clearInterval(t); doneRef.current = true; };
   }, [text, speed, onDone]);
@@ -38,7 +49,8 @@ function Bubble({ name, content, ci, avatarUrl, onDone }: { name: string; conten
 }
 
 export default function BrainstormPage() {
-  const params = useParams(); const router = useRouter();
+  const params = useParams();
+  const router = useRouter();
   const id = params.id as string;
 
   const [displayQueue, setDisplayQueue] = useState<any[]>([]);
@@ -55,31 +67,36 @@ export default function BrainstormPage() {
   const startedRef = useRef(false);
   const lastCount = useRef(0);
 
+  // ── Core queue logic ────────────────────────────────────────────────────────
+  // handleTypeDone: called when TypeText finishes displaying a message
   const handleTypeDone = () => {
     isTypingRef.current = false;
     setTypingIdx(-1);
-    if (pendingQueue.length > 0) {
-      const [next, ...rest] = pendingQueue;
-      setPendingQueue(rest);
-      setDisplayQueue((prev) => [...prev, next]);
-      setTypingIdx(-2);
-    }
+    setPendingQueue((prev) => {
+      if (prev.length === 0) return prev;
+      const [next, ...rest] = prev;
+      setDisplayQueue((dq) => [...dq, next]);
+      setTypingIdx(-2); // signal: a new message is queued, pick it up
+      return rest;
+    });
   };
 
+  // Effect: typingIdx === -2 → a new message was just queued to displayQueue
+  // Pick it up and start typing it
   useEffect(() => {
-    if (typingIdx === -2 && displayQueue.length > 0) {
-      const newIdx = displayQueue.length - 1;
-      setTypingIdx(newIdx);
-      isTypingRef.current = true;
-    }
+    if (typingIdx !== -2) return;
+    if (displayQueue.length === 0) return;
+    const newIdx = displayQueue.length - 1;
+    setTypingIdx(newIdx);
+    isTypingRef.current = true;
   }, [typingIdx]);
 
+  // Effect: typingIdx === -1 and displayQueue has items → start typing the next one
   useEffect(() => {
-    if (typingIdx === -1 && displayQueue.length > 0 && pendingQueue.length === 0) {
-      setTypingIdx(0);
-      isTypingRef.current = true;
-    }
-  }, [typingIdx, pendingQueue.length]);
+    if (typingIdx !== -1) return;
+    if (displayQueue.length === 0) return;
+    setTypingIdx(-2);
+  }, [typingIdx, displayQueue.length]);
 
   useEffect(() => {
     if (startedRef.current) return;
@@ -100,14 +117,15 @@ export default function BrainstormPage() {
           }));
           lastCount.current = n;
 
-          const currentTyping = isTypingRef.current;
-          if (currentTyping) {
+          if (isTypingRef.current) {
+            // queue new messages while typing
             setPendingQueue((prev) => [...prev, ...newMsgs]);
           } else {
+            // start typing first new message, queue rest
             if (newMsgs.length > 0) {
               const [first, ...rest] = newMsgs;
               setDisplayQueue((prev) => [...prev, first]);
-              setPendingQueue((prev) => [...prev, ...rest]);
+              setPendingQueue(rest);
               setTypingIdx(-2);
               isTypingRef.current = true;
             }
@@ -117,8 +135,10 @@ export default function BrainstormPage() {
         if (d.session.summary) { setSummary(d.session.summary); setStatus("done"); stopPoll(); return; }
         if (d.session.status === "completed" && n > 0) { setStatus("done"); stopPoll(); return; }
 
-        if (!triggered) { triggered = true;
-          fetch(`/api/v1/brainstorm/${id}/start-blocking`, { method: "POST" }).catch(() => {}); }
+        if (!triggered) {
+          triggered = true;
+          fetch(`/api/v1/brainstorm/${id}/start-blocking`, { method: "POST" }).catch(() => {});
+        }
 
         if (waitCount > 300) { setError("Discussion timed out"); setStatus("failed"); stopPoll(); }
       } catch {}
