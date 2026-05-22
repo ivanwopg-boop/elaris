@@ -44,6 +44,8 @@ class MiniMaxClient:
             )
             resp.raise_for_status()
             data = resp.json()
+            if not data.get("choices"):
+                raise RuntimeError(f"MiniMax API returned no choices: {data}")
             return data["choices"][0]["message"]["content"]
 
     async def chat_json(
