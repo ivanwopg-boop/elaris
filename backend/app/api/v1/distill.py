@@ -146,6 +146,100 @@ async def run_distillation(persona_id: str, user: User = Depends(require_auth), 
         raise HTTPException(status_code=500, detail=f"Distillation failed: {str(e)}")
 
 
+@router.get("/distill-test")
+async def distill_test_page(persona_id: str, db: AsyncSession = Depends(get_db)):
+    """Simple HTML page to trigger distillation without frontend."""
+    from fastapi.responses import HTMLResponse
+    result = await db.execute(select(Persona).where(Persona.id == persona_id))
+    persona = result.scalar_one_or_none()
+    if not persona:
+        return HTMLResponse("<h2>Persona not found</h2>", status_code=404)
+
+    # Check if persona has soul
+    soul_result = await db.execute(
+        select(PersonaSoul)
+        .where(PersonaSoul.persona_id == persona_id)
+        .order_by(PersonaSoul.version.desc())
+    )
+    existing_soul = soul_result.scalars().first()
+
+    html = f"""<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Elaris - Distill {persona.name}</title>
+<style>
+* {{ margin:0; padding:0; box-sizing:border-box; }}
+body {{ font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:#f5f5f7; display:flex; justify-content:center; align-items:center; min-height:100vh; }}
+.card {{ background:#fff; border-radius:16px; padding:40px; max-width:640px; width:90%; box-shadow:0 1px 3px rgba(0,0,0,0.08); }}
+h2 {{ font-weight:300; font-size:22px; color:#1d1d1f; margin-bottom:8px; }}
+.status {{ font-size:13px; color:#6e6e73; margin-bottom:24px; }}
+.btn {{ background:#1d1d1f; color:#fff; padding:12px 28px; border-radius:10px; border:none; font-size:14px; cursor:pointer; }}
+.btn:disabled {{ opacity:0.4; cursor:not-allowed; }}
+.btn:hover:not(:disabled) {{ background:#2a2a2e; }}
+pre {{ background:#f5f5f7; padding:16px; border-radius:10px; font-size:11px; overflow-x:auto; margin-top:20px; max-height:400px; overflow-y:auto; white-space:pre-wrap; }}
+.error {{ color:#d32f2f; font-size:13px; margin:12px 0; }}  
+</style>
+</head>
+<body>
+<div class="card">
+<h2>{persona.name}</h2>
+<p class="status" id="status">{"Soul exists!" if existing_soul else "Not yet distilled"}</p>
+{"" if existing_soul else '<button class="btn" id="distillBtn" onclick="startDistill()">Start Distillation</button>'}
+<pre id="output"></pre>
+</div>
+<script>
+function getToken() {{
+  try {{
+    const s = localStorage.getItem("auth-storage");
+    if (!s) return null;
+    return JSON.parse(s)?.state?.token || null;
+  }} catch {{ return null; }}
+}}
+async function startDistill() {{
+  const btn = document.getElementById("distillBtn");
+  const status = document.getElementById("status");
+  const output = document.getElementById("output");
+  const token = getToken();
+  if (!token) {{
+    status.textContent = "Please login first";
+    output.textContent = "Go to /login then come back";
+    return;
+  }}
+  btn.disabled = true;
+  btn.textContent = "Distilling...";
+  status.textContent = "Running distillation...";
+  try {{
+    const res = await fetch("/api/v1/personas/{persona_id}/distill", {{
+      method: "POST",
+      headers: {{ "Authorization": "Bearer " + token, "Content-Type": "application/json" }}
+    }});
+    if (!res.ok) {{
+      const err = await res.text();
+      status.textContent = "Failed";
+      output.textContent = err;
+      btn.disabled = false;
+      btn.textContent = "Retry";
+      return;
+    }}
+    const data = await res.json();
+    status.textContent = "Complete! v" + data.version;
+    output.textContent = JSON.stringify(data.soul, null, 2);
+    btn.textContent = "Done";
+  }} catch (e) {{
+    status.textContent = "Error";
+    output.textContent = e.message || e;
+    btn.disabled = false;
+    btn.textContent = "Retry";
+  }}
+}}
+</script>
+</body>
+</html>"""
+    return HTMLResponse(content=html)
+
+
 @router.get("/soul")
 async def get_current_soul(persona_id: str, user: User = Depends(require_auth), db: AsyncSession = Depends(get_db)):
     await _check_persona(persona_id, user.id, db)
