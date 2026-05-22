@@ -50,7 +50,6 @@ export default function PersonaDetailPage() {
 
   useEffect(() => {
     if (!persona || persona.has_soul) return;
-    setDistillStatus("distilling");
     const interval = setInterval(async () => {
       try {
         const p = await api.getPersona(id);
