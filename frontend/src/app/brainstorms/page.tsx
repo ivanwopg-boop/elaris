@@ -65,9 +65,20 @@ export default function BrainstormsPage() {
                   {s.message_count > 0 && ` · ${s.message_count} messages`}
                 </p>
               </div>
-              <span className={`px-2.5 py-1 rounded-full text-[11px] font-light ${st.color} ${st.bg}`}>
-                {st.text}
-              </span>
+              <div className="flex items-center gap-3 shrink-0">
+                <span className={`px-2.5 py-1 rounded-full text-[11px] font-light ${st.color} ${st.bg}`}>
+                  {st.text}
+                </span>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (confirm("Delete this discussion?")) api.deleteBrainstorm(s.id).then(() => setSessions((prev) => prev.filter((x) => x.id !== s.id)));
+                  }}
+                  className="text-[#86868B] hover:text-red-400 text-lg font-light leading-none transition-colors"
+                >
+                  ×
+                </button>
+              </div>
             </Card>
           );
         })}

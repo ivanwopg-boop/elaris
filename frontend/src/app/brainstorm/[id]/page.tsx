@@ -7,23 +7,36 @@ import { api, BrainstormMessageOut } from "@/lib/api";
 
 const COLORS = ["#0071E3","#7c3aed","#22c55e","#eab308","#ec4899","#06b6d4"];
 
-function TypeText({ text, speed = 55, onDone }: { text: string; speed?: number; onDone?: () => void }) {
-  const [d, setD] = useState("");
-  const doneRef = useRef(false);
-  useEffect(() => {
-    setD("");
-    doneRef.current = false;
-    let i = 0;
-    const t = window.setInterval(() => {
-      if (i < text.length) { setD(text.slice(0, i + 1)); i++; }
-      else { window.clearInterval(t); if (!doneRef.current) { doneRef.current = true; onDone?.(); } }
-    }, speed);
-    return () => { window.clearInterval(t); doneRef.current = true; };
-  }, [text, speed, onDone]);
-  return <>{d}{d.length < text.length && <span className="animate-pulse opacity-40">▊</span>}</>;
+// ── Streaming bubble ────────────────────────────────────────────────────────
+
+type PendingMsg = {
+  localId: string;
+  persona_name: string;
+  content: string;
+  persona_id: string;
+  turn: number;
+};
+
+function StreamingBubble({ msg, ci }: { msg: PendingMsg; ci: number }) {
+  const c = COLORS[ci % COLORS.length];
+  return (
+    <div className="flex items-end gap-2 mb-5">
+      <Avatar name={msg.persona_name} url={undefined} size="sm" className="shrink-0" />
+      <div className="max-w-[78%]">
+        <span className="text-[11px] font-light mb-1 block" style={{ color: c, opacity: 0.7 }}>{msg.persona_name}</span>
+        <div className="rounded-[12px] rounded-bl-[4px] px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap font-light"
+          style={{ backgroundColor: `${c}06`, border: `1px solid ${c}10` }}>
+          {msg.content}
+          <span className="animate-pulse opacity-40 ml-0.5">▊</span>
+        </div>
+      </div>
+    </div>
+  );
 }
 
-function Bubble({ name, content, ci, avatarUrl, onDone }: { name: string; content: string; ci: number; avatarUrl?: string; onDone?: () => void }) {
+// ── Final bubble (from DB) ───────────────────────────────────────────────────
+
+function Bubble({ name, content, ci, avatarUrl }: { name: string; content: string; ci: number; avatarUrl?: string }) {
   const c = COLORS[ci % COLORS.length];
   return (
     <div className="flex items-end gap-2 mb-5">
@@ -32,50 +45,38 @@ function Bubble({ name, content, ci, avatarUrl, onDone }: { name: string; conten
         <span className="text-[11px] font-light mb-1 block" style={{ color: c, opacity: 0.7 }}>{name}</span>
         <div className="rounded-[12px] rounded-bl-[4px] px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap font-light"
           style={{ backgroundColor: `${c}06`, border: `1px solid ${c}10` }}>
-          <TypeText text={content} onDone={onDone} />
+          {content}
         </div>
       </div>
     </div>
   );
 }
 
+// ── Main page ────────────────────────────────────────────────────────────────
+
 export default function BrainstormPage() {
   const params = useParams();
   const router = useRouter();
   const id = params.id as string;
 
+  // Final messages from DB (rendered without animation)
   const [messages, setMessages] = useState<BrainstormMessageOut[]>([]);
-  const [typingIdx, setTypingIdx] = useState(-1);
-  const isTyping = useRef(false);
-  const typingStartedRef = useRef(0);
-  const lastTypingIdx = useRef(-1);
+  // Pending/streaming messages (localId → msg data)
+  const [pending, setPending] = useState<Record<string, PendingMsg>>({});
   const [summary, setSummary] = useState<string | null>(null);
-  const [status, setStatus] = useState<"loading" | "running" | "done" | "failed">("loading");
-  const [error, setError] = useState<string | null>(null);
-  const [personaMap, setPersonaMap] = useState<Record<string, {name: string; avatar_url: string | null}>>({});
+  const [status, setStatus] = useState<"loading"|"running"|"done"|"failed">("loading");
+  const [error, setError] = useState<string|null>(null);
+  const [personaMap, setPersonaMap] = useState<Record<string, {name: string; avatar_url: string|null}>>({});
   const ref = useRef<HTMLDivElement>(null);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval>|null>(null);
   const startedRef = useRef(false);
   const lastCount = useRef(0);
+  const esRef = useRef<EventSource|null>(null);
 
-  // Called when typing finishes for the current bubble
-  const handleTypeDone = () => {
-    lastTypingIdx.current = typingIdx;
-    isTyping.current = false;
-    typingStartedRef.current = 0;
-    setTypingIdx(-1);
-  };
+  const getCi = (m: BrainstormMessageOut | PendingMsg) =>
+    m.persona_id ? Math.abs(m.persona_id.length) % COLORS.length : 0;
 
-  // When messages change, decide whether to start typing a new bubble
-  useEffect(() => {
-    if (isTyping.current) return;          // already typing — queue will handle
-    if (messages.length === 0) return;     // no messages yet
-    const next = typingIdx === -1 ? 0 : typingIdx + 1;
-    if (next < messages.length) {
-      setTypingIdx(next);
-      isTyping.current = true;
-    }
-  }, [messages.length, typingIdx]);
+  // ── Start SSE & polling ──────────────────────────────────────────────────
 
   useEffect(() => {
     if (startedRef.current) return;
@@ -91,29 +92,90 @@ export default function BrainstormPage() {
         const n = d.messages.length;
         if (n > lastCount.current) {
           lastCount.current = n;
-          setMessages((prev) => {
-            const existing = new Set(prev.map((m) => m.id));
-            return [...prev, ...d.messages.filter((m: BrainstormMessageOut) => !existing.has(m.id))];
-          });
+          setMessages(d.messages);
         }
-        if (d.session.summary) { setSummary(d.session.summary); setStatus("done"); stopPoll(); return; }
-        if (d.session.status === "completed" && n > 0) { setStatus("done"); stopPoll(); return; }
+        if (d.session.summary) { setSummary(d.session.summary); setStatus("done"); stopAll(); return; }
+        if (d.session.status === "completed" && n > 0) { setStatus("done"); stopAll(); return; }
         if (!triggered) {
           triggered = true;
+          // Fire-and-forget blocking start
           fetch(`/api/v1/brainstorm/${id}/start-blocking`, { method: "POST" }).catch(() => {});
         }
-        if (waitCount > 300) { setError("Discussion timed out"); setStatus("failed"); stopPoll(); }
+        if (waitCount > 300) { setError("Discussion timed out"); setStatus("failed"); stopAll(); }
       } catch {}
     };
 
     const stopPoll = () => { if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; } };
+    const stopAll = () => { stopPoll(); esRef.current?.close(); };
+
+    const connectSSE = () => {
+      const es = new EventSource(`/api/v1/brainstorm/${id}/sse`);
+      esRef.current = es;
+
+      es.addEventListener("message", (e) => {
+        try {
+          const ev = JSON.parse(e.data);
+          if (ev.type === "message") {
+            // Final message — move from pending to DB list
+            const localId = `temp-${ev.turn}-${ev.persona_name}`;
+            setPending(prev => {
+              const next = { ...prev };
+              delete next[localId];
+              return next;
+            });
+          }
+        } catch {}
+      });
+
+      es.addEventListener("message_chunk", (e) => {
+        try {
+          const ev = JSON.parse(e.data);
+          const localId = `temp-${ev.turn}-${ev.persona_name}`;
+          setPending(prev => {
+            if (!prev[localId]) {
+              // First chunk — create pending bubble
+              return {
+                ...prev,
+                [localId]: {
+                  localId,
+                  persona_name: ev.persona_name,
+                  persona_id: ev.persona_id,
+                  content: ev.content,
+                  turn: ev.turn,
+                },
+              };
+            }
+            // Subsequent chunks — append
+            return {
+              ...prev,
+              [localId]: {
+                ...prev[localId],
+                content: prev[localId].content + ev.content,
+              },
+            };
+          });
+        } catch {}
+      });
+
+      es.addEventListener("done", () => {
+        setStatus("done");
+        stopAll();
+      });
+
+      es.addEventListener("error", (e) => {
+        console.warn("SSE error", e);
+        // Fall back to polling only
+        es.close();
+        esRef.current = null;
+      });
+    };
 
     api.getBrainstorm(id).then(async (d) => {
       lastCount.current = d.messages.length;
       setMessages(d.messages);
       try {
         const allP = await api.listPersonas();
-        const map: Record<string, {name: string; avatar_url: string | null}> = {};
+        const map: Record<string, {name: string; avatar_url: string|null}> = {};
         d.session.persona_ids.forEach((pid: string) => {
           const p = allP.find((x: any) => x.id === pid);
           if (p) map[pid] = { name: p.name, avatar_url: p.avatar_url };
@@ -124,13 +186,20 @@ export default function BrainstormPage() {
       if (d.session.status === "completed") { setStatus("done"); return; }
       if (d.session.topics.length > 0 && d.session.status === "created") {
         setStatus("running");
+        connectSSE();
         pollRef.current = setInterval(doPoll, 2000);
         doPoll();
       }
     }).catch(() => router.push("/brainstorms"));
 
-    return stopPoll;
+    return stopAll;
   }, [id, router]);
+
+  // ── Scroll to bottom ──────────────────────────────────────────────────────
+
+  useEffect(() => { ref.current?.scrollIntoView({ behavior: "smooth" }); }, [messages.length, Object.keys(pending).length]);
+
+  // ── Export ─────────────────────────────────────────────────────────────────
 
   const handleExport = async (fmt: "docx") => {
     try {
@@ -146,10 +215,9 @@ export default function BrainstormPage() {
     } catch (e: any) { alert("Export failed: " + e.message); }
   };
 
-  useEffect(() => { ref.current?.scrollIntoView({ behavior: "smooth" }); }, [messages.length, typingIdx]);
+  // ── Render ──────────────────────────────────────────────────────────────────
 
-  const getCi = (m: BrainstormMessageOut, i: number) =>
-    m.persona_id ? Math.abs(m.persona_id.length) % COLORS.length : i % COLORS.length;
+  const pendingList = Object.values(pending).sort((a, b) => a.turn - b.turn);
 
   return (
     <div className="h-screen flex flex-col bg-white">
@@ -161,9 +229,11 @@ export default function BrainstormPage() {
           {status === "done" && <button onClick={() => handleExport("docx")} className="text-[11px] text-[#86868B] hover:text-[#1D1D1F] px-2 py-1 font-light">DOCX</button>}
         </div>
       </header>
+
       <div className="flex-1 overflow-y-auto px-4 py-6">
         <div className="max-w-3xl mx-auto">
-          {messages.length === 0 && status === "running" && (
+
+          {messages.length === 0 && pendingList.length === 0 && status === "running" && (
             <div className="text-center pt-28">
               <div className="flex justify-center gap-1 mb-4">
                 <div className="w-2 h-2 rounded-full bg-[#6E6E73] animate-bounce [animation-delay:0ms]" />
@@ -173,12 +243,18 @@ export default function BrainstormPage() {
               <div className="text-sm text-[#86868B] font-light">Personas are preparing for discussion...</div>
             </div>
           )}
+
           {messages.map((m, i) => (
-            <Bubble key={m.id || i} name={m.persona_name} content={m.content}
-              ci={getCi(m, i)} avatarUrl={personaMap[m.persona_id]?.avatar_url || undefined}
-              onDone={i === typingIdx ? handleTypeDone : undefined} />
+            <Bubble key={m.id} name={m.persona_name} content={m.content}
+              ci={getCi(m)} avatarUrl={personaMap[m.persona_id]?.avatar_url || undefined} />
           ))}
+
+          {pendingList.map((p) => (
+            <StreamingBubble key={p.localId} msg={p} ci={getCi(p)} />
+          ))}
+
           {error && <div className="text-center text-sm text-red-400 py-8 font-light">⚠️ {error}</div>}
+
           {summary && (
             <div className="mt-6 p-5 rounded-[12px]" style={{ backgroundColor: `${COLORS[0]}06`, border: `1px solid ${COLORS[0]}15` }}>
               <div className="text-xs font-light mb-3 text-[#6E6E73] tracking-wide">Summary</div>
@@ -196,6 +272,7 @@ export default function BrainstormPage() {
               )}
             </div>
           )}
+
           <div ref={ref} />
         </div>
       </div>

@@ -143,6 +143,8 @@ async def brainstorm_sse_generator(session_id: str, db: AsyncSession, topic: str
             yield await _sse_event("thinking", event)
         elif ev_type == "message":
             yield await _sse_event("message", event)
+        elif ev_type == "message_chunk":
+            yield await _sse_event("message_chunk", event)
         elif ev_type == "summary":
             yield await _sse_event("summary", event)
         elif ev_type == "done":

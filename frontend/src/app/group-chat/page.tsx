@@ -44,7 +44,18 @@ export default function GroupChatsPage() {
                 {c.persona_ids.length} people · {c.message_count} messages · {formatDate(c.created_at)}
               </p>
             </div>
-            <span className="text-xs text-[#86868B] font-light shrink-0">Enter →</span>
+            <div className="flex items-center gap-3 shrink-0">
+              <span className="text-xs text-[#86868B] font-light shrink-0">Enter →</span>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (confirm("Delete this group chat?")) api.deleteGroupChat(c.id).then(() => setChats((prev) => prev.filter((x) => x.id !== c.id)));
+                }}
+                className="text-[#86868B] hover:text-red-400 text-lg font-light leading-none transition-colors"
+              >
+                ×
+              </button>
+            </div>
           </Card>
         ))}
       </div>

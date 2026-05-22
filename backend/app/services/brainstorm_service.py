@@ -223,7 +223,17 @@ async def run_brainstorm_stream(
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ]
-            reply = await minimax_client.chat(messages, temperature=0.6, max_tokens=1024)
+            reply_chunks = []
+            async for chunk in minimax_client.chat_stream(messages, temperature=0.6, max_tokens=1024):
+                reply_chunks.append(chunk)
+                yield {
+                    "type": "message_chunk",
+                    "persona_name": persona["name"],
+                    "persona_id": persona["id"],
+                    "content": chunk,
+                    "turn": turn,
+                }
+            reply = "".join(reply_chunks)
 
             msg = BrainstormMessage(
                 id=str(uuid.uuid4()),

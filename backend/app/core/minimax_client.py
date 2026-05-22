@@ -2,6 +2,7 @@
 
 import json
 import httpx
+from typing import AsyncGenerator
 from app.config import get_settings
 
 settings = get_settings()
@@ -47,6 +48,50 @@ class MiniMaxClient:
             if not data.get("choices"):
                 raise RuntimeError(f"MiniMax API returned no choices: {data}")
             return data["choices"][0]["message"]["content"]
+
+    async def chat_stream(
+        self,
+        messages: list[dict[str, str]],
+        temperature: float = 0.3,
+        max_tokens: int = 4096,
+    ) -> AsyncGenerator[str, None]:
+        """
+        Send a chat completion request and yield assistant message content
+        word-by-word (streaming). Yields empty string on no-content choices.
+        """
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+        payload: dict = {
+            "model": self.model,
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "stream": True,
+        }
+
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            async with client.stream(
+                "POST",
+                f"{self.base_url}/text/chatcompletion_v2",
+                headers=headers,
+                json=payload,
+            ) as resp:
+                resp.raise_for_status()
+                async for line in resp.aiter_lines():
+                    if not line.startswith("data:"):
+                        continue
+                    raw = line[5:].strip()
+                    if raw == "[DONE]":
+                        break
+                    try:
+                        obj = json.loads(raw)
+                        content = obj.get("choices", [{}])[0].get("delta", {}).get("content", "")
+                        if content:
+                            yield content
+                    except Exception:
+                        pass
 
     async def chat_json(
         self,
