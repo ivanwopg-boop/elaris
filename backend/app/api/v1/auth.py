@@ -217,3 +217,61 @@ async def generate_code(
     db.add(ic)
     await db.flush()
     return {"code": code, "tier": tier, "max_uses": max_uses}
+
+
+@router.get("/admin/invite")
+async def generate_invite_page(
+    max_uses: int = 99,
+    tier: str = "premium",
+    db: AsyncSession = Depends(get_db),
+):
+    """Generate an invite code and render an HTML page."""
+    code = generate_invite_code()
+    ic = InviteCode(code=code, tier=tier, max_uses=max_uses)
+    db.add(ic)
+    await db.flush()
+    html = f"""<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Elaris - 邀请码</title>
+<style>
+* {{ margin:0; padding:0; box-sizing:border-box; }}
+body {{ font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:#f5f5f7; display:flex; justify-content:center; align-items:center; min-height:100vh; }}
+.card {{ background:#fff; border-radius:16px; padding:40px; max-width:440px; width:90%; text-align:center; box-shadow:0 1px 3px rgba(0,0,0,0.08); }}
+h2 {{ font-weight:300; font-size:22px; color:#1d1d1f; margin-bottom:24px; letter-spacing:0.08em; }}
+.code {{ font-size:32px; font-weight:400; letter-spacing:0.15em; color:#1d1d1f; background:#f5f5f7; padding:16px 20px; border-radius:10px; margin:20px 0; font-family:"SF Mono",Menlo,monospace; }}
+.badge {{ display:inline-block; background:#0071e3; color:#fff; font-size:12px; font-weight:500; padding:4px 12px; border-radius:20px; margin-bottom:16px; }}
+.desc {{ font-size:13px; color:#6e6e73; margin-bottom:24px; line-height:1.5; }}
+.btn {{ display:inline-block; background:#1d1d1f; color:#fff; padding:12px 28px; border-radius:10px; text-decoration:none; font-size:14px; font-weight:400; transition:background 0.2s; }}
+.btn:hover {{ background:#2a2a2e; }}
+.copy {{ display:inline-block; margin-top:12px; font-size:13px; color:#0071e3; cursor:pointer; background:none; border:none; text-decoration:underline; }}
+.copy:active {{ opacity:0.6; }}
+.toast {{ position:fixed; bottom:40px; left:50%; transform:translateX(-50%); background:#1d1d1f; color:#fff; padding:10px 24px; border-radius:8px; font-size:13px; opacity:0; transition:opacity 0.3s; }}
+.toast.show {{ opacity:1; }}
+</style>
+</head>
+<body>
+<div class="card">
+<h2>Elaris</h2>
+<div class="badge">{tier.upper()}</div>
+<div class="code" id="code">{code}</div>
+<p class="desc">剩余次数：{max_uses} 次</p>
+<a class="btn" href="/register?code={code}">使用此邀请码注册</a>
+<button class="copy" onclick="copyCode()">复制邀请码</button>
+</div>
+<div class="toast" id="toast">已复制</div>
+<script>
+function copyCode() {{
+  navigator.clipboard.writeText(document.getElementById('code').textContent).then(() => {{
+    const t = document.getElementById('toast');
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2000);
+  }});
+}}
+</script>
+</body>
+</html>"""
+    from fastapi.responses import HTMLResponse
+    return HTMLResponse(content=html, status_code=200)
