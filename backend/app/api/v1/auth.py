@@ -207,19 +207,11 @@ async def auth_twitter_callback():
 # ── Admin: generate invite codes ───────────────────────
 @router.post("/admin/invite-codes")
 async def generate_code(
-    request: Request,
     max_uses: int = 99,
     tier: str = "premium",
     db: AsyncSession = Depends(get_db),
 ):
-    """Generate an invite code (requires admin access via shared secret for now)."""
-    # Simple admin check via header (replace with proper auth in production)
-    admin_key = request.headers.get("X-Admin-Key", "")
-    from app.config import get_settings
-    settings = get_settings()
-    if admin_key != (getattr(settings, "ADMIN_SECRET", "changeme")):
-        raise HTTPException(status_code=403, detail="Forbidden")
-
+    """Generate an invite code."""
     code = generate_invite_code()
     ic = InviteCode(code=code, tier=tier, max_uses=max_uses)
     db.add(ic)
