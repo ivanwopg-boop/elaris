@@ -47,6 +47,8 @@ export default function BrainstormPage() {
   const [messages, setMessages] = useState<BrainstormMessageOut[]>([]);
   const [typingIdx, setTypingIdx] = useState(-1);
   const isTyping = useRef(false);
+  const typingStartedRef = useRef(0);
+  const lastTypingIdx = useRef(-1);
   const [summary, setSummary] = useState<string | null>(null);
   const [status, setStatus] = useState<"loading" | "running" | "done" | "failed">("loading");
   const [error, setError] = useState<string | null>(null);
@@ -58,7 +60,9 @@ export default function BrainstormPage() {
 
   // Called when typing finishes for the current bubble
   const handleTypeDone = () => {
+    lastTypingIdx.current = typingIdx;
     isTyping.current = false;
+    typingStartedRef.current = 0;
     setTypingIdx(-1);
   };
 
