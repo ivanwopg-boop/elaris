@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     LLM_PROVIDER: str = "minimax"
     LLM_API_KEY: str = ""
     LLM_BASE_URL: str = "https://api.deepseek.com/v1"
-    LLM_MODEL: str = "deepseek-chat"
+    LLM_MODEL: str = "deepseek-v4-flash"
 
     # MiniMax API (legacy)
     MINIMAX_API_KEY: str = ""
