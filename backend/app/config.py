@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     # MiniMax API
     MINIMAX_API_KEY: str = ""
     MINIMAX_BASE_URL: str = "https://api.minimax.chat/v1"
-    MINIMAX_MODEL: str = "MiniMax-Text-01"
+    MINIMAX_MODEL: str = "MiniMax-M2.7"
 
     # Alternative AI APIs (reserved)
     ANTHROPIC_API_KEY: str = ""
