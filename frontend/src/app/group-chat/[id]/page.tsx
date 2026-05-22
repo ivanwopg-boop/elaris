@@ -132,7 +132,7 @@ export default function GroupChatRoom() {
           lastCount.current = d.messages.length;
           setFreshIds((prev) => { const next = new Set(prev); newMsgs.forEach((m: any) => next.add(m.id)); return next; });
           setAllMsgs((prev) => [...prev, ...newMsgs]);
-          setPersonaNameMap((prev) => { const next = { ...prev }; newMsgs.forEach((m: any) => { if (m.sender_type === "persona" && m.sender_id && m.sender_name) next[m.sender_id] = m.sender_name; }); return next; });
+          setPersonaNameMap((prev) => { const next = { ...prev }; newMsgs.forEach((m: any) => { if (m.sender_type === "persona" && m.sender_id && m.sender_name) next[m.sender_id] = { name: m.sender_name, avatar_url: m.avatar_url }; }); return next; });
           setThinking(null);
         }
       } catch {}
@@ -234,7 +234,7 @@ export default function GroupChatRoom() {
                       .then(async () => {
                         const d = await api.getGroupChat(chat.id);
                         setChat(d.chat); setAllMsgs(d.messages); lastCount.current = d.messages.length;
-                        setPersonaNameMap((prev) => ({ ...prev, [p.id]: p.name }));
+                        setPersonaNameMap((prev) => ({ ...prev, [p.id]: { name: p.name, avatar_url: p.avatar_url } }));
                         setShowInvite(false);
                       })
                       .catch((err) => alert("Invite failed: " + (err?.detail || "Unknown error")))
