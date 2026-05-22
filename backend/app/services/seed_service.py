@@ -18,8 +18,8 @@ async def seed_presets(db: AsyncSession) -> int:
     created = 0
     for preset in PRESET_PERSONAS:
         # Check if already seeded by name
-        result = await db.execute(select(Persona).where(Persona.name == preset["name"]))
-        existing = result.scalar_one_or_none()
+        result = await db.execute(select(Persona).where(Persona.name == preset["name"]).limit(1))
+        existing = result.scalars().first()
         if existing:
             continue
 
