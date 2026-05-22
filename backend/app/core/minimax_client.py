@@ -110,32 +110,119 @@ class MiniMaxClient:
         """Send a chat request expecting JSON response."""
         # Add instruction to return JSON
         system_msg = messages[0] if messages and messages[0]["role"] == "system" else {"role": "system", "content": ""}
-        system_msg["content"] += "\n\nOutput strictly in JSON format with no other text."
+        system_msg["content"] += "\n\nOutput strictly in valid JSON with no other text."
         if messages and messages[0]["role"] == "system":
             messages[0] = system_msg
         else:
             messages.insert(0, system_msg)
 
-        raw = await self.chat(messages, temperature=temperature, max_tokens=max_tokens)
-        # Try to extract JSON from potential markdown code blocks
-        raw = raw.strip()
-        if raw.startswith("```"):
-            lines = raw.split("\n")
-            # Only strip if there are at least 3 lines (open, content, close)
-            if len(lines) >= 3:
-                raw = "\n".join(lines[1:-1])
-            else:
-                raw = "\n".join(lines[1:])
+        raw = await self.chat(
+            messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            response_format={"type": "json_object"},
+        )
+
+        return _extract_json(raw)
+
+
+def _extract_json(text: str) -> dict:
+    """Extract a JSON dict from text that may contain reasoning noise."""
+    text = text.strip()
+
+    # 1. Try direct parse
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+
+    # 2. Strip markdown code fences
+    if text.startswith("```"):
+        lines = text.split("\n")
+        if len(lines) >= 3:
+            text = "\n".join(lines[1:-1])
+        else:
+            text = "\n".join(lines[1:])
+        text = text.strip()
         try:
-            return json.loads(raw)
+            return json.loads(text)
         except json.JSONDecodeError:
-            # Last attempt: strip any remaining markdown tokens
-            import re
-            cleaned = re.sub(r'^```[a-zA-Z]*\s*', '', raw).strip()
-            try:
-                return json.loads(cleaned)
-            except Exception:
-                raise RuntimeError(f"Failed to parse MiniMax response as JSON: {raw[:200]}")
+            pass
+
+    # 3. Use regex to find the first top-level {…} or […] block
+    import re as _re
+    # Find the first top-level JSON object (handles nested braces)
+    brace_depth = 0
+    start = -1
+    for i, ch in enumerate(text):
+        if ch == '{':
+            if brace_depth == 0:
+                start = i
+            brace_depth += 1
+        elif ch == '}':
+            brace_depth -= 1
+            if brace_depth == 0 and start >= 0:
+                candidate = text[start:i+1]
+                try:
+                    return json.loads(candidate)
+                except json.JSONDecodeError:
+                    start = -1  # Try next block
+                    continue
+    # Try array
+    bracket_depth = 0
+    start = -1
+    for i, ch in enumerate(text):
+        if ch == '[':
+            if bracket_depth == 0:
+                start = i
+            bracket_depth += 1
+        elif ch == ']':
+            bracket_depth -= 1
+            if bracket_depth == 0 and start >= 0:
+                candidate = text[start:i+1]
+                try:
+                    result = json.loads(candidate)
+                    if isinstance(result, dict):
+                        return result
+                    start = -1
+                except json.JSONDecodeError:
+                    start = -1
+
+    # 4. Last resort: strip HTML/think tags and search again
+    import re as _re
+    cleaned = _re.sub(r'<think>.*?</think>', '', text, flags=_re.DOTALL).strip()
+    # Try steps 1-3 on cleaned text
+    try:
+        return json.loads(cleaned)
+    except json.JSONDecodeError:
+        pass
+    # Cleaned code block
+    if cleaned.startswith("```"):
+        lines = cleaned.split("\n")
+        if len(lines) >= 3:
+            cleaned = "\n".join(lines[1:-1])
+        else:
+            cleaned = "\n".join(lines[1:])
+        try:
+            return json.loads(cleaned)
+        except json.JSONDecodeError:
+            pass
+    # Cleaned regex block search
+    for i, ch in enumerate(cleaned):
+        if ch == '{':
+            depth = 1
+            for j in range(i + 1, len(cleaned)):
+                if cleaned[j] == '{':
+                    depth += 1
+                elif cleaned[j] == '}':
+                    depth -= 1
+                    if depth == 0:
+                        try:
+                            return json.loads(cleaned[i:j+1])
+                        except json.JSONDecodeError:
+                            break
+
+    raise RuntimeError(f"Failed to extract JSON from MiniMax response. Text (first 300 chars): {text[:300]}")
 
 
 # Singleton
