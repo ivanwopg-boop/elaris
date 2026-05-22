@@ -50,7 +50,11 @@ class MiniMaxClient:
             data = resp.json()
             if not data.get("choices"):
                 raise RuntimeError(f"MiniMax API returned no choices: {data}")
-            return data["choices"][0]["message"]["content"]
+            choice = data["choices"][0]
+            msg = choice.get("message", {})
+            # MiniMax-M2.7 uses reasoning_content field
+            content = msg.get("content") or msg.get("reasoning_content") or ""
+            return content
 
     async def chat_stream(
         self,
@@ -90,7 +94,8 @@ class MiniMaxClient:
                         break
                     try:
                         obj = json.loads(raw)
-                        content = obj.get("choices", [{}])[0].get("delta", {}).get("content", "")
+                        delta = obj.get("choices", [{}])[0].get("delta", {})
+                        content = delta.get("content") or delta.get("reasoning_content") or ""
                         if content:
                             yield content
                     except Exception:
