@@ -246,7 +246,9 @@ async def start_brainstorm(
 async def list_brainstorms(user: User = Depends(require_premium), db: AsyncSession = Depends(get_db)):
     """List all brainstorm sessions."""
     result = await db.execute(
-        select(BrainstormSession).order_by(BrainstormSession.created_at.desc())
+        select(BrainstormSession)
+        .where(BrainstormSession.user_id == user.id)
+        .order_by(BrainstormSession.created_at.desc())
     )
     sessions = result.scalars().all()
     outs = []
@@ -259,7 +261,10 @@ async def list_brainstorms(user: User = Depends(require_premium), db: AsyncSessi
 @router.get("/{session_id}", response_model=BrainstormDetail)
 async def get_brainstorm(session_id: str, user: User = Depends(require_premium), db: AsyncSession = Depends(get_db)):
     """Get brainstorm session detail with all messages."""
-    result = await db.execute(select(BrainstormSession).where(BrainstormSession.id == session_id))
+    result = await db.execute(
+        select(BrainstormSession)
+        .where(BrainstormSession.id == session_id, BrainstormSession.user_id == user.id)
+    )
     session = result.scalar_one_or_none()
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
