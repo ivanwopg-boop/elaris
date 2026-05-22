@@ -38,11 +38,14 @@ class MiniMaxClient:
             payload["response_format"] = response_format
 
         async with httpx.AsyncClient(timeout=120.0) as client:
-            resp = await client.post(
-                f"{self.base_url}/text/chatcompletion_v2",
-                headers=headers,
-                json=payload,
-            )
+            try:
+                resp = await client.post(
+                    f"{self.base_url}/text/chatcompletion_v2",
+                    headers=headers,
+                    json=payload,
+                )
+            except httpx.HTTPStatusError as e:
+                raise RuntimeError(f"MiniMax HTTP {e.response.status_code}: {e.response.text[:500]}")
             resp.raise_for_status()
             data = resp.json()
             if not data.get("choices"):
