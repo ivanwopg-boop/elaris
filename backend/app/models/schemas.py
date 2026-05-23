@@ -82,6 +82,32 @@ class PersonaProfile(BaseModel):
     core_tensions: list[CoreTension] = []
     honest_limitations: list[str] = []
 
+    @field_validator("core_tensions", mode="before")
+    @classmethod
+    def coerce_core_tensions(cls, v: Any) -> list[Any]:
+        if isinstance(v, list):
+            result = []
+            for item in v:
+                if isinstance(item, str):
+                    result.append({"description": item, "evidence": []})
+                else:
+                    result.append(item)
+            return result
+        return v
+
+    @field_validator("mental_models", mode="before")
+    @classmethod
+    def coerce_mental_models(cls, v: Any) -> list[Any]:
+        if isinstance(v, list):
+            result = []
+            for item in v:
+                if isinstance(item, str):
+                    result.append({"name": item, "description": item, "evidence": [], "application": "", "limitation": ""})
+                else:
+                    result.append(item)
+            return result
+        return v
+
 
 # ── Persona CRUD ─────────────────────────────────────────
 class PersonaCreate(BaseModel):
