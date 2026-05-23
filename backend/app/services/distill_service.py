@@ -79,7 +79,7 @@ async def distill_persona(persona_id: str, db: AsyncSession) -> dict:
         )
         version_from = None
 
-    # 5. Call MiniMax API
+    # 5. Call LLM API
     messages = [
         {"role": "system", "content": "You are a professional personality analyst, skilled at distilling personality traits from text materials."},
         {"role": "user", "content": prompt},
@@ -96,7 +96,7 @@ async def distill_persona(persona_id: str, db: AsyncSession) -> dict:
     try:
         profile = PersonaProfile(**soul_data)
     except Exception as e:
-        raise ValueError(f"MiniMax returned data format error: {e}\nRaw data: {str(soul_data)[:500]}")
+        raise ValueError(f"AI returned data format error: {e}\nRaw data: {str(soul_data)[:500]}")
 
     soul_json = profile.model_dump_json(indent=2, ensure_ascii=False)
 
