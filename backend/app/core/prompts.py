@@ -127,6 +127,15 @@ Name: {name}
 ## Output Requirements
 Output the complete updated cognitive profile JSON with all dimensions. Same format as first distillation.
 
+**Strict type rules (same as first distillation):**
+- Arrays `[...]` must be arrays, never strings
+- Objects `{{...}}` must be objects, never strings
+- `evidence` fields are always arrays of strings
+- `core_tensions` entries are objects with `description` and `evidence`
+- `mental_models` entries are objects with `name`, `description`, `evidence`, `application`, `limitation`
+- If insufficient info → empty arrays `[]`, never strings
+- For insufficient object data → `{{"description": "..."}}`, never plain strings
+
 Key points for incremental update:
 - If new materials show behavior in other domains, add new mental models
 - If new materials contradict prior conclusions, record in core_tensions
