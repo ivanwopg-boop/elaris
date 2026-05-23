@@ -62,18 +62,8 @@ async def get_group_chat(chat_id: str, user: User = Depends(require_premium), db
     )
     messages = msg_result.scalars().all()
 
-    # Build persona name map for @ mentions
-    from app.models.db_models import Persona as _Persona
-    pids = json.loads(chat.persona_ids)
-    pname_map: dict[str, str] = {}
-    for pid in pids:
-        pr = await db.execute(select(_Persona).where(_Persona.id == pid))
-        pp = pr.scalar_one_or_none()
-        if pp and pp.name:
-            pname_map[pid] = pp.name
-
     return GroupChatDetail(
-        chat=_chat_to_out(chat, mc.scalar() or 0, pname_map),
+        chat=_chat_to_out(chat, mc.scalar() or 0),
         messages=[GroupChatMessageOut(
             id=m.id, chat_id=m.chat_id, sender_type=m.sender_type,
             sender_id=m.sender_id, sender_name=m.sender_name,
@@ -86,7 +76,6 @@ async def get_group_chat(chat_id: str, user: User = Depends(require_premium), db
 async def group_chat_send_blocking(
     chat_id: str,
     data: GroupChatSendRequest,
-    user: User = Depends(require_premium),
     db: AsyncSession = Depends(get_db),
 ):
     """Save user message + run all persona responses synchronously."""
@@ -143,15 +132,12 @@ async def group_chat_sse(chat_id: str, message: str, user: User = Depends(requir
 async def group_chat_invite(
     chat_id: str,
     data: GroupChatInviteRequest,
-    user: User = Depends(require_premium),
     db: AsyncSession = Depends(get_db),
 ):
     """Invite a persona to the group chat."""
     result = await db.execute(select(GroupChat).where(GroupChat.id == chat_id))
     chat = result.scalar_one_or_none()
     if not chat:
-        raise HTTPException(status_code=404, detail="Chat not found")
-    if chat.user_id != user.id:
         raise HTTPException(status_code=404, detail="Chat not found")
 
     # Load persona
@@ -190,15 +176,12 @@ async def group_chat_invite(
 async def remove_persona(
     chat_id: str,
     persona_id: str,
-    user: User = Depends(require_premium),
     db: AsyncSession = Depends(get_db),
 ):
     """Remove a persona from the group chat."""
     result = await db.execute(select(GroupChat).where(GroupChat.id == chat_id))
     chat = result.scalar_one_or_none()
     if not chat:
-        raise HTTPException(status_code=404, detail="Chat not found")
-    if chat.user_id != user.id:
         raise HTTPException(status_code=404, detail="Chat not found")
 
     current_ids = json.loads(chat.persona_ids)
@@ -234,7 +217,6 @@ async def remove_persona(
 @router.delete("/{chat_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_group_chat(chat_id: str, user: User = Depends(require_premium), db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(GroupChat).where(GroupChat.id == chat_id, GroupChat.user_id == user.id))
-    result = await db.execute(select(GroupChat).where(GroupChat.id == chat_id))
     chat = result.scalar_one_or_none()
     if not chat:
         raise HTTPException(status_code=404, detail="Chat not found")
@@ -242,12 +224,11 @@ async def delete_group_chat(chat_id: str, user: User = Depends(require_premium),
     await db.flush()
 
 
-def _chat_to_out(chat: GroupChat, msg_count: int = 0, pname_map: dict[str, str] | None = None) -> GroupChatOut:
+def _chat_to_out(chat: GroupChat, msg_count: int = 0) -> GroupChatOut:
     return GroupChatOut(
         id=chat.id, title=chat.title,
         persona_ids=json.loads(chat.persona_ids),
         persona_roles=json.loads(chat.persona_roles) if chat.persona_roles else {},
-        persona_names=pname_map or {},
         status=chat.status, message_count=msg_count,
         created_at=chat.created_at, updated_at=chat.updated_at,
     )

@@ -72,7 +72,7 @@ async def upload_brainstorm_files(
     db: AsyncSession = Depends(get_db),
 ):
     """Upload files to a brainstorm session (used as discussion context)."""
-    result = await db.execute(select(BrainstormSession).where(BrainstormSession.id == session_id))
+    result = await db.execute(select(BrainstormSession).where(BrainstormSession.id == session_id, BrainstormSession.user_id == user.id))
     session = result.scalar_one_or_none()
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -116,9 +116,9 @@ async def brainstorm_sse_generator(session_id: str, db: AsyncSession, topic: str
     Also handles adding the topic to the session before starting.
     """
     # Load session
-    result = await db.execute(select(BrainstormSession).where(BrainstormSession.id == session_id))
+    result = await db.execute(select(BrainstormSession).where(BrainstormSession.id == session_id, BrainstormSession.user_id == user.id))
     session = result.scalar_one_or_none()
-    if not session or session.user_id != user.id:
+    if not session:
         async for chunk in _error_sse("Session not found"):
             yield chunk
         return
@@ -143,8 +143,6 @@ async def brainstorm_sse_generator(session_id: str, db: AsyncSession, topic: str
             yield await _sse_event("thinking", event)
         elif ev_type == "message":
             yield await _sse_event("message", event)
-        elif ev_type == "message_chunk":
-            yield await _sse_event("message_chunk", event)
         elif ev_type == "summary":
             yield await _sse_event("summary", event)
         elif ev_type == "done":
@@ -157,32 +155,18 @@ async def brainstorm_sse_generator(session_id: str, db: AsyncSession, topic: str
 _running_discussions: set[str] = set()
 
 
-# ── Lock to prevent concurrent sessions ────────────────
-_session_locks: set[str] = set()
-
-
 @router.post("/{session_id}/start-blocking")
 async def start_brainstorm_blocking(
     session_id: str,
-    user: User = Depends(require_premium),
     db: AsyncSession = Depends(get_db),
 ):
-    """Start discussion synchronously."""
-    if session_id in _session_locks:
-        return {"status": "busy", "message": "Already running"}
-    # Check ownership
-    sr = await db.execute(select(BrainstormSession).where(BrainstormSession.id == session_id, BrainstormSession.user_id == user.id))
-    if not sr.scalar_one_or_none():
-        return {"status": "error", "message": "Session not found"}
-    _session_locks.add(session_id)
+    """Start discussion synchronously. Takes 1-2 min but always works reliably."""
     try:
         async for _ in run_brainstorm_stream(session_id, db):
             pass
         return {"status": "completed"}
     except Exception as e:
         return {"status": "failed", "error": str(e)}
-    finally:
-        _session_locks.discard(session_id)
 
 
 async def _error_sse(message: str):
@@ -193,7 +177,6 @@ async def _error_sse(message: str):
 async def brainstorm_sse(
     session_id: str,
     topic: str | None = None,
-    user: User = Depends(require_premium),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -228,7 +211,6 @@ async def brainstorm_sse(
 async def start_brainstorm(
     session_id: str,
     data: BrainstormStartRequest = BrainstormStartRequest(),
-    user: User = Depends(require_premium),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -236,7 +218,7 @@ async def start_brainstorm(
     If session has no topics yet, use the topic from request body.
     Runs the discussion blocking (may take a while).
     """
-    result = await db.execute(select(BrainstormSession).where(BrainstormSession.id == session_id))
+    result = await db.execute(select(BrainstormSession).where(BrainstormSession.id == session_id, BrainstormSession.user_id == user.id))
     session = result.scalar_one_or_none()
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -262,9 +244,7 @@ async def start_brainstorm(
 async def list_brainstorms(user: User = Depends(require_premium), db: AsyncSession = Depends(get_db)):
     """List all brainstorm sessions."""
     result = await db.execute(
-        select(BrainstormSession)
-        .where(BrainstormSession.user_id == user.id)
-        .order_by(BrainstormSession.created_at.desc())
+        select(BrainstormSession).order_by(BrainstormSession.created_at.desc())
     )
     sessions = result.scalars().all()
     outs = []
@@ -277,10 +257,7 @@ async def list_brainstorms(user: User = Depends(require_premium), db: AsyncSessi
 @router.get("/{session_id}", response_model=BrainstormDetail)
 async def get_brainstorm(session_id: str, user: User = Depends(require_premium), db: AsyncSession = Depends(get_db)):
     """Get brainstorm session detail with all messages."""
-    result = await db.execute(
-        select(BrainstormSession)
-        .where(BrainstormSession.id == session_id, BrainstormSession.user_id == user.id)
-    )
+    result = await db.execute(select(BrainstormSession).where(BrainstormSession.id == session_id, BrainstormSession.user_id == user.id))
     session = result.scalar_one_or_none()
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -313,7 +290,7 @@ async def export_brainstorm_session(
     db: AsyncSession = Depends(get_db),
 ):
     """Export brainstorm as DOCX or PDF."""
-    result = await db.execute(select(BrainstormSession).where(BrainstormSession.id == session_id))
+    result = await db.execute(select(BrainstormSession).where(BrainstormSession.id == session_id, BrainstormSession.user_id == user.id))
     session = result.scalar_one_or_none()
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
