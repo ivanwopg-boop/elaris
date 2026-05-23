@@ -154,7 +154,7 @@ async def run_group_chat_stream(
                 minimax_client.chat(
                     [{"role": "system", "content": sp}, {"role": "user", "content": up}],
                     temperature=0.5, max_tokens=10000),
-                timeout=45)
+                timeout=120)
             return {"persona_name": persona["name"], "persona_id": persona["id"], "content": reply}
         except asyncio.TimeoutError:
             return {"persona_name": persona["name"], "persona_id": persona["id"], "content": f"（{persona['name']}正在思考中...）"}
