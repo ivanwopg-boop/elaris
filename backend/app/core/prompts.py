@@ -94,7 +94,13 @@ Output strictly in the following JSON structure, no other text:
 Notes:
 - All 0-10 integer dimensions must be integers
 - mental_models count between 3-7
-- If insufficient info, set fields to empty arrays rather than fabricating"""
+- **Type rules** (strictly follow):
+  - Fields marked as arrays `[...]` in the template must be arrays, never strings
+  - Fields marked as objects `{{...}}` must be objects, never strings
+  - `evidence` fields are always arrays of strings, never single strings
+  - `core_tensions` entries must be objects with `description` and `evidence`
+- If insufficient info, set fields to empty arrays rather than fabricating
+- If you have no info for a nested object field, output `{{"description": "Insufficient data"}}` rather than a plain string"""
 
 UPDATE_DISTILL_PROMPT = """You are a cognitive analysis expert. Now enrich and update this person's cognitive profile based on newly added materials.
 
