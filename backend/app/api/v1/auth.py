@@ -368,7 +368,20 @@ async function generate() {{
     res.innerHTML = '<div style="font-family:monospace;font-size:18px;letter-spacing:0.15em;padding:10px;background:#f5f5f7;border-radius:8px;margin-bottom:8px">' + d.code + '</div>'
       + '<a href="/register?code=' + d.code + '" style="font-size:13px;color:#0071e3;text-decoration:none">Register link →</a>'
       + '<br><button onclick="copy(\'' + d.code + '\')" style="background:none;border:1px solid rgba(0,0,0,0.08);border-radius:6px;padding:6px 16px;font-size:12px;cursor:pointer;color:#0071e3;margin-top:6px">Copy code</button>';
-    location.reload();
+    // Add to table dynamically
+    const tb = document.getElementById('codes');
+    if (tb) {{
+      const tr = document.createElement('tr');
+      tr.innerHTML = '<td style="font-family:monospace;letter-spacing:0.1em;font-size:13px">' + d.code + '</td>' +
+        '<td><span style="background:#0071e3;color:#fff;font-size:10px;padding:2px 10px;border-radius:10px">' + (d.tier||'PREMIUM').toUpperCase() + '</span></td>' +
+        '<td style="font-size:12px;color:#6e6e73">0/' + d.max_uses + '</td>' +
+        '<td style="font-size:12px">' + d.max_uses + ' left</td>' +
+        '<td><button onclick=\"copy(\\\'' + d.code + '\\\')\" style=\"background:none;border:1px solid rgba(0,0,0,0.08);border-radius:6px;padding:4px 12px;font-size:11px;cursor:pointer;color:#0071e3\">Copy</button></td>' +
+        '<td><a href=\"/register?code=' + d.code + '\" style=\"color:#0071e3;font-size:11px;text-decoration:none\" target=\"_blank\">Register \u2192</a></td>';
+      tb.prepend(tr);
+    }}
+    res.style.display = 'block';
+    res.innerHTML = '<div style="padding:8px">\u2705 Generated! <a href="/register?code=' + d.code + '" style="color:#0071e3">Register link</a></div>';
   }} catch(e) {{
     res.style.display = 'block';
     res.innerHTML = 'Error: ' + e.message;
