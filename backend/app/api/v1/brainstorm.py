@@ -161,9 +161,13 @@ async def brainstorm_sse(
     user: User = Depends(require_premium),
     db: AsyncSession = Depends(get_db),
 ):
-    """SSE endpoint - returns 204 to prevent browser reconnect. Use start-blocking + polling."""
-    from fastapi.responses import Response
-    return Response(status_code=204)
+    """SSE endpoint - immediately sends 'done', frontend closes connection. No reconnect loop."""
+    from fastapi.responses import StreamingResponse
+
+    async def event_gen():
+        yield "event: done\ndata: {}\n\n"
+
+    return StreamingResponse(event_gen(), media_type="text/event-stream")
 
 
 
