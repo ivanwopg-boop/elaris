@@ -138,8 +138,14 @@ async def run_group_chat_stream(
 
     async def _call_one(persona: dict) -> dict:
         try:
-            up = GROUP_CHAT_FIRST_PROMPT.format(
-                chat_title=chat.title, user_message=user_msg_text)
+            if full_history:
+                up = GROUP_CHAT_USER_PROMPT.format(
+                    chat_title=chat.title,
+                    user_message=user_msg_text,
+                    context=f"## Previous Chat History\n{full_history}")
+            else:
+                up = GROUP_CHAT_FIRST_PROMPT.format(
+                    chat_title=chat.title, user_message=user_msg_text)
             sp = GROUP_CHAT_SYSTEM_PROMPT.format(
                 persona_name=persona["name"],
                 soul_json=json.dumps(persona["soul"], indent=2, ensure_ascii=False),
