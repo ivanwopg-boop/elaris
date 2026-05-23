@@ -171,7 +171,7 @@ async def run_group_chat_stream(
             {"role": "user", "content": user_prompt},
         ]
         try:
-            reply = await minimax_client.chat(messages, temperature=0.5, max_tokens=2048)
+            reply = await minimax_client.chat(messages, temperature=0.5, max_tokens=8192)
         except Exception as e:
             yield {"type": "error", "persona_name": persona["name"], "message": str(e)}
             continue  # skip this persona, move to next

@@ -53,7 +53,7 @@ async def chat_stream(persona_id: str, message: str, db: AsyncSession = Depends(
 
     async def event_gen():
         try:
-            reply = await minimax_client.chat(msgs, temperature=0.4, max_tokens=2048)
+            reply = await minimax_client.chat(msgs, temperature=0.4, max_tokens=8192)
             yield await _sse_event("chat_message", {"content": reply})
             yield await _sse_event("done", {})
         except Exception as e:
@@ -75,7 +75,7 @@ async def write_stream(persona_id: str, message: str, context: str = "", db: Asy
         try:
             reply = await minimax_client.chat(
                 [{"role": "system", "content": system_prompt}, {"role": "user", "content": message}],
-                temperature=0.4, max_tokens=2048,
+                temperature=0.4, max_tokens=8192,
             )
             yield await _sse_event("chat_message", {"content": reply})
             yield await _sse_event("done", {})
@@ -98,7 +98,7 @@ async def advise_stream(persona_id: str, message: str, context: str = "", db: As
         try:
             reply = await minimax_client.chat(
                 [{"role": "system", "content": system_prompt}, {"role": "user", "content": message}],
-                temperature=0.4, max_tokens=2048,
+                temperature=0.4, max_tokens=8192,
             )
             yield await _sse_event("chat_message", {"content": reply})
             yield await _sse_event("done", {})
@@ -132,7 +132,7 @@ async def _handle_mode(request: ChatRequest, db: AsyncSession) -> ChatResponse:
     else:
         raise HTTPException(status_code=400, detail=f"Unknown mode: {request.mode}")
 
-    reply = await minimax_client.chat(messages, temperature=0.4, max_tokens=2048)
+    reply = await minimax_client.chat(messages, temperature=0.4, max_tokens=8192)
     return ChatResponse(message=reply, sources=["L3"], style_match=0.85)
 
 
