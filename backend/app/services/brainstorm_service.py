@@ -223,7 +223,7 @@ async def run_brainstorm_stream(
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ]
-            reply = await minimax_client.chat(messages, temperature=0.6, max_tokens=1024)
+            reply = await minimax_client.chat(messages, temperature=0.6, max_tokens=10000)
 
             msg = BrainstormMessage(
                 id=str(uuid.uuid4()),
@@ -270,7 +270,7 @@ async def run_brainstorm_stream(
             {"role": "system", "content": "You are a professional meeting summary analyst."},
             {"role": "user", "content": summary_prompt},
         ]
-        topic_summary = await minimax_client.chat(summary_messages, temperature=0.3, max_tokens=4096)
+        topic_summary = await minimax_client.chat(summary_messages, temperature=0.3, max_tokens=10000)
 
         # If previous summary exists, combine them
         if session.summary:
@@ -407,7 +407,7 @@ async def run_brainstorm(session_id: str, db: AsyncSession) -> dict:
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},
                 ]
-                reply = await minimax_client.chat(messages, temperature=0.6, max_tokens=1024)
+                reply = await minimax_client.chat(messages, temperature=0.6, max_tokens=10000)
 
                 msg = BrainstormMessage(
                     id=str(uuid.uuid4()),
@@ -444,7 +444,7 @@ async def run_brainstorm(session_id: str, db: AsyncSession) -> dict:
             {"role": "system", "content": "You are a professional meeting summary analyst."},
             {"role": "user", "content": summary_prompt},
         ]
-        topic_summary = await minimax_client.chat(summary_messages, temperature=0.3, max_tokens=4096)
+        topic_summary = await minimax_client.chat(summary_messages, temperature=0.3, max_tokens=10000)
 
         if session.summary:
             combined = session.summary + "\n\n---\n\n" + topic_summary

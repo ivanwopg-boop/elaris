@@ -134,67 +134,39 @@ async def run_group_chat_stream(
 
     user_msg_text = user_message
 
-    round_responses = []
-    for i, persona in enumerate(active_personas):
+    import asyncio
+
+    async def _call_one(persona: dict) -> dict:
+        try:
+            up = GROUP_CHAT_FIRST_PROMPT.format(
+                chat_title=chat.title, user_message=user_msg_text)
+            sp = GROUP_CHAT_SYSTEM_PROMPT.format(
+                persona_name=persona["name"],
+                soul_json=json.dumps(persona["soul"], indent=2, ensure_ascii=False),
+                role=persona["role"])
+            reply = await minimax_client.chat(
+                [{"role": "system", "content": sp}, {"role": "user", "content": up}],
+                temperature=0.5, max_tokens=10000)
+            return {"persona_name": persona["name"], "persona_id": persona["id"], "content": reply}
+        except Exception as e:
+            return {"persona_name": persona["name"], "error": str(e)}
+
+    for persona in active_personas:
         yield {"type": "thinking", "persona_name": persona["name"]}
 
-        # Build context with full conversation history + current round's responses so far
-        context_parts = []
-        if full_history:
-            context_parts.append(f"## Previous Chat History\n{full_history}")
-        if round_responses:
-            context_parts.append("## Responses This Round\n" + "\n\n".join(
-                f"{r['persona_name']}: {r['content']}" for r in round_responses
-            ))
-        context = "\n\n---\n\n".join(context_parts) if context_parts else ""
-
-        if context:
-            user_prompt = GROUP_CHAT_USER_PROMPT.format(
-                chat_title=chat.title,
-                user_message=user_msg_text,
-                context=context,
-            )
-        else:
-            user_prompt = GROUP_CHAT_FIRST_PROMPT.format(
-                chat_title=chat.title,
-                user_message=user_msg_text,
-            )
-
-        system_prompt = GROUP_CHAT_SYSTEM_PROMPT.format(
-            persona_name=persona["name"],
-            soul_json=json.dumps(persona["soul"], indent=2, ensure_ascii=False),
-            role=persona["role"],
-        )
-
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ]
-        try:
-            reply = await minimax_client.chat(messages, temperature=0.5, max_tokens=2048)
-        except Exception as e:
-            yield {"type": "error", "persona_name": persona["name"], "message": str(e)}
-            continue  # skip this persona, move to next
-
+    results = await asyncio.gather(*[_call_one(p) for p in active_personas])
+    for result in results:
+        if "error" in result:
+            yield {"type": "error", "persona_name": result["persona_name"], "message": result["error"]}
+            continue
         msg = GroupChatMessage(
-            id=str(uuid.uuid4()),
-            chat_id=chat_id,
-            sender_type="persona",
-            sender_id=persona["id"],
-            sender_name=persona["name"],
-            content=reply,
-            round_number=round_num,
-            created_at=_now(),
-        )
+            id=str(uuid.uuid4()), chat_id=chat_id, sender_type="persona",
+            sender_id=result["persona_id"], sender_name=result["persona_name"],
+            content=result["content"], round_number=round_num, created_at=_now())
         db.add(msg)
-        round_responses.append({"persona_name": persona["name"], "content": reply})
+        yield {"type": "message", "persona_name": result["persona_name"],
+               "persona_id": result["persona_id"], "content": result["content"]}
 
-        yield {
-            "type": "message",
-            "persona_name": persona["name"],
-            "persona_id": persona["id"],
-            "content": reply,
-        }
 
     await db.flush()
     yield {"type": "done"}
