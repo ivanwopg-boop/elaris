@@ -164,6 +164,13 @@ async def start_brainstorm_blocking(
     db: AsyncSession = Depends(get_db),
 ):
     """Start discussion synchronously."""
+    from app.models.db_models import BrainstormSession as _BS
+    from sqlalchemy import select
+    # Check session status - if already completed, return immediately
+    sr = await db.execute(select(_BS).where(_BS.id == session_id))
+    sess = sr.scalar_one_or_none()
+    if sess and sess.status == "completed":
+        return {"status": "completed"}
     if session_id in _session_locks:
         return {"status": "busy"}
     _session_locks.add(session_id)
