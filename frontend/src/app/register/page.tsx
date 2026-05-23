@@ -83,20 +83,7 @@ function RegisterContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { setAuth } = useAuthStore();
-  const [guestLoading, setGuestLoading] = useState(false);
   const urlCode = searchParams.get('code') || '';
-
-  const handleGuestLogin = async () => {
-    setGuestLoading(true);
-    try {
-      const res = await fetch('/api/v1/auth/guest', { method: 'POST' });
-      const data = await res.json();
-      setAuth(data.access_token, data.user);
-      router.push('/personas');
-    } catch {
-      setGuestLoading(false);
-    }
-  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#FAFAFA] px-4">
@@ -108,19 +95,7 @@ function RegisterContent() {
 
         <CodeInput initialCode={urlCode.toUpperCase()} />
 
-        <div className="mt-6">
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-[rgba(0,0,0,0.06)]"></div>
-            </div>
-            <div className="relative flex justify-center text-xs">
-              <span className="bg-[#FAFAFA] px-3 text-[#86868B] font-light">or</span>
-            </div>
-          </div>
-          <button onClick={handleGuestLogin} disabled={guestLoading} className="w-full py-3.5 bg-white border border-[rgba(0,0,0,0.08)] hover:bg-[rgba(0,0,0,0.02)] disabled:opacity-40 text-[#1D1D1F] text-sm font-light rounded-[10px] transition-colors mt-4">
-            {guestLoading ? 'Signing in...' : 'Continue as Guest'}
-          </button>
-        </div>
+
 
         <div className="mt-6 text-center">
           <Link href="/login" className="text-xs text-[#86868B] hover:text-[#6E6E73] font-light">
