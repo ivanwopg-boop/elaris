@@ -150,7 +150,13 @@ export default function GroupChatRoom() {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: text }),
       });
-      // Stop polling; messages already committed, polling picked them up
+      // Fetch updated messages
+      const updated = await api.getGroupChat(id);
+      if (updated.messages.length > lastCount.current) {
+        const newMsgs = updated.messages.slice(lastCount.current);
+        lastCount.current = updated.messages.length;
+        setAllMsgs((prev) => [...prev, ...newMsgs]);
+      }
       if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
     } catch {}
     setSending(false); setThinking(null);
@@ -234,7 +240,7 @@ export default function GroupChatRoom() {
                       .then(async () => {
                         const d = await api.getGroupChat(chat.id);
                         setChat(d.chat); setAllMsgs(d.messages); lastCount.current = d.messages.length;
-                        setPersonaNameMap((prev) => ({ ...prev, [p.id]: p.name }));
+                        setPersonaNameMap((prev) => ({ ...prev, [p.id]: { name: p.name, avatar_url: p.avatar_url } }));
                         setShowInvite(false);
                       })
                       .catch((err) => alert("Invite failed: " + (err?.detail || "Unknown error")))
