@@ -6,11 +6,11 @@ import Link from 'next/link';
 import { api } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
 
-function CodeInput() {
+function CodeInput({ initialCode }: { initialCode: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { setAuth } = useAuthStore();
-  const [code, setCode] = useState('');
+  const [code, setCode] = useState(initialCode || '');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -69,6 +69,21 @@ function CodeInput() {
 
 export default function RegisterPage() {
   return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-[#FAFAFA] px-4">
+        <div className="text-center text-[#86868B] text-sm font-light py-8">Loading...</div>
+      </div>
+    }>
+      <RegisterContent />
+    </Suspense>
+  );
+}
+
+function RegisterContent() {
+  const searchParams = useSearchParams();
+  const urlCode = searchParams.get('code') || '';
+
+  return (
     <div className="min-h-screen flex items-center justify-center bg-[#FAFAFA] px-4">
       <div className="w-full max-w-[300px]">
         <div className="text-center mb-16">
@@ -76,11 +91,7 @@ export default function RegisterPage() {
           <p className="text-xs text-[#86868B] font-light tracking-wide">Activate Invite Code · 30-Day Premium</p>
         </div>
 
-        <Suspense fallback={
-          <div className="text-center text-[#86868B] text-sm font-light py-8">Loading...</div>
-        }>
-          <CodeInput />
-        </Suspense>
+        <CodeInput initialCode={urlCode.toUpperCase()} />
 
         <div className="mt-12 text-center">
           <Link href="/login" className="text-xs text-[#86868B] hover:text-[#6E6E73] font-light">
