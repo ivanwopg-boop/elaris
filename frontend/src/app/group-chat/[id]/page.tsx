@@ -151,7 +151,11 @@ export default function GroupChatRoom() {
         body: JSON.stringify({ message: text }),
       });
       const d = await api.getGroupChat(id);
-      if (d.messages.length > lastCount.current) { lastCount.current = d.messages.length; }
+      if (d.messages.length > lastCount.current) {
+        const newMsgs = d.messages.slice(lastCount.current);
+        lastCount.current = d.messages.length;
+        setAllMsgs((prev) => [...prev, ...newMsgs]);
+      }
     } catch {}
     setSending(false); setThinking(null);
   };
