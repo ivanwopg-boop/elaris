@@ -24,36 +24,20 @@ export default function Navbar() {
           Elaris
         </Link>
         <div className="flex items-center gap-8">
-          {token && user ? (
-            <>
-              <span className="text-sm font-light text-[#6E6E73]">
-                {user.name || user.email}
-              </span>
-              <Link href="/personas" className="text-sm font-light text-[#6E6E73] hover:text-[#1D1D1F] transition-colors">
-                Personas
-              </Link>
-              <Link href="/brainstorms" className="text-sm font-light text-[#6E6E73] hover:text-[#1D1D1F] transition-colors">
-                Brainstorm
-              </Link>
-              <Link href="/group-chat" className="text-sm font-light text-[#6E6E73] hover:text-[#1D1D1F] transition-colors">
-                Group Chat
-              </Link>
-              <button onClick={handleLogout}
-                className="text-sm font-light text-[#86868B] hover:text-[#1D1D1F] transition-colors">
-                Log out
-              </button>
-            </>
-          ) : (
-            <>
-              <Link href="/login" className="text-sm font-light text-[#6E6E73] hover:text-[#1D1D1F] transition-colors">
-                Log in
-              </Link>
-              <Link href="/register"
-                className="text-sm font-light bg-[#1D1D1F] hover:bg-[#2a2a2e] text-white px-4 py-1.5 rounded-[8px] transition-colors">
-                Register
-              </Link>
-            </>
-          )}
+          <>
+            <span className="text-sm font-light text-[#6E6E73]">
+              {user?.name || ''}
+            </span>
+            <Link href="/personas" className="text-sm font-light text-[#6E6E73] hover:text-[#1D1D1F] transition-colors">
+              Personas
+            </Link>
+            <Link href="/brainstorms" className="text-sm font-light text-[#6E6E73] hover:text-[#1D1D1F] transition-colors">
+              Brainstorm
+            </Link>
+            <Link href="/group-chat" className="text-sm font-light text-[#6E6E73] hover:text-[#1D1D1F] transition-colors">
+              Group Chat
+            </Link>
+          </>
         </div>
       </div>
     </nav>

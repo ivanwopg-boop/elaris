@@ -221,6 +221,34 @@ async def generate_code(
 
 
     return response
+
+
+@router.post("/guest")
+async def guest_login(db: AsyncSession = Depends(get_db)):
+    """Create a temporary guest account (no invite code needed)."""
+    uid = str(uuid.uuid4())
+    now = datetime.now(timezone.utc)
+    name = f"Guest_{uid[:8]}"
+    user = User(
+        id=uid,
+        email=f"guest-{uid}@elaris.app",
+        name=name,
+        tier="premium",
+        provider="guest",
+        created_at=now,
+    )
+    db.add(user)
+    await db.flush()
+    access_token = create_access_token(uid, "premium")
+    return TokenResponse(
+        access_token=access_token,
+        user=AuthResponse(
+            id=user.id, email=user.email, name=user.name,
+            tier=user.tier, avatar_url=user.avatar_url,
+        )
+    )
+
+
 @router.get("/admin/invite")
 async def invite_management_page(
     db: AsyncSession = Depends(get_db),
