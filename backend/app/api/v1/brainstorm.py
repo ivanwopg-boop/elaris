@@ -161,11 +161,15 @@ async def brainstorm_sse(
     user: User = Depends(require_premium),
     db: AsyncSession = Depends(get_db),
 ):
-    """SSE endpoint - immediately sends 'done', frontend closes connection. No reconnect loop."""
+    """SSE - sends done then keeps alive. Prevents browser reconnect."""
     from fastapi.responses import StreamingResponse
+    import asyncio
 
     async def event_gen():
         yield "event: done\ndata: {}\n\n"
+        while True:
+            yield ": heartbeat\n\n"
+            await asyncio.sleep(15)
 
     return StreamingResponse(event_gen(), media_type="text/event-stream")
 
