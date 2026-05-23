@@ -268,58 +268,116 @@ async def guest_login_get(db: AsyncSession = Depends(get_db)):
     response.set_cookie(key="access_token", value=access_token, max_age=60*60*24*7, httponly=True, path="/")
     return response
 @router.get("/admin/invite")
-async def generate_invite_page(
-    max_uses: int = 99,
-    tier: str = "premium",
+async def invite_management_page(
     db: AsyncSession = Depends(get_db),
 ):
-    """Generate an invite code and render an HTML page."""
-    code = generate_invite_code()
-    ic = InviteCode(code=code, tier=tier, max_uses=max_uses)
-    db.add(ic)
-    await db.flush()
+    """Invite code management page. Lists all codes + generate button."""
+    from fastapi.responses import HTMLResponse
+    from sqlalchemy import select, func
+    
+    # Get all invite codes
+    result = await db.execute(
+        select(InviteCode).order_by(InviteCode.created_at.desc())
+    )
+    codes = result.scalars().all()
+    
+    # Build code rows HTML
+    rows = ""
+    for c in codes:
+        remaining = c.max_uses - (c.used_count or 0)
+        expired = c.expires_at and c.expires_at < datetime.now(timezone.utc)
+        status = "expired" if expired else f"{remaining} left"
+        rows += f'''
+        <tr>
+            <td style="font-family:monospace;letter-spacing:0.1em;font-size:13px">{c.code}</td>
+            <td><span style="background:#0071e3;color:#fff;font-size:10px;padding:2px 10px;border-radius:10px">{c.tier.upper()}</span></td>
+            <td style="font-size:12px;color:#6e6e73">{c.used_count or 0}/{c.max_uses}</td>
+            <td style="font-size:12px">{status}</td>
+            <td><button onclick="copy('{c.code}')" style="background:none;border:1px solid rgba(0,0,0,0.08);border-radius:6px;padding:4px 12px;font-size:11px;cursor:pointer;color:#0071e3">Copy</button></td>
+            <td><a href="/register?code={c.code}" style="color:#0071e3;font-size:11px;text-decoration:none" target="_blank">Register →</a></td>
+        </tr>'''
+    
     html = f"""<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Elaris - 邀请码</title>
+<title>Elaris - Manage Invite Codes</title>
 <style>
 * {{ margin:0; padding:0; box-sizing:border-box; }}
-body {{ font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:#f5f5f7; display:flex; justify-content:center; align-items:center; min-height:100vh; }}
-.card {{ background:#fff; border-radius:16px; padding:40px; max-width:440px; width:90%; text-align:center; box-shadow:0 1px 3px rgba(0,0,0,0.08); }}
-h2 {{ font-weight:300; font-size:22px; color:#1d1d1f; margin-bottom:24px; letter-spacing:0.08em; }}
-.code {{ font-size:32px; font-weight:400; letter-spacing:0.15em; color:#1d1d1f; background:#f5f5f7; padding:16px 20px; border-radius:10px; margin:20px 0; font-family:"SF Mono",Menlo,monospace; }}
-.badge {{ display:inline-block; background:#0071e3; color:#fff; font-size:12px; font-weight:500; padding:4px 12px; border-radius:20px; margin-bottom:16px; }}
-.desc {{ font-size:13px; color:#6e6e73; margin-bottom:24px; line-height:1.5; }}
-.btn {{ display:inline-block; background:#1d1d1f; color:#fff; padding:12px 28px; border-radius:10px; text-decoration:none; font-size:14px; font-weight:400; transition:background 0.2s; }}
+body {{ font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:#f5f5f7; color:#1d1d1f; }}
+.nav {{ background:#fff; border-bottom:1px solid rgba(0,0,0,0.06); padding:14px 24px; display:flex; align-items:center; justify-content:space-between; }}
+.nav h1 {{ font-size:16px; font-weight:300; letter-spacing:0.15em; text-transform:uppercase; }}
+.nav a {{ font-size:12px; color:#0071e3; text-decoration:none; }}
+.container {{ max-width:800px; margin:0 auto; padding:24px; }}
+.card {{ background:#fff; border-radius:12px; border:1px solid rgba(0,0,0,0.04); padding:24px; margin-bottom:20px; }}
+h2 {{ font-size:18px; font-weight:300; margin-bottom:4px; }}
+.sub {{ font-size:12px; color:#6e6e73; margin-bottom:20px; }}
+.btn {{ background:#1d1d1f; color:#fff; padding:10px 24px; border-radius:10px; border:none; font-size:13px; cursor:pointer; }}
 .btn:hover {{ background:#2a2a2e; }}
-.copy {{ display:inline-block; margin-top:12px; font-size:13px; color:#0071e3; cursor:pointer; background:none; border:none; text-decoration:underline; }}
-.copy:active {{ opacity:0.6; }}
-.toast {{ position:fixed; bottom:40px; left:50%; transform:translateX(-50%); background:#1d1d1f; color:#fff; padding:10px 24px; border-radius:8px; font-size:13px; opacity:0; transition:opacity 0.3s; }}
+.btn:disabled {{ opacity:0.4; cursor:not-allowed; }}
+table {{ width:100%; border-collapse:collapse; }}
+th {{ font-size:11px; color:#6e6e73; font-weight:400; text-align:left; padding:8px 4px; border-bottom:1px solid rgba(0,0,0,0.06); }}
+td {{ padding:10px 4px; border-bottom:1px solid rgba(0,0,0,0.04); }}
+tr:hover td {{ background:rgba(0,0,0,0.02); }}
+.toast {{ position:fixed; bottom:40px; left:50%; transform:translateX(-50%); background:#1d1d1f; color:#fff; padding:8px 20px; border-radius:8px; font-size:13px; opacity:0; transition:opacity 0.3s; pointer-events:none; }}
 .toast.show {{ opacity:1; }}
+.empty {{ text-align:center; padding:40px; font-size:13px; color:#6e6e73; }}
+@media(max-width:600px) {{ table {{ font-size:12px; }} th,td {{ padding:6px 2px; }} }}
 </style>
 </head>
 <body>
-<div class="card">
-<h2>Elaris</h2>
-<div class="badge">{tier.upper()}</div>
-<div class="code" id="code">{code}</div>
-<p class="desc">剩余次数：{max_uses} 次</p>
-<a class="btn" href="/register?code={code}">使用此邀请码注册</a>
-<button class="copy" onclick="copyCode()">复制邀请码</button>
+<div class="nav"><h1>Elaris</h1><a href="/">← Back</a></div>
+<div class="container">
+<div class="card" style="text-align:center">
+<h2>Invite Codes</h2>
+<p class="sub">Generate a new invite code for premium access</p>
+<button class="btn" id="genBtn" onclick="generate()">Generate New Code</button>
+<div id="result" style="margin-top:12px;display:none"></div>
 </div>
-<div class="toast" id="toast">已复制</div>
+<div class="card" style="padding:16px 24px">
+<table>
+<thead><tr><th>Code</th><th>Tier</th><th>Used</th><th>Status</th><th></th><th></th></tr></thead>
+<tbody id="codes">
+{rows}
+</tbody>
+</table>
+{"""<div class="empty">No invite codes yet</div>""" if not codes else ""}
+</div>
+</div>
+<div class="toast" id="toast">Copied</div>
 <script>
-function copyCode() {{
-  navigator.clipboard.writeText(document.getElementById('code').textContent).then(() => {{
-    const t = document.getElementById('toast');
-    t.classList.add('show');
-    setTimeout(() => t.classList.remove('show'), 2000);
+function copy(t) {{
+  navigator.clipboard.writeText(t).then(() => {{
+    const el = document.getElementById('toast');
+    el.textContent = 'Copied!';
+    el.classList.add('show');
+    setTimeout(() => el.classList.remove('show'), 1500);
   }});
+}}
+
+async function generate() {{
+  const btn = document.getElementById('genBtn');
+  const res = document.getElementById('result');
+  btn.disabled = true;
+  btn.textContent = 'Generating...';
+  try {{
+    const r = await fetch('/api/v1/auth/admin/invite-codes', {{ method: 'POST', headers: {{ 'Content-Type': 'application/json' }}, body: JSON.stringify({{}}) }});
+    const d = await r.json();
+    res.style.display = 'block';
+    res.innerHTML = '<div style="font-family:monospace;font-size:18px;letter-spacing:0.15em;padding:10px;background:#f5f5f7;border-radius:8px;margin-bottom:8px">' + d.code + '</div>'
+      + '<a href="/register?code=' + d.code + '" style="font-size:13px;color:#0071e3;text-decoration:none">Register link →</a>'
+      + '<br><button onclick="copy(\'' + d.code + '\')" style="background:none;border:1px solid rgba(0,0,0,0.08);border-radius:6px;padding:6px 16px;font-size:12px;cursor:pointer;color:#0071e3;margin-top:6px">Copy code</button>';
+    location.reload();
+  }} catch(e) {{
+    res.style.display = 'block';
+    res.innerHTML = 'Error: ' + e.message;
+  }} finally {{
+    btn.disabled = false;
+    btn.textContent = 'Generate New Code';
+  }}
 }}
 </script>
 </body>
 </html>"""
-    from fastapi.responses import HTMLResponse
-    return HTMLResponse(content=html, status_code=200)
+    return HTMLResponse(content=html)
