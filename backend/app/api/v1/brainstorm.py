@@ -110,49 +110,11 @@ async def _sse_event(event_name: str, data: dict) -> str:
     return f"event: {event_name}\ndata: {payload}\n\n"
 
 
-async def brainstorm_sse_generator(session_id: str, db: AsyncSession, topic: str | None, user: User | None = None):
-    """
-    Async generator that yields SSE-formatted strings from run_brainstorm_stream.
-    Also handles adding the topic to the session before starting.
-    """
-    # Load session
-    uid = user.id if user else None
-    if uid:
-        result = await db.execute(select(BrainstormSession).where(BrainstormSession.id == session_id, BrainstormSession.user_id == uid))
-    else:
-        result = await db.execute(select(BrainstormSession).where(BrainstormSession.id == session_id))
-    session = result.scalar_one_or_none()
-    if not session:
-        async for chunk in _error_sse("Session not found"):
-            yield chunk
-        return
-
-    topics = json.loads(session.topics)
-    if not topics and topic:
-        topics.append({"title": topic, "detail": ""})
-        session.topics = json.dumps(topics, ensure_ascii=False)
-        await db.flush()
-    elif not topics:
-        async for chunk in _error_sse("No topic to discuss. Provide a topic."):
-            yield chunk
-        return
-
-    async for event in run_brainstorm_stream(session_id, db):
-        ev_type = event.pop("type", None)
-        if ev_type == "topic_set":
-            yield await _sse_event("topic_set", event)
-        elif ev_type == "turn_start":
-            yield await _sse_event("turn_start", event)
-        elif ev_type == "thinking":
-            yield await _sse_event("thinking", event)
-        elif ev_type == "message":
-            yield await _sse_event("message", event)
-        elif ev_type == "summary":
-            yield await _sse_event("summary", event)
-        elif ev_type == "done":
-            yield await _sse_event("done", event)
-        elif ev_type == "error":
-            yield await _sse_event("error", event)
+async def brainstorm_sse_generator(session_id: str, db: AsyncSession, topic: str | None = None, user: User | None = None):
+    """SSE endpoint - 204 No Content prevents browser reconnect. Use start-blocking + polling."""
+    from fastapi.responses import Response
+    # This generator won't be used - see brainstorm_sse below
+    yield await _sse_event("done", {})
 
 
 # ── In-memory set to track running discussions ──
