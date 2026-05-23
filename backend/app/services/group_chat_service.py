@@ -150,10 +150,14 @@ async def run_group_chat_stream(
                 persona_name=persona["name"],
                 soul_json=json.dumps(persona["soul"], indent=2, ensure_ascii=False),
                 role=persona["role"])
-            reply = await minimax_client.chat(
-                [{"role": "system", "content": sp}, {"role": "user", "content": up}],
-                temperature=0.5, max_tokens=10000)
+            reply = await asyncio.wait_for(
+                minimax_client.chat(
+                    [{"role": "system", "content": sp}, {"role": "user", "content": up}],
+                    temperature=0.5, max_tokens=10000),
+                timeout=45)
             return {"persona_name": persona["name"], "persona_id": persona["id"], "content": reply}
+        except asyncio.TimeoutError:
+            return {"persona_name": persona["name"], "error": "Timed out after 45s"}
         except Exception as e:
             return {"persona_name": persona["name"], "error": str(e)}
 
