@@ -252,7 +252,9 @@ async def start_brainstorm(
 async def list_brainstorms(user: User = Depends(require_premium), db: AsyncSession = Depends(get_db)):
     """List all brainstorm sessions."""
     result = await db.execute(
-        select(BrainstormSession).order_by(BrainstormSession.created_at.desc())
+        select(BrainstormSession)
+        .where(BrainstormSession.user_id == user.id)
+        .order_by(BrainstormSession.created_at.desc())
     )
     sessions = result.scalars().all()
     outs = []
