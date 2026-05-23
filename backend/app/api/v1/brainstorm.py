@@ -161,32 +161,10 @@ async def brainstorm_sse(
     user: User = Depends(require_premium),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    SSE endpoint for real-time brainstorm streaming.
-    Connects to the stream and receives events as they happen.
+    """SSE endpoint - returns 204 to prevent browser reconnect. Use start-blocking + polling."""
+    from fastapi.responses import Response
+    return Response(status_code=204)
 
-    Query params:
-      - topic: optional topic string; added to session if no topics exist yet
-
-    SSE events:
-      - topic_set    { title, detail }
-      - round_start  { round }
-      - thinking     { persona_name, round }
-      - message      { persona_name, content, round }
-      - round_end    { round }
-      - summary      { text }
-      - done         {}
-      - error        { message }
-    """
-    return StreamingResponse(
-        brainstorm_sse_generator(session_id, db, topic, user),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-        },
-    )
 
 
 @router.post("/{session_id}/start")
