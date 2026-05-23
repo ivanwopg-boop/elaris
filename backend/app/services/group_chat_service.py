@@ -157,9 +157,9 @@ async def run_group_chat_stream(
                 timeout=45)
             return {"persona_name": persona["name"], "persona_id": persona["id"], "content": reply}
         except asyncio.TimeoutError:
-            return {"persona_name": persona["name"], "error": "Timed out after 45s"}
+            return {"persona_name": persona["name"], "persona_id": persona["id"], "content": f"（{persona['name']}正在思考中...）"}
         except Exception as e:
-            return {"persona_name": persona["name"], "error": str(e)}
+            return {"persona_name": persona["name"], "persona_id": persona["id"], "content": f"（{persona['name']}暂时无法回应）"}
 
     for persona in active_personas:
         yield {"type": "thinking", "persona_name": persona["name"]}
@@ -167,9 +167,6 @@ async def run_group_chat_stream(
     tasks = [_call_one(p) for p in active_personas]
     for coro in asyncio.as_completed(tasks):
         result = await coro
-        if "error" in result:
-            yield {"type": "error", "persona_name": result["persona_name"], "message": result["error"]}
-            continue
         msg = GroupChatMessage(
             id=str(uuid.uuid4()), chat_id=chat_id, sender_type="persona",
             sender_id=result["persona_id"], sender_name=result["persona_name"],
