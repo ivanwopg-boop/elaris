@@ -86,6 +86,7 @@ async def get_group_chat(chat_id: str, user: User = Depends(require_premium), db
 async def group_chat_send_blocking(
     chat_id: str,
     data: GroupChatSendRequest,
+    user: User = Depends(require_premium),
     db: AsyncSession = Depends(get_db),
 ):
     """Save user message + run all persona responses synchronously."""
@@ -142,12 +143,15 @@ async def group_chat_sse(chat_id: str, message: str, user: User = Depends(requir
 async def group_chat_invite(
     chat_id: str,
     data: GroupChatInviteRequest,
+    user: User = Depends(require_premium),
     db: AsyncSession = Depends(get_db),
 ):
     """Invite a persona to the group chat."""
     result = await db.execute(select(GroupChat).where(GroupChat.id == chat_id))
     chat = result.scalar_one_or_none()
     if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+    if chat.user_id != user.id:
         raise HTTPException(status_code=404, detail="Chat not found")
 
     # Load persona
@@ -186,12 +190,15 @@ async def group_chat_invite(
 async def remove_persona(
     chat_id: str,
     persona_id: str,
+    user: User = Depends(require_premium),
     db: AsyncSession = Depends(get_db),
 ):
     """Remove a persona from the group chat."""
     result = await db.execute(select(GroupChat).where(GroupChat.id == chat_id))
     chat = result.scalar_one_or_none()
     if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+    if chat.user_id != user.id:
         raise HTTPException(status_code=404, detail="Chat not found")
 
     current_ids = json.loads(chat.persona_ids)

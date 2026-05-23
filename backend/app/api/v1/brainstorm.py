@@ -52,7 +52,7 @@ async def add_topic_to_session(
     db: AsyncSession = Depends(get_db),
 ):
     """Add a new topic to an existing session."""
-    result = await db.execute(select(BrainstormSession).where(BrainstormSession.id == session_id))
+    result = await db.execute(select(BrainstormSession).where(BrainstormSession.id == session_id, BrainstormSession.user_id == user.id))
     session = result.scalar_one_or_none()
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -118,7 +118,7 @@ async def brainstorm_sse_generator(session_id: str, db: AsyncSession, topic: str
     # Load session
     result = await db.execute(select(BrainstormSession).where(BrainstormSession.id == session_id))
     session = result.scalar_one_or_none()
-    if not session:
+    if not session or session.user_id != user.id:
         async for chunk in _error_sse("Session not found"):
             yield chunk
         return
@@ -164,11 +164,16 @@ _session_locks: set[str] = set()
 @router.post("/{session_id}/start-blocking")
 async def start_brainstorm_blocking(
     session_id: str,
+    user: User = Depends(require_premium),
     db: AsyncSession = Depends(get_db),
 ):
     """Start discussion synchronously."""
     if session_id in _session_locks:
         return {"status": "busy", "message": "Already running"}
+    # Check ownership
+    sr = await db.execute(select(BrainstormSession).where(BrainstormSession.id == session_id, BrainstormSession.user_id == user.id))
+    if not sr.scalar_one_or_none():
+        return {"status": "error", "message": "Session not found"}
     _session_locks.add(session_id)
     try:
         async for _ in run_brainstorm_stream(session_id, db):
@@ -188,6 +193,7 @@ async def _error_sse(message: str):
 async def brainstorm_sse(
     session_id: str,
     topic: str | None = None,
+    user: User = Depends(require_premium),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -222,6 +228,7 @@ async def brainstorm_sse(
 async def start_brainstorm(
     session_id: str,
     data: BrainstormStartRequest = BrainstormStartRequest(),
+    user: User = Depends(require_premium),
     db: AsyncSession = Depends(get_db),
 ):
     """

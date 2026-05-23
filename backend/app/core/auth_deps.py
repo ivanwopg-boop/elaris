@@ -1,7 +1,5 @@
 """Auth dependencies for FastAPI routes."""
 
-import uuid
-from datetime import datetime, timezone
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,7 +7,7 @@ from sqlalchemy import select
 
 from app.database import get_db
 from app.models.db_models import User
-from app.core.auth import decode_token, create_access_token
+from app.core.auth import decode_token
 
 security = HTTPBearer(auto_error=False)
 
@@ -42,32 +40,16 @@ async def get_current_user(
     return result.scalar_one_or_none()
 
 
-def _make_guest(db: AsyncSession) -> User:
-    """Create a temporary guest user in DB."""
-    uid = str(uuid.uuid4())
-    now = datetime.now(timezone.utc)
-    guest = User(
-        id=uid,
-        email=f"guest-{uid}@elaris.app",
-        name=f"Guest_{uid[:8]}",
-        tier="premium",
-        provider="guest",
-        created_at=now,
-    )
-    db.add(guest)
-    return guest
-
-
 async def require_auth(
     user: User | None = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
 ) -> User:
-    """Return current user, or auto-create a guest."""
-    if user:
-        return user
-    guest = _make_guest(db)
-    await db.flush()
-    return guest
+    """Require authentication. Returns 401 if not logged in."""
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Please log in first",
+        )
+    return user
 
 
 def require_tier(required_tier: str):
