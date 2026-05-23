@@ -150,12 +150,8 @@ export default function GroupChatRoom() {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: text }),
       });
-      const d = await api.getGroupChat(id);
-      if (d.messages.length > lastCount.current) {
-        const newMsgs = d.messages.slice(lastCount.current);
-        lastCount.current = d.messages.length;
-        setAllMsgs((prev) => [...prev, ...newMsgs]);
-      }
+      // Stop polling; messages already committed, polling picked them up
+      if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
     } catch {}
     setSending(false); setThinking(null);
   };
