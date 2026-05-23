@@ -62,8 +62,18 @@ async def get_group_chat(chat_id: str, user: User = Depends(require_premium), db
     )
     messages = msg_result.scalars().all()
 
+    # Build persona name map for @ mentions
+    from app.models.db_models import Persona as _Persona
+    pids = json.loads(chat.persona_ids)
+    pname_map: dict[str, str] = {}
+    for pid in pids:
+        pr = await db.execute(select(_Persona).where(_Persona.id == pid))
+        pp = pr.scalar_one_or_none()
+        if pp and pp.name:
+            pname_map[pid] = pp.name
+
     return GroupChatDetail(
-        chat=_chat_to_out(chat, mc.scalar() or 0),
+        chat=_chat_to_out(chat, mc.scalar() or 0, pname_map),
         messages=[GroupChatMessageOut(
             id=m.id, chat_id=m.chat_id, sender_type=m.sender_type,
             sender_id=m.sender_id, sender_name=m.sender_name,
@@ -225,11 +235,12 @@ async def delete_group_chat(chat_id: str, user: User = Depends(require_premium),
     await db.flush()
 
 
-def _chat_to_out(chat: GroupChat, msg_count: int = 0) -> GroupChatOut:
+def _chat_to_out(chat: GroupChat, msg_count: int = 0, pname_map: dict[str, str] | None = None) -> GroupChatOut:
     return GroupChatOut(
         id=chat.id, title=chat.title,
         persona_ids=json.loads(chat.persona_ids),
         persona_roles=json.loads(chat.persona_roles) if chat.persona_roles else {},
+        persona_names=pname_map or {},
         status=chat.status, message_count=msg_count,
         created_at=chat.created_at, updated_at=chat.updated_at,
     )

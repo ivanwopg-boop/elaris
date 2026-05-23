@@ -65,7 +65,12 @@ export default function GroupChatRoom() {
   useEffect(() => {
     api.getGroupChat(id).then(async (d) => {
       setChat(d.chat); setAllMsgs(d.messages); lastCount.current = d.messages.length;
+      // Build name map from API response + messages
       const nameMap: Record<string, {name: string; avatar_url?: string}> = {};
+      const pnames = d.chat.persona_names || {};
+      Object.entries(pnames).forEach(([pid, name]) => {
+        nameMap[pid] = { name: name as string };
+      });
       d.messages.forEach((m: any) => {
         if (m.sender_type === "persona" && m.sender_id && m.sender_name) {
           nameMap[m.sender_id] = { name: m.sender_name, avatar_url: m.avatar_url };
@@ -74,16 +79,6 @@ export default function GroupChatRoom() {
           if (match) { const pid = m.sender_id || m.sender_name; if (!nameMap[pid]) nameMap[pid] = { name: match[1] }; }
         }
       });
-      const missingIds = d.chat.persona_ids.filter((pid: string) => !nameMap[pid]);
-      if (missingIds.length > 0) {
-        try {
-          const allP = await api.listPersonas();
-          missingIds.forEach((pid: string) => {
-            const p = allP.find((x: any) => x.id === pid);
-            if (p?.name) nameMap[pid] = { name: p.name, avatar_url: p.avatar_url || undefined };
-          });
-        } catch {}
-      }
       setPersonaNameMap(nameMap);
       setFreshIds(new Set());
     }).catch(() => router.push("/group-chat")).finally(() => setLoading(false));

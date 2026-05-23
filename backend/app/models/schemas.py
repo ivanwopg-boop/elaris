@@ -267,6 +267,7 @@ class GroupChatOut(BaseModel):
     title: str
     persona_ids: list[str]
     persona_roles: dict[str, str]
+    persona_names: dict[str, str] = {}  # pid -> name for @ list
     status: str
     message_count: int = 0
     created_at: datetime
