@@ -1,7 +1,8 @@
 """Pydantic schemas for request / response validation."""
 
 from datetime import datetime
-from pydantic import BaseModel, Field
+from typing import Any
+from pydantic import BaseModel, field_validator, Field
 
 
 # ── PersonaProfile (soul_json structure) ─────────────────
@@ -38,6 +39,15 @@ class MentalModel(BaseModel):
     evidence: list[str] = []  # At least 2 cross-domain pieces of evidence
     application: str = ""  # What scenario to use it in
     limitation: str = ""  # When it fails
+
+    @field_validator("evidence", mode="before")
+    @classmethod
+    def coerce_evidence(cls, v: Any) -> list[str]:
+        if isinstance(v, str):
+            return [v]
+        if isinstance(v, list):
+            return v
+        return []
 
 
 class ExpressionDNA(BaseModel):
