@@ -246,7 +246,7 @@ async def guest_login(db: AsyncSession = Depends(get_db)):
     )
 
 
-@router.get("/guest")
+@router.get("/guest-login")
 async def guest_login_get(db: AsyncSession = Depends(get_db)):
     """Guest login via GET (sets cookie, redirects to /personas). No JS needed."""
     uid = str(uuid.uuid4())

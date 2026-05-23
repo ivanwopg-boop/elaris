@@ -1,5 +1,7 @@
 """Auth dependencies for FastAPI routes."""
 
+import uuid
+from datetime import datetime, timezone
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -7,7 +9,7 @@ from sqlalchemy import select
 
 from app.database import get_db
 from app.models.db_models import User
-from app.core.auth import decode_token
+from app.core.auth import decode_token, create_access_token
 
 security = HTTPBearer(auto_error=False)
 
@@ -20,10 +22,8 @@ async def get_current_user(
     """Get current user from JWT token (cookie or Bearer header)."""
     token = None
 
-    # Try Bearer token first
     if credentials:
         token = credentials.credentials
-    # Fallback to cookie
     elif request and "access_token" in request.cookies:
         token = request.cookies["access_token"]
 
@@ -42,20 +42,36 @@ async def get_current_user(
     return result.scalar_one_or_none()
 
 
+def _make_guest(db: AsyncSession) -> User:
+    """Create a temporary guest user in DB."""
+    uid = str(uuid.uuid4())
+    now = datetime.now(timezone.utc)
+    guest = User(
+        id=uid,
+        email=f"guest-{uid}@elaris.app",
+        name=f"Guest_{uid[:8]}",
+        tier="premium",
+        provider="guest",
+        created_at=now,
+    )
+    db.add(guest)
+    return guest
+
+
 async def require_auth(
     user: User | None = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ) -> User:
-    """Require authentication. Raises 401 if not logged in."""
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Please log in first",
-        )
-    return user
+    """Return current user, or auto-create a guest."""
+    if user:
+        return user
+    guest = _make_guest(db)
+    await db.flush()
+    return guest
 
 
 def require_tier(required_tier: str):
-    """Require a specific tier (premium). Use as Depends(require_tier("premium"))."""
+    """Require a specific tier (premium)."""
     async def _check(user: User = Depends(require_auth)) -> User:
         tier_order = {"free": 0, "premium": 1, "admin": 2}
         user_level = tier_order.get(user.tier, 0)
