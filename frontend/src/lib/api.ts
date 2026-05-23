@@ -165,6 +165,7 @@ export const api = {
     topic_detail?: string;
     persona_ids: string[];
     persona_roles: Record<string, string>;
+  persona_names?: Record<string, string>;
     max_rounds?: number;
   }) =>
     api.request<BrainstormSessionOut>("/brainstorm", {
@@ -310,6 +311,7 @@ export interface BrainstormSessionOut {
   topics: { title: string; detail: string }[];
   persona_ids: string[];
   persona_roles: Record<string, string>;
+  persona_names?: Record<string, string>;
   max_rounds: number;
   status: string;
   completed_rounds: number;
@@ -340,6 +342,7 @@ export interface GroupChatOut {
   title: string;
   persona_ids: string[];
   persona_roles: Record<string, string>;
+  persona_names?: Record<string, string>;
   status: string;
   message_count: number;
   created_at: string;

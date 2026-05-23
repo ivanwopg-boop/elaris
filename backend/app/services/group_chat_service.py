@@ -136,60 +136,46 @@ async def run_group_chat_stream(
 
     import asyncio
 
-    async def _call_one(persona: dict, use_context: bool) -> dict:
-        """Call API for one persona."""
+    async def _call_one(persona: dict) -> dict:
         try:
-            if use_context and full_history:
+            if full_history:
                 up = GROUP_CHAT_USER_PROMPT.format(
                     chat_title=chat.title,
                     user_message=user_msg_text,
-                    context=f"## Previous Chat History\n{full_history}",
-                )
+                    context=f"## Previous Chat History\n{full_history}")
             else:
                 up = GROUP_CHAT_FIRST_PROMPT.format(
-                    chat_title=chat.title,
-                    user_message=user_msg_text,
-                )
+                    chat_title=chat.title, user_message=user_msg_text)
             sp = GROUP_CHAT_SYSTEM_PROMPT.format(
                 persona_name=persona["name"],
                 soul_json=json.dumps(persona["soul"], indent=2, ensure_ascii=False),
-                role=persona["role"],
-            )
-            reply = await minimax_client.chat(
-                [{"role": "system", "content": sp}, {"role": "user", "content": up}],
-                temperature=0.5, max_tokens=10000,
-            )
+                role=persona["role"])
+            reply = await asyncio.wait_for(
+                minimax_client.chat(
+                    [{"role": "system", "content": sp}, {"role": "user", "content": up}],
+                    temperature=0.5, max_tokens=10000),
+                timeout=45)
             return {"persona_name": persona["name"], "persona_id": persona["id"], "content": reply}
+        except asyncio.TimeoutError:
+            return {"persona_name": persona["name"], "persona_id": persona["id"], "content": f"（{persona['name']}正在思考中...）"}
         except Exception as e:
-            return {"persona_name": persona["name"], "error": str(e)}
+            return {"persona_name": persona["name"], "persona_id": persona["id"], "content": f"（{persona['name']}暂时无法回应）"}
 
-    # Yield thinking for all personas, then launch all API calls in parallel
     for persona in active_personas:
         yield {"type": "thinking", "persona_name": persona["name"]}
 
-    tasks = [_call_one(p, True) for p in active_personas]
-    results = await asyncio.gather(*tasks)
-    for result in results:
-        if "error" in result:
-            yield {"type": "error", "persona_name": result["persona_name"], "message": result["error"]}
-            continue
+    tasks = [_call_one(p) for p in active_personas]
+    for coro in asyncio.as_completed(tasks):
+        result = await coro
         msg = GroupChatMessage(
-            id=str(uuid.uuid4()),
-            chat_id=chat_id,
-            sender_type="persona",
-            sender_id=result["persona_id"],
-            sender_name=result["persona_name"],
-            content=result["content"],
-            round_number=round_num,
-            created_at=_now(),
-        )
+            id=str(uuid.uuid4()), chat_id=chat_id, sender_type="persona",
+            sender_id=result["persona_id"], sender_name=result["persona_name"],
+            content=result["content"], round_number=round_num, created_at=_now())
         db.add(msg)
-        yield {
-            "type": "message",
-            "persona_name": result["persona_name"],
-            "persona_id": result["persona_id"],
-            "content": result["content"],
-        }
+        await db.commit()  # Commit so polling can see it
+        yield {"type": "message", "persona_name": result["persona_name"],
+               "persona_id": result["persona_id"], "content": result["content"]}
+
 
     await db.flush()
     yield {"type": "done"}
