@@ -110,13 +110,17 @@ async def _sse_event(event_name: str, data: dict) -> str:
     return f"event: {event_name}\ndata: {payload}\n\n"
 
 
-async def brainstorm_sse_generator(session_id: str, db: AsyncSession, topic: str | None):
+async def brainstorm_sse_generator(session_id: str, db: AsyncSession, topic: str | None, user: User | None = None):
     """
     Async generator that yields SSE-formatted strings from run_brainstorm_stream.
     Also handles adding the topic to the session before starting.
     """
     # Load session
-    result = await db.execute(select(BrainstormSession).where(BrainstormSession.id == session_id, BrainstormSession.user_id == user.id))
+    uid = user.id if user else None
+    if uid:
+        result = await db.execute(select(BrainstormSession).where(BrainstormSession.id == session_id, BrainstormSession.user_id == uid))
+    else:
+        result = await db.execute(select(BrainstormSession).where(BrainstormSession.id == session_id))
     session = result.scalar_one_or_none()
     if not session:
         async for chunk in _error_sse("Session not found"):
@@ -192,6 +196,7 @@ async def _error_sse(message: str):
 async def brainstorm_sse(
     session_id: str,
     topic: str | None = None,
+    user: User = Depends(require_premium),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -212,7 +217,7 @@ async def brainstorm_sse(
       - error        { message }
     """
     return StreamingResponse(
-        brainstorm_sse_generator(session_id, db, topic),
+        brainstorm_sse_generator(session_id, db, topic, user),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
