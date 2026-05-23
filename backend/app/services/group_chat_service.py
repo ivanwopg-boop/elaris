@@ -160,8 +160,9 @@ async def run_group_chat_stream(
     for persona in active_personas:
         yield {"type": "thinking", "persona_name": persona["name"]}
 
-    results = await asyncio.gather(*[_call_one(p) for p in active_personas])
-    for result in results:
+    tasks = [_call_one(p) for p in active_personas]
+    for coro in asyncio.as_completed(tasks):
+        result = await coro
         if "error" in result:
             yield {"type": "error", "persona_name": result["persona_name"], "message": result["error"]}
             continue
@@ -170,6 +171,7 @@ async def run_group_chat_stream(
             sender_id=result["persona_id"], sender_name=result["persona_name"],
             content=result["content"], round_number=round_num, created_at=_now())
         db.add(msg)
+        await db.commit()  # Commit so polling can see it
         yield {"type": "message", "persona_name": result["persona_name"],
                "persona_id": result["persona_id"], "content": result["content"]}
 
