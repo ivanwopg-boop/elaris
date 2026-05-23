@@ -155,18 +155,27 @@ async def brainstorm_sse_generator(session_id: str, db: AsyncSession, topic: str
 _running_discussions: set[str] = set()
 
 
+# ── Lock to prevent concurrent sessions ────────────────
+_session_locks: set[str] = set()
+
+
 @router.post("/{session_id}/start-blocking")
 async def start_brainstorm_blocking(
     session_id: str,
     db: AsyncSession = Depends(get_db),
 ):
-    """Start discussion synchronously. Takes 1-2 min but always works reliably."""
+    """Start discussion synchronously."""
+    if session_id in _session_locks:
+        return {"status": "busy", "message": "Already running"}
+    _session_locks.add(session_id)
     try:
         async for _ in run_brainstorm_stream(session_id, db):
             pass
         return {"status": "completed"}
     except Exception as e:
         return {"status": "failed", "error": str(e)}
+    finally:
+        _session_locks.discard(session_id)
 
 
 async def _error_sse(message: str):
