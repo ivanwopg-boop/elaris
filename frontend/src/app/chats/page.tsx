@@ -387,8 +387,6 @@ export default function ChatsPage() {
   }
 
   return (
-
-  return (
     <div
       className="flex flex-col bg-[#F9F9F9]"
       style={{
