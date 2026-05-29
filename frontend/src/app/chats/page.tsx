@@ -338,10 +338,10 @@ export default function ChatsPage() {
     }
   }, []);
 
-  // Redirect if not logged in
-  useEffect(() => {
-    if (!token) router.replace('/login');
-  }, [token, router]);
+  // No auth required — allow direct access
+  // useEffect(() => {
+  //   if (!token) router.replace('/login');
+  // }, [token, router]);
 
   // Load user's personas
   useEffect(() => {
@@ -354,7 +354,39 @@ export default function ChatsPage() {
       .catch(() => setLoading(false));
   }, [token]);
 
-  if (!token) return null;
+  const token = useAuthStore((s) => s.token);
+  if (!token) {
+    // Show placeholder UI for unauthenticated users
+    return (
+      <div
+        className="flex flex-col bg-[#F9F9F9]"
+        style={{ minHeight: '100dvh', maxWidth: '100vw', overflowX: 'hidden' }}
+      >
+        <AppBar title={TAB_TITLES[activeTab]} />
+        <main
+          className="flex-1 overflow-y-auto pb-[calc(56px+env(safe-area-inset-bottom,0px))]"
+          style={{ overscrollBehavior: 'contain' }}
+        >
+          <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
+            <div className="w-20 h-20 rounded-full bg-[#F5F5F7] flex items-center justify-center mb-5">
+              <Compass size={28} strokeWidth={1.5} className="text-[#86868B]" />
+            </div>
+            <p className="text-base font-light text-[#1D1D1F] mb-2">探索 AI personas</p>
+            <p className="text-sm text-[#86868B] font-light leading-relaxed mb-8">发现页有 115 个预设分身等你聊天</p>
+            <button
+              onClick={() => router.push('/login')}
+              className="px-8 py-3.5 rounded-full bg-[#1D1D1F] text-white text-sm font-light"
+            >
+              登录后开始探索
+            </button>
+          </div>
+        </main>
+        <TabBar activeTab={activeTab} onTabChange={setActiveTab} />
+      </div>
+    );
+  }
+
+  return (
 
   return (
     <div
