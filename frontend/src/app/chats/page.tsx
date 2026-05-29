@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { MessageSquare, Compass, User, Plus, LogOut } from 'lucide-react';
+import { MessageSquare, Compass, User, Plus, LogOut, ChevronRight } from 'lucide-react';
 import TabBar, { TabKey } from '@/components/TabBar';
 import { Avatar } from '@/components/Avatar';
 import { api } from '@/lib/api';
@@ -18,29 +18,61 @@ interface PersonaSummary {
   has_soul: boolean;
 }
 
-// ── Empty state illustrations ─────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────
 
-function EmptyChatIllustration() {
+function LoadingSpinner({ message = '加载中...' }: { message?: string }) {
   return (
-    <div className="flex flex-col items-center justify-center py-16 px-8 text-center">
-      <div className="w-16 h-16 rounded-full bg-[#F5F5F7] flex items-center justify-center mb-5">
-        <MessageSquare size={24} className="text-[#86868B]" strokeWidth={1.5} />
-      </div>
-      <p className="text-sm text-[#1D1D1F] font-light mb-1">No conversations yet</p>
-      <p className="text-xs text-[#86868B] font-light mb-6">Start by creating a persona.</p>
+    <div className="flex flex-col items-center justify-center py-20">
+      <div className="w-8 h-8 rounded-full border-2 border-[rgba(0,0,0,0.1)] border-t-[#0071E3] animate-spin mb-3" />
+      <p className="text-sm text-[#86868B] font-light">{message}</p>
     </div>
   );
 }
 
-function EmptyContactsIllustration() {
+// ── Empty State ───────────────────────────────────────────────
+
+function EmptyState({
+  icon,
+  title,
+  subtitle,
+  action,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  subtitle: string;
+  action?: { label: string; onClick: () => void };
+}) {
   return (
-    <div className="flex flex-col items-center justify-center py-16 px-8 text-center">
-      <div className="w-16 h-16 rounded-full bg-[#F5F5F7] flex items-center justify-center mb-5">
-        <Compass size={24} className="text-[#86868B]" strokeWidth={1.5} />
+    <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
+      <div className="w-20 h-20 rounded-full bg-[#F5F5F7] flex items-center justify-center mb-5">
+        <div className="text-[#86868B]">{icon}</div>
       </div>
-      <p className="text-sm text-[#1D1D1F] font-light mb-1">No contacts yet</p>
-      <p className="text-xs text-[#86868B] font-light">Go to Discover to find personas.</p>
+      <p className="text-base font-light text-[#1D1D1F] mb-1">{title}</p>
+      <p className="text-sm text-[#86868B] font-light mb-8 leading-relaxed">{subtitle}</p>
+      {action && (
+        <button
+          onClick={action.onClick}
+          className="w-full max-w-xs py-3.5 rounded-full bg-[#1D1D1F] text-white text-sm font-light hover:bg-[#3C3C3E] active:bg-[#000] transition-colors flex items-center justify-center gap-2"
+        >
+          {action.label}
+        </button>
+      )}
     </div>
+  );
+}
+
+// ── App Bar (mobile-friendly) ────────────────────────────────
+
+function AppBar({ title }: { title: string }) {
+  return (
+    <header
+      className="sticky top-0 z-40 bg-white/98 backdrop-blur-md border-b border-[rgba(0,0,0,0.06)]"
+      style={{ maxWidth: '100vw', overflowX: 'hidden' }}
+    >
+      <div className="h-12 flex items-center justify-center px-4">
+        <h1 className="text-base font-light tracking-wide text-[#1D1D1F]">{title}</h1>
+      </div>
+    </header>
   );
 }
 
@@ -51,39 +83,38 @@ function ChatTab({ personas }: { personas: PersonaSummary[] }) {
 
   if (personas.length === 0) {
     return (
-      <div>
-        <EmptyChatIllustration />
-        <div className="px-8 mb-8">
-          <button
-            onClick={() => router.push('/personas/new')}
-            className="w-full py-3 rounded-full bg-[#1D1D1F] text-white text-sm font-light hover:bg-[#3C3C3E] transition-colors flex items-center justify-center gap-2"
-          >
-            <Plus size={16} strokeWidth={1.5} />
-            Create Persona
-          </button>
-        </div>
-      </div>
+      <EmptyState
+        icon={<MessageSquare size={28} strokeWidth={1.5} />}
+        title="暂无对话"
+        subtitle="创建你的第一个 persona，开始聊天吧"
+        action={{
+          label: '创建 Persona',
+          onClick: () => router.push('/personas/new'),
+        }}
+      />
     );
   }
 
   return (
-    <div className="divide-y divide-[rgba(0,0,0,0.04)]">
+    <div className="bg-white">
       {personas.map((p) => (
         <button
           key={p.id}
           onClick={() => router.push(`/chat/${p.id}`)}
-          className="w-full flex items-center gap-4 px-6 py-4 text-left hover:bg-[rgba(0,0,0,0.02)] transition-colors"
+          className="w-full flex items-center gap-3 px-4 py-4 text-left border-b border-[rgba(0,0,0,0.04)] active:bg-[rgba(0,0,0,0.03)] transition-colors"
+          style={{ minHeight: '64px' }}
         >
           <Avatar name={p.name} url={p.avatar_url} size="md" />
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-[#1D1D1F] truncate">{p.name}</p>
+            <p className="text-base font-normal text-[#1D1D1F] truncate">{p.name}</p>
             {p.description && (
-              <p className="text-xs text-[#86868B] font-light truncate mt-0.5">{p.description}</p>
+              <p className="text-sm text-[#86868B] font-light truncate mt-0.5">{p.description}</p>
             )}
           </div>
           {!p.has_soul && (
-            <span className="text-[10px] text-[#86868B] font-light shrink-0">Not distilled</span>
+            <span className="text-xs text-[#AEAEB2] font-light shrink-0 mr-1">未蒸馏</span>
           )}
+          <ChevronRight size={18} className="text-[#C7C7CC] shrink-0" strokeWidth={1.5} />
         </button>
       ))}
     </div>
@@ -97,36 +128,35 @@ function ContactsTab({ personas }: { personas: PersonaSummary[] }) {
 
   if (personas.length === 0) {
     return (
-      <div>
-        <EmptyContactsIllustration />
-        <div className="px-8">
-          <button
-            onClick={() => router.push('/discover')}
-            className="w-full py-3 rounded-full bg-[#1D1D1F] text-white text-sm font-light hover:bg-[#3C3C3E] transition-colors flex items-center justify-center gap-2"
-          >
-            <Compass size={16} strokeWidth={1.5} />
-            Explore Personas
-          </button>
-        </div>
-      </div>
+      <EmptyState
+        icon={<Compass size={28} strokeWidth={1.5} />}
+        title="暂无联系人"
+        subtitle="在发现页探索更多 persona"
+        action={{
+          label: '去发现',
+          onClick: () => {/* switch tab via parent */},
+        }}
+      />
     );
   }
 
   return (
-    <div className="grid grid-cols-1 gap-px bg-[rgba(0,0,0,0.04)]">
+    <div className="bg-white">
       {personas.map((p) => (
         <button
           key={p.id}
           onClick={() => router.push(`/chat/${p.id}`)}
-          className="w-full flex items-center gap-4 px-6 py-4 text-left bg-white hover:bg-[rgba(0,0,0,0.02)] transition-colors"
+          className="w-full flex items-center gap-3 px-4 py-4 text-left border-b border-[rgba(0,0,0,0.04)] active:bg-[rgba(0,0,0,0.03)] transition-colors"
+          style={{ minHeight: '64px' }}
         >
           <Avatar name={p.name} url={p.avatar_url} size="md" />
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-[#1D1D1F] truncate">{p.name}</p>
+            <p className="text-base font-normal text-[#1D1D1F] truncate">{p.name}</p>
             {p.description && (
-              <p className="text-xs text-[#86868B] font-light truncate mt-0.5">{p.description}</p>
+              <p className="text-sm text-[#86868B] font-light truncate mt-0.5">{p.description}</p>
             )}
           </div>
+          <ChevronRight size={18} className="text-[#C7C7CC] shrink-0" strokeWidth={1.5} />
         </button>
       ))}
     </div>
@@ -147,38 +177,32 @@ function DiscoverTab() {
       .finally(() => setLoading(false));
   }, []);
 
-  const presetCards = presets.length > 0 ? presets : [];
+  if (loading) return <LoadingSpinner />;
 
-  if (loading) {
+  if (presets.length === 0) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <p className="text-sm text-[#86868B] font-light">Loading...</p>
-      </div>
-    );
-  }
-
-  if (presetCards.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center py-16 px-8 text-center">
-        <p className="text-sm text-[#86868B] font-light">No preset personas available.</p>
-      </div>
+      <EmptyState
+        icon={<Compass size={28} strokeWidth={1.5} />}
+        title="暂无预设"
+        subtitle="稍后再来看看有什么可探索的"
+      />
     );
   }
 
   return (
-    <div className="p-6 grid grid-cols-1 gap-4">
+    <div className="p-4 grid grid-cols-1 gap-3">
       {presets.map((p) => (
         <button
           key={p.id}
           onClick={() => router.push(`/chat/${p.id}`)}
-          className="w-full text-left p-5 rounded-2xl border border-[rgba(0,0,0,0.06)] bg-white hover:border-[rgba(0,0,0,0.12)] hover:shadow-sm transition-all"
+          className="w-full text-left p-4 rounded-2xl border border-[rgba(0,0,0,0.06)] bg-white active:bg-[rgba(0,0,0,0.02)] transition-all"
         >
           <div className="flex items-start gap-4">
             <Avatar name={p.name} url={p.avatar_url} size="lg" />
             <div className="flex-1 min-w-0">
-              <p className="text-base font-light text-[#1D1D1F]">{p.name}</p>
+              <p className="text-base font-normal text-[#1D1D1F] mb-1">{p.name}</p>
               {p.description && (
-                <p className="text-xs text-[#86868B] font-light mt-1 line-clamp-2">{p.description}</p>
+                <p className="text-sm text-[#86868B] font-light leading-relaxed line-clamp-2">{p.description}</p>
               )}
             </div>
           </div>
@@ -200,50 +224,61 @@ function MeTab() {
     router.push('/login');
   };
 
+  const menuItems = [
+    { label: '我的 Personas', onClick: () => router.push('/personas'), icon: '👤' },
+    { label: '创建 Persona', onClick: () => router.push('/personas/new'), icon: '✨' },
+  ];
+
   return (
-    <div className="px-6 py-8">
-      {/* User Info Card */}
-      <div className="bg-white rounded-2xl border border-[rgba(0,0,0,0.06)] p-6 mb-6">
-        <div className="flex items-center gap-4 mb-5">
-          <div className="w-14 h-14 rounded-full bg-[#F5F5F7] flex items-center justify-center">
-            <User size={24} className="text-[#86868B]" strokeWidth={1.5} />
-          </div>
-          <div>
-            <p className="text-lg font-light text-[#1D1D1F]">{user?.name || 'User'}</p>
-            <p className="text-xs text-[#86868B] font-light">{user?.email || ''}</p>
-          </div>
+    <div className="px-4 py-6 bg-[#F9F9F9] min-h-full">
+      {/* User Card */}
+      <div className="bg-white rounded-2xl border border-[rgba(0,0,0,0.06)] p-5 mb-4 flex items-center gap-4">
+        <div className="w-14 h-14 rounded-full bg-[#F5F5F7] flex items-center justify-center shrink-0">
+          <User size={22} className="text-[#86868B]" strokeWidth={1.5} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-lg font-normal text-[#1D1D1F]">{user?.name || '用户'}</p>
+          {user?.email && (
+            <p className="text-sm text-[#86868B] font-light mt-0.5 truncate">{user.email}</p>
+          )}
         </div>
       </div>
 
-      {/* Actions */}
-      <div className="bg-white rounded-2xl border border-[rgba(0,0,0,0.06)] divide-y divide-[rgba(0,0,0,0.04)] overflow-hidden">
-        <button
-          onClick={() => router.push('/personas')}
-          className="w-full flex items-center justify-between px-5 py-4 text-sm font-light text-[#1D1D1F] hover:bg-[rgba(0,0,0,0.02)] transition-colors"
-        >
-          <span>My Personas</span>
-          <span className="text-[#86868B]">→</span>
-        </button>
-        <button
-          onClick={() => router.push('/personas/new')}
-          className="w-full flex items-center justify-between px-5 py-4 text-sm font-light text-[#1D1D1F] hover:bg-[rgba(0,0,0,0.02)] transition-colors"
-        >
-          <span>Create Persona</span>
-          <span className="text-[#86868B]">→</span>
-        </button>
+      {/* Menu Items */}
+      <div className="bg-white rounded-2xl border border-[rgba(0,0,0,0.06)] overflow-hidden mb-4">
+        {menuItems.map((item, i) => (
+          <button
+            key={i}
+            onClick={item.onClick}
+            className="w-full flex items-center gap-3 px-5 py-4 text-left border-b border-[rgba(0,0,0,0.04)] last:border-b-0 active:bg-[rgba(0,0,0,0.02)] transition-colors"
+            style={{ minHeight: '52px' }}
+          >
+            <span className="text-base">{item.icon}</span>
+            <span className="text-sm font-normal text-[#1D1D1F]">{item.label}</span>
+          </button>
+        ))}
       </div>
 
-      {/* Logout */}
+      {/* Logout Button */}
       <button
         onClick={handleLogout}
-        className="w-full mt-6 flex items-center justify-center gap-2 py-3.5 rounded-full border border-[rgba(0,0,0,0.12)] text-sm font-light text-[#1D1D1F] hover:bg-[rgba(0,0,0,0.02)] transition-colors"
+        className="w-full py-3.5 rounded-full border border-[rgba(0,0,0,0.12)] text-sm font-normal text-[#1D1D1F] bg-white active:bg-[rgba(0,0,0,0.03)] transition-colors flex items-center justify-center gap-2"
       >
         <LogOut size={16} strokeWidth={1.5} />
-        Sign out
+        退出登录
       </button>
     </div>
   );
 }
+
+// ── Tab Titles (Chinese) ─────────────────────────────────────
+
+const TAB_TITLES: Record<TabKey, string> = {
+  chat: '聊天',
+  contacts: '通讯录',
+  discover: '发现',
+  me: '我',
+};
 
 // ── Main Page ─────────────────────────────────────────────────
 
@@ -252,87 +287,57 @@ export default function ChatsPage() {
   const { token } = useAuthStore();
   const [activeTab, setActiveTab] = useState<TabKey>('chat');
   const [myPersonas, setMyPersonas] = useState<PersonaSummary[]>([]);
-  const [allPersonas, setAllPersonas] = useState<PersonaSummary[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Redirect if not logged in
   useEffect(() => {
-    if (!token) {
-      router.replace('/login');
-    }
+    if (!token) router.replace('/login');
   }, [token, router]);
 
-  // Load personas
+  // Load user's personas
   useEffect(() => {
     if (!token) return;
-    Promise.all([
-      api.listPersonas(),
-    ])
-      .then(([all]) => {
-        setAllPersonas(all);
-        // myPersonas: user's own personas (those that have an owner — filtered on backend)
-        setMyPersonas(all.filter((p: PersonaSummary) => p.id === p.id));
+    api.listPersonas()
+      .then((all) => {
+        setMyPersonas(all);
         setLoading(false);
       })
       .catch(() => setLoading(false));
   }, [token]);
 
-  // We rely on the backend to filter: listPersonas returns user's own + presets (if premium)
-  // For Contacts: show user's own personas
-  // For Discover: show preset personas (user_id=NULL)
-  // The backend already handles the distinction via include_presets flag, but the flag
-  // is tied to user tier. We load ALL and filter client-side.
-
-  const myContacts = myPersonas; // alias
-  const presetPersonas = allPersonas.filter((p) => {
-    // heuristic: if persona has no recent "owned by me" signal, treat as preset
-    // We use a different approach: load ALL, then show presets (user_id=NULL is
-    // set on backend but we can't see user_id from frontend). We use allPersonas
-    // for Discover since it shows everyone including presets.
-    return true; // will be refined below
-  });
-
-  // Refine: contacts = myPersonas only
-  const contacts = myPersonas;
-  // Discover = all personas (including presets and own ones — user can explore)
-  const discoverPersonas = allPersonas;
-
-  const handleTabChange = useCallback((tab: TabKey) => {
-    setActiveTab(tab);
-  }, []);
-
   if (!token) return null;
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-[#FAFAFA] flex items-center justify-center">
-        <p className="text-sm text-[#86868B] font-light">Loading...</p>
-      </div>
-    );
-  }
 
   return (
-    <div className="min-h-screen bg-[#FAFAFA] flex flex-col">
+    <div
+      className="flex flex-col bg-[#F9F9F9]"
+      style={{
+        minHeight: '100dvh',       // dynamic viewport height for mobile
+        maxWidth: '100vw',
+        overflowX: 'hidden',
+      }}
+    >
       {/* App Bar */}
-      <div className="sticky top-0 z-40 bg-white/95 backdrop-blur-sm border-b border-[rgba(0,0,0,0.06)]">
-        <div className="max-w-lg mx-auto h-12 flex items-center justify-center px-6">
-          <h1 className="text-sm font-extralight tracking-[0.1em] text-[#1D1D1F] uppercase">
-            {activeTab === 'chat' ? 'Chats' :
-             activeTab === 'contacts' ? 'Contacts' :
-             activeTab === 'discover' ? 'Discover' : 'Me'}
-          </h1>
-        </div>
-      </div>
+      <AppBar title={TAB_TITLES[activeTab]} />
 
-      {/* Content area */}
-      <div className="flex-1 overflow-y-auto pb-16" style={{ height: 'calc(100vh - 48px - 56px)' }}>
-        {activeTab === 'chat' && <ChatTab personas={myPersonas} />}
-        {activeTab === 'contacts' && <ContactsTab personas={contacts} />}
-        {activeTab === 'discover' && <DiscoverTab />}
-        {activeTab === 'me' && <MeTab />}
-      </div>
+      {/* Content — fills remaining height */}
+      <main
+        className="flex-1 overflow-y-auto pb-[calc(56px+env(safe-area-inset-bottom,0px))]"
+        style={{ overscrollBehavior: 'contain' }}
+      >
+        {loading ? (
+          <LoadingSpinner />
+        ) : (
+          <>
+            {activeTab === 'chat' && <ChatTab personas={myPersonas} />}
+            {activeTab === 'contacts' && <ContactsTab personas={myPersonas} />}
+            {activeTab === 'discover' && <DiscoverTab />}
+            {activeTab === 'me' && <MeTab />}
+          </>
+        )}
+      </main>
 
       {/* Tab Bar */}
-      <TabBar activeTab={activeTab} onTabChange={handleTabChange} />
+      <TabBar activeTab={activeTab} onTabChange={setActiveTab} />
     </div>
   );
 }
