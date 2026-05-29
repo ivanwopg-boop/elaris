@@ -83,15 +83,23 @@ function ChatTab({ personas }: { personas: PersonaSummary[] }) {
 
   if (personas.length === 0) {
     return (
-      <EmptyState
-        icon={<MessageSquare size={28} strokeWidth={1.5} />}
-        title="暂无对话"
-        subtitle="创建你的第一个 persona，开始聊天吧"
-        action={{
-          label: '创建 Persona',
-          onClick: () => router.push('/personas/new'),
-        }}
-      />
+      <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
+        <div className="w-20 h-20 rounded-full bg-[#F5F5F7] flex items-center justify-center mb-5">
+          <div className="text-[#86868B]"><MessageSquare size={28} strokeWidth={1.5} /></div>
+        </div>
+        <p className="text-base font-light text-[#1D1D1F] mb-1">暂无对话</p>
+        <p className="text-sm text-[#86868B] font-light mb-8 leading-relaxed">开始探索发现页的 AI persona，和他们对话</p>
+        <div className="relative">
+          <button
+            onClick={() => router.push('/chats?tab=discover')}
+            className="px-8 py-3.5 rounded-full bg-[#1D1D1F] text-white text-sm font-light hover:bg-[#3C3C3E] active:bg-[#000] transition-colors flex items-center justify-center gap-2"
+          >
+            去发现 AI personas
+            <span className="text-lg">→</span>
+          </button>
+          <span className="absolute -top-3 -right-6 animate-bounce text-xl">👇</span>
+        </div>
+      </div>
     );
   }
 
@@ -128,15 +136,19 @@ function ContactsTab({ personas }: { personas: PersonaSummary[] }) {
 
   if (personas.length === 0) {
     return (
-      <EmptyState
-        icon={<Compass size={28} strokeWidth={1.5} />}
-        title="暂无联系人"
-        subtitle="在发现页探索更多 persona"
-        action={{
-          label: '去发现',
-          onClick: () => {/* switch tab via parent */},
-        }}
-      />
+      <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
+        <div className="w-20 h-20 rounded-full bg-[#F5F5F7] flex items-center justify-center mb-5">
+          <div className="text-[#86868B]"><Compass size={28} strokeWidth={1.5} /></div>
+        </div>
+        <p className="text-base font-light text-[#1D1D1F] mb-1">暂无联系人</p>
+        <p className="text-sm text-[#86868B] font-light mb-8 leading-relaxed">去发现页添加你感兴趣的 AI persona</p>
+        <button
+          onClick={() => router.push('/chats?tab=discover')}
+          className="px-8 py-3.5 rounded-full bg-[#1D1D1F] text-white text-sm font-light hover:bg-[#3C3C3E] active:bg-[#000] transition-colors"
+        >
+          去发现
+        </button>
+      </div>
     );
   }
 
@@ -189,12 +201,19 @@ function DiscoverTab() {
     );
   }
 
+  const handlePresetClick = (p: PersonaSummary) => {
+    // Add preset to user's contacts, then go to chat
+    api.createPersona({ name: p.name, description: p.description || '' })
+      .then((created) => router.push(`/chat/${created.id}`))
+      .catch(() => router.push(`/chat/${p.id}`));
+  };
+
   return (
     <div className="p-4 grid grid-cols-1 gap-3">
       {presets.map((p) => (
         <button
           key={p.id}
-          onClick={() => router.push(`/chat/${p.id}`)}
+          onClick={() => handlePresetClick(p)}
           className="w-full text-left p-4 rounded-2xl border border-[rgba(0,0,0,0.06)] bg-white active:bg-[rgba(0,0,0,0.02)] transition-all"
         >
           <div className="flex items-start gap-4">
@@ -204,6 +223,7 @@ function DiscoverTab() {
               {p.description && (
                 <p className="text-sm text-[#86868B] font-light leading-relaxed line-clamp-2">{p.description}</p>
               )}
+              <p className="text-xs text-[#0071E3] font-light mt-2">点击开始对话 →</p>
             </div>
           </div>
         </button>
@@ -288,6 +308,15 @@ export default function ChatsPage() {
   const [activeTab, setActiveTab] = useState<TabKey>('chat');
   const [myPersonas, setMyPersonas] = useState<PersonaSummary[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Support deep-link: /chats?tab=discover
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get('tab') as TabKey;
+    if (tab && ['chat', 'contacts', 'discover', 'me'].includes(tab)) {
+      setActiveTab(tab);
+    }
+  }, []);
 
   // Redirect if not logged in
   useEffect(() => {
