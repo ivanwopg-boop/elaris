@@ -30,7 +30,9 @@ class RegisterRequest(BaseModel):
 
 
 class LoginRequest(BaseModel):
-    invite_code: str
+    email: str | None = None
+    password: str | None = None
+    invite_code: str | None = None
 
 
 class AuthResponse(BaseModel):
@@ -119,7 +121,34 @@ async def register(data: RegisterRequest, db: AsyncSession = Depends(get_db)):
 
 @router.post("/login", response_model=TokenResponse)
 async def login(data: LoginRequest, db: AsyncSession = Depends(get_db)):
-    # Validate invite code
+    # ── Email + Password login ─────────────────────────
+    if data.email and data.password:
+        user_result = await db.execute(
+            select(User).where(User.email == data.email.lower().strip())
+        )
+        user = user_result.scalar_one_or_none()
+        if not user:
+            raise HTTPException(status_code=401, detail="Invalid email or password")
+        if not user.password_hash:
+            raise HTTPException(status_code=401, detail="Invalid email or password")
+        if not verify_password(data.password, user.password_hash):
+            raise HTTPException(status_code=401, detail="Invalid email or password")
+        access_token = create_access_token(user.id, user.tier)
+        response = Response(content=TokenResponse(
+            access_token=access_token,
+            user=AuthResponse(
+                id=user.id, email=user.email, name=user.name,
+                tier=user.tier, avatar_url=user.avatar_url,
+                persona_count=0,
+            )
+        ).model_dump_json(), media_type="application/json")
+        _set_cookie(response, access_token, 60 * 60 * 24 * 30)
+        return response
+
+    # ── Invite code login (fallback) ─────────────────
+    if not data.invite_code:
+        raise HTTPException(status_code=400, detail="Email + password OR invite_code required")
+
     code_result = await db.execute(
         select(InviteCode).where(InviteCode.code == data.invite_code.upper())
     )
@@ -134,7 +163,6 @@ async def login(data: LoginRequest, db: AsyncSession = Depends(get_db)):
     tier = code.tier
     code.used_count += 1
 
-    # Auto-register or login user by invite code
     email = f"invite-{code.code.lower()}@elaris.app"
     user_result = await db.execute(select(User).where(User.email == email))
     user = user_result.scalar_one_or_none()
@@ -163,7 +191,7 @@ async def login(data: LoginRequest, db: AsyncSession = Depends(get_db)):
             persona_count=0,
         )
     ).model_dump_json(), media_type="application/json")
-    _set_cookie(response, access_token, 60 * 60 * 24 * 30)  # 30 days
+    _set_cookie(response, access_token, 60 * 60 * 24 * 30)
     return response
 
 

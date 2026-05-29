@@ -16,7 +16,7 @@ const DEMO_MESSAGES = [
   { persona: 'Steve Jobs', msg: "You're not building a company. You're building a belief system.", color: '#1D1D1F' },
 ];
 
-export default function HomePage() {
+export default function HomePageV2() {
   const router = useRouter();
   const { token } = useAuthStore();
 
@@ -82,7 +82,7 @@ export default function HomePage() {
             ))}
           </div>
 
-          {/* Right chat */}
+          {/* Right chat - slightly lighter dark */}
           <div className="flex-1 bg-[rgba(255,255,255,0.02)] flex flex-col">
             <div className="flex items-center justify-between px-5 py-4 border-b border-[rgba(255,255,255,0.06)]">
               <div>
