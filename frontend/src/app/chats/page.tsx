@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { MessageSquare, Compass, User, Plus, LogOut, ChevronRight } from 'lucide-react';
+import { MessageSquare, Compass, User, LogOut, ChevronRight } from 'lucide-react';
 import TabBar, { TabKey } from '@/components/TabBar';
 import { Avatar } from '@/components/Avatar';
 import { api } from '@/lib/api';
@@ -201,32 +201,52 @@ function DiscoverTab() {
     );
   }
 
-  const handlePresetClick = (p: PersonaSummary) => {
-    // Add preset to user's contacts, then go to chat
-    api.createPersona({ name: p.name, description: p.description || '' })
-      .then((created) => router.push(`/chat/${created.id}`))
-      .catch(() => router.push(`/chat/${p.id}`));
+  const handleAddToContacts = async (e: React.MouseEvent, p: PersonaSummary) => {
+    e.stopPropagation();
+    try {
+      await api.createPersona({ name: p.name, description: p.description || '' });
+      alert(`${p.name} 已添加到通讯录`);
+    } catch {
+      alert('添加失败，请重试');
+    }
   };
 
   return (
     <div className="p-4 grid grid-cols-1 gap-3">
       {presets.map((p) => (
-        <button
+        <div
           key={p.id}
-          onClick={() => handlePresetClick(p)}
-          className="w-full text-left p-4 rounded-2xl border border-[rgba(0,0,0,0.06)] bg-white active:bg-[rgba(0,0,0,0.02)] transition-all"
+          className="rounded-2xl border border-[rgba(0,0,0,0.06)] bg-white overflow-hidden"
         >
-          <div className="flex items-start gap-4">
-            <Avatar name={p.name} url={p.avatar_url} size="lg" />
-            <div className="flex-1 min-w-0">
-              <p className="text-base font-normal text-[#1D1D1F] mb-1">{p.name}</p>
-              {p.description && (
-                <p className="text-sm text-[#86868B] font-light leading-relaxed line-clamp-2">{p.description}</p>
-              )}
-              <p className="text-xs text-[#0071E3] font-light mt-2">点击开始对话 →</p>
+          <button
+            onClick={() => router.push(`/chat/${p.id}`)}
+            className="w-full text-left p-4 active:bg-[rgba(0,0,0,0.02)] transition-colors"
+          >
+            <div className="flex items-start gap-4">
+              <Avatar name={p.name} url={p.avatar_url} size="lg" />
+              <div className="flex-1 min-w-0">
+                <p className="text-base font-normal text-[#1D1D1F] mb-1">{p.name}</p>
+                {p.description && (
+                  <p className="text-sm text-[#86868B] font-light leading-relaxed line-clamp-2">{p.description}</p>
+                )}
+              </div>
             </div>
+          </button>
+          <div className="px-4 pb-4 flex gap-2">
+            <button
+              onClick={(e) => handleAddToContacts(e, p)}
+              className="flex-1 py-2.5 rounded-full border border-[rgba(0,0,0,0.12)] text-sm font-light text-[#1D1D1F] bg-white active:bg-[rgba(0,0,0,0.04)] transition-colors"
+            >
+              ＋ 添加到通讯录
+            </button>
+            <button
+              onClick={() => router.push(`/chat/${p.id}`)}
+              className="flex-1 py-2.5 rounded-full bg-[#1D1D1F] text-white text-sm font-light active:bg-[#3C3C3E] transition-colors"
+            >
+              开始对话
+            </button>
           </div>
-        </button>
+        </div>
       ))}
     </div>
   );
@@ -340,7 +360,7 @@ export default function ChatsPage() {
     <div
       className="flex flex-col bg-[#F9F9F9]"
       style={{
-        minHeight: '100dvh',       // dynamic viewport height for mobile
+        minHeight: '100dvh',
         maxWidth: '100vw',
         overflowX: 'hidden',
       }}
@@ -348,7 +368,7 @@ export default function ChatsPage() {
       {/* App Bar */}
       <AppBar title={TAB_TITLES[activeTab]} />
 
-      {/* Content — fills remaining height */}
+      {/* Content */}
       <main
         className="flex-1 overflow-y-auto pb-[calc(56px+env(safe-area-inset-bottom,0px))]"
         style={{ overscrollBehavior: 'contain' }}
