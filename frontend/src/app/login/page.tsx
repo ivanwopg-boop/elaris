@@ -28,7 +28,7 @@ function LoginForm() {
     try {
       const res = await api.login(email.trim(), password);
       setAuth(res.access_token, res.user);
-      router.push('/chats');
+      window.location.href = '/chats';
     } catch (err: any) {
       setError(err.message || 'Login failed');
     } finally {
