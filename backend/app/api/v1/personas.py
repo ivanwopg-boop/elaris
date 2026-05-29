@@ -17,8 +17,8 @@ router = APIRouter(prefix="/personas", tags=["Personas"])
 
 
 @router.post("", response_model=PersonaOut, status_code=status.HTTP_201_CREATED)
-async def create_persona(data: PersonaCreate, user = Depends(require_auth), db: AsyncSession = Depends(get_db)):
-    persona = await persona_service.create_persona(data, db, user_id=user.id)
+async def create_persona(data: PersonaCreate, db: AsyncSession = Depends(get_db), user_id: str = None):
+    persona = await persona_service.create_persona(data, db, user_id=user_id)
     # Set default DiceBear avatar if none provided
     if not persona.avatar_url:
         persona.avatar_url = generate_avatar_url(persona.name)
@@ -34,9 +34,8 @@ async def create_persona(data: PersonaCreate, user = Depends(require_auth), db: 
 
 
 @router.get("", response_model=list[PersonaOut])
-async def list_personas(user = Depends(require_auth), db: AsyncSession = Depends(get_db)):
-    include_presets = user.tier in ("premium", "admin")
-    return await persona_service.list_personas(db, user_id=user.id, include_presets=include_presets)
+async def list_personas(db: AsyncSession = Depends(get_db), user_id: str = None):
+    return await persona_service.list_personas(db, user_id=user_id, include_presets=True)
 
 
 @router.get("/presets", response_model=list[PersonaOut])
