@@ -23,24 +23,21 @@ export default function Navbar({ hideWhenNoAuth }: { hideWhenNoAuth?: boolean })
   return (
     <nav className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-[rgba(0,0,0,0.06)]">
       <div className="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between">
-        <Link href="/" className="text-base font-extralight tracking-[0.15em] text-[#1D1D1F] uppercase">
+        <Link href="/chats" className="text-base font-extralight tracking-[0.15em] text-[#1D1D1F] uppercase">
           Elaris
         </Link>
-        <div className="flex items-center gap-8">
+        <div className="flex items-center gap-6">
           {token ? (
             <>
               <span className="text-sm font-light text-[#6E6E73]">
                 {user?.name || ''}
               </span>
-              <Link href="/personas" className="text-sm font-light text-[#6E6E73] hover:text-[#1D1D1F] transition-colors">
-                Personas
-              </Link>
-              <Link href="/brainstorms" className="text-sm font-light text-[#6E6E73] hover:text-[#1D1D1F] transition-colors">
-                Brainstorm
-              </Link>
-              <Link href="/group-chat" className="text-sm font-light text-[#6E6E73] hover:text-[#1D1D1F] transition-colors">
-                Group Chat
-              </Link>
+              <button
+                onClick={handleLogout}
+                className="text-sm font-light text-[#6E6E73] hover:text-[#1D1D1F] transition-colors"
+              >
+                Sign out
+              </button>
             </>
           ) : (
             <Link href="/login" className="text-sm font-light text-[#6E6E73] hover:text-[#1D1D1F] transition-colors">

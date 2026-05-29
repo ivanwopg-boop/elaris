@@ -34,10 +34,15 @@ async def create_persona(data: PersonaCreate, user = Depends(require_auth), db: 
 
 
 @router.get("", response_model=list[PersonaOut])
-@router.get("", response_model=list[PersonaOut])
 async def list_personas(user = Depends(require_auth), db: AsyncSession = Depends(get_db)):
     include_presets = user.tier in ("premium", "admin")
     return await persona_service.list_personas(db, user_id=user.id, include_presets=include_presets)
+
+
+@router.get("/presets", response_model=list[PersonaOut])
+async def list_presets(db: AsyncSession = Depends(get_db)):
+    """List preset personas (user_id=NULL) for the Discover tab."""
+    return await persona_service.list_personas(db, user_id=None, include_presets=True)
 
 
 @router.get("/{persona_id}", response_model=PersonaDetail)

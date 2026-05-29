@@ -77,6 +77,9 @@ export const api = {
   listPersonas: () =>
     api.request<PersonaOut[]>("/personas"),
 
+  listPresets: () =>
+    api.request<PersonaOut[]>("/personas/presets"),
+
   getPersona: (id: string) =>
     api.request<PersonaDetail>(`/personas/${id}`),
 
