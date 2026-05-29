@@ -30,7 +30,7 @@ function RegisterForm() {
     try {
       const res = await api.register(email.trim(), password, name.trim() || undefined);
       setAuth(res.access_token, res.user);
-      router.push('/personas');
+      router.push('/chats');
     } catch (err: any) {
       setError(err.message || 'Registration failed');
     } finally {
