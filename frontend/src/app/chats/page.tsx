@@ -29,39 +29,7 @@ function LoadingSpinner({ message = '加载中...' }: { message?: string }) {
   );
 }
 
-// ── Empty State ───────────────────────────────────────────────
-
-function EmptyState({
-  icon,
-  title,
-  subtitle,
-  action,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  subtitle: string;
-  action?: { label: string; onClick: () => void };
-}) {
-  return (
-    <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
-      <div className="w-20 h-20 rounded-full bg-[#F5F5F7] flex items-center justify-center mb-5">
-        <div className="text-[#86868B]">{icon}</div>
-      </div>
-      <p className="text-base font-light text-[#1D1D1F] mb-1">{title}</p>
-      <p className="text-sm text-[#86868B] font-light mb-8 leading-relaxed">{subtitle}</p>
-      {action && (
-        <button
-          onClick={action.onClick}
-          className="w-full max-w-xs py-3.5 rounded-full bg-[#1D1D1F] text-white text-sm font-light hover:bg-[#3C3C3E] active:bg-[#000] transition-colors flex items-center justify-center gap-2"
-        >
-          {action.label}
-        </button>
-      )}
-    </div>
-  );
-}
-
-// ── App Bar (mobile-friendly) ────────────────────────────────
+// ── App Bar ────────────────────────────────────────────────────
 
 function AppBar({ title }: { title: string }) {
   return (
@@ -76,22 +44,20 @@ function AppBar({ title }: { title: string }) {
   );
 }
 
-// ── Chat Tab ──────────────────────────────────────────────────
+// ── Chat Tab ────────────────────────────────────────────────────
 
-function ChatTab({ personas }: { personas: PersonaSummary[] }) {
-  const router = useRouter();
-
+function ChatTab({ personas, onNavigate }: { personas: PersonaSummary[]; onNavigate: () => void }) {
   if (personas.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
         <div className="w-20 h-20 rounded-full bg-[#F5F5F7] flex items-center justify-center mb-5">
-          <div className="text-[#86868B]"><MessageSquare size={28} strokeWidth={1.5} /></div>
+          <MessageSquare size={28} strokeWidth={1.5} className="text-[#86868B]" />
         </div>
         <p className="text-base font-light text-[#1D1D1F] mb-1">暂无对话</p>
         <p className="text-sm text-[#86868B] font-light mb-8 leading-relaxed">开始探索发现页的 AI persona，和他们对话</p>
         <div className="relative">
           <button
-            onClick={() => router.push('/chats?tab=discover')}
+            onClick={onNavigate}
             className="px-8 py-3.5 rounded-full bg-[#1D1D1F] text-white text-sm font-light hover:bg-[#3C3C3E] active:bg-[#000] transition-colors flex items-center justify-center gap-2"
           >
             去发现 AI personas
@@ -108,7 +74,7 @@ function ChatTab({ personas }: { personas: PersonaSummary[] }) {
       {personas.map((p) => (
         <button
           key={p.id}
-          onClick={() => router.push(`/chat/${p.id}`)}
+          onClick={() => window.location.href = `/chat/${p.id}`}
           className="w-full flex items-center gap-3 px-4 py-4 text-left border-b border-[rgba(0,0,0,0.04)] active:bg-[rgba(0,0,0,0.03)] transition-colors"
           style={{ minHeight: '64px' }}
         >
@@ -131,19 +97,17 @@ function ChatTab({ personas }: { personas: PersonaSummary[] }) {
 
 // ── Contacts Tab ──────────────────────────────────────────────
 
-function ContactsTab({ personas }: { personas: PersonaSummary[] }) {
-  const router = useRouter();
-
+function ContactsTab({ personas, onNavigate }: { personas: PersonaSummary[]; onNavigate: () => void }) {
   if (personas.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
         <div className="w-20 h-20 rounded-full bg-[#F5F5F7] flex items-center justify-center mb-5">
-          <div className="text-[#86868B]"><Compass size={28} strokeWidth={1.5} /></div>
+          <Compass size={28} strokeWidth={1.5} className="text-[#86868B]" />
         </div>
         <p className="text-base font-light text-[#1D1D1F] mb-1">暂无联系人</p>
         <p className="text-sm text-[#86868B] font-light mb-8 leading-relaxed">去发现页添加你感兴趣的 AI persona</p>
         <button
-          onClick={() => router.push('/chats?tab=discover')}
+          onClick={onNavigate}
           className="px-8 py-3.5 rounded-full bg-[#1D1D1F] text-white text-sm font-light hover:bg-[#3C3C3E] active:bg-[#000] transition-colors"
         >
           去发现
@@ -157,7 +121,7 @@ function ContactsTab({ personas }: { personas: PersonaSummary[] }) {
       {personas.map((p) => (
         <button
           key={p.id}
-          onClick={() => router.push(`/chat/${p.id}`)}
+          onClick={() => window.location.href = `/chat/${p.id}`}
           className="w-full flex items-center gap-3 px-4 py-4 text-left border-b border-[rgba(0,0,0,0.04)] active:bg-[rgba(0,0,0,0.03)] transition-colors"
           style={{ minHeight: '64px' }}
         >
@@ -193,11 +157,13 @@ function DiscoverTab() {
 
   if (presets.length === 0) {
     return (
-      <EmptyState
-        icon={<Compass size={28} strokeWidth={1.5} />}
-        title="暂无预设"
-        subtitle="稍后再来看看有什么可探索的"
-      />
+      <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
+        <div className="w-20 h-20 rounded-full bg-[#F5F5F7] flex items-center justify-center mb-5">
+          <Compass size={28} strokeWidth={1.5} className="text-[#86868B]" />
+        </div>
+        <p className="text-base font-light text-[#1D1D1F] mb-1">暂无预设</p>
+        <p className="text-sm text-[#86868B] font-light leading-relaxed">稍后再来看看有什么可探索的</p>
+      </div>
     );
   }
 
@@ -219,7 +185,7 @@ function DiscoverTab() {
           className="rounded-2xl border border-[rgba(0,0,0,0.06)] bg-white overflow-hidden"
         >
           <button
-            onClick={() => router.push(`/chat/${p.id}`)}
+            onClick={() => window.location.href = `/chat/${p.id}`}
             className="w-full text-left p-4 active:bg-[rgba(0,0,0,0.02)] transition-colors"
           >
             <div className="flex items-start gap-4">
@@ -240,7 +206,7 @@ function DiscoverTab() {
               ＋ 添加到通讯录
             </button>
             <button
-              onClick={() => router.push(`/chat/${p.id}`)}
+              onClick={() => window.location.href = `/chat/${p.id}`}
               className="flex-1 py-2.5 rounded-full bg-[#1D1D1F] text-white text-sm font-light active:bg-[#3C3C3E] transition-colors"
             >
               开始对话
@@ -265,26 +231,27 @@ function MeTab() {
   };
 
   const menuItems = [
-    { label: '我的 Personas', onClick: () => router.push('/personas'), icon: '👤' },
-    { label: '创建 Persona', onClick: () => router.push('/personas/new'), icon: '✨' },
+    { label: '我的 Personas', onClick: () => window.location.href = '/personas', icon: '👤' },
+    { label: '创建 Persona', onClick: () => window.location.href = '/personas/new', icon: '✨' },
   ];
 
   return (
     <div className="px-4 py-6 bg-[#F9F9F9] min-h-full">
-      {/* User Card */}
       <div className="bg-white rounded-2xl border border-[rgba(0,0,0,0.06)] p-5 mb-4 flex items-center gap-4">
         <div className="w-14 h-14 rounded-full bg-[#F5F5F7] flex items-center justify-center shrink-0">
           <User size={22} className="text-[#86868B]" strokeWidth={1.5} />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-lg font-normal text-[#1D1D1F]">{user?.name || '用户'}</p>
+          <p className="text-lg font-normal text-[#1D1D1F]">{user?.name || '访客'}</p>
           {user?.email && (
             <p className="text-sm text-[#86868B] font-light mt-0.5 truncate">{user.email}</p>
+          )}
+          {!user && (
+            <p className="text-sm text-[#86868B] font-light mt-0.5">未登录</p>
           )}
         </div>
       </div>
 
-      {/* Menu Items */}
       <div className="bg-white rounded-2xl border border-[rgba(0,0,0,0.06)] overflow-hidden mb-4">
         {menuItems.map((item, i) => (
           <button
@@ -299,19 +266,20 @@ function MeTab() {
         ))}
       </div>
 
-      {/* Logout Button */}
-      <button
-        onClick={handleLogout}
-        className="w-full py-3.5 rounded-full border border-[rgba(0,0,0,0.12)] text-sm font-normal text-[#1D1D1F] bg-white active:bg-[rgba(0,0,0,0.03)] transition-colors flex items-center justify-center gap-2"
-      >
-        <LogOut size={16} strokeWidth={1.5} />
-        退出登录
-      </button>
+      {user && (
+        <button
+          onClick={handleLogout}
+          className="w-full py-3.5 rounded-full border border-[rgba(0,0,0,0.12)] text-sm font-normal text-[#1D1D1F] bg-white active:bg-[rgba(0,0,0,0.03)] transition-colors flex items-center justify-center gap-2"
+        >
+          <LogOut size={16} strokeWidth={1.5} />
+          退出登录
+        </button>
+      )}
     </div>
   );
 }
 
-// ── Tab Titles (Chinese) ─────────────────────────────────────
+// ── Tab Titles ─────────────────────────────────────────────────
 
 const TAB_TITLES: Record<TabKey, string> = {
   chat: '聊天',
@@ -324,8 +292,8 @@ const TAB_TITLES: Record<TabKey, string> = {
 
 export default function ChatsPage() {
   const router = useRouter();
-  const { token } = useAuthStore();
-  const [activeTab, setActiveTab] = useState<TabKey>('chat');
+  const token = useAuthStore((s) => s.token);
+  const [activeTab, setActiveTab] = useState<TabKey>('discover');
   const [myPersonas, setMyPersonas] = useState<PersonaSummary[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -338,53 +306,19 @@ export default function ChatsPage() {
     }
   }, []);
 
-  // No auth required — allow direct access
-  // useEffect(() => {
-  //   if (!token) router.replace('/login');
-  // }, [token, router]);
-
-  // Load user's personas
+  // Load user's personas (if logged in)
   useEffect(() => {
-    if (!token) return;
+    if (!token) {
+      setLoading(false);
+      return;
+    }
     api.listPersonas()
-      .then((all) => {
-        setMyPersonas(all);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
+      .then((all) => setMyPersonas(all))
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, [token]);
 
-  const token = useAuthStore((s) => s.token);
-  if (!token) {
-    // Show placeholder UI for unauthenticated users
-    return (
-      <div
-        className="flex flex-col bg-[#F9F9F9]"
-        style={{ minHeight: '100dvh', maxWidth: '100vw', overflowX: 'hidden' }}
-      >
-        <AppBar title={TAB_TITLES[activeTab]} />
-        <main
-          className="flex-1 overflow-y-auto pb-[calc(56px+env(safe-area-inset-bottom,0px))]"
-          style={{ overscrollBehavior: 'contain' }}
-        >
-          <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
-            <div className="w-20 h-20 rounded-full bg-[#F5F5F7] flex items-center justify-center mb-5">
-              <Compass size={28} strokeWidth={1.5} className="text-[#86868B]" />
-            </div>
-            <p className="text-base font-light text-[#1D1D1F] mb-2">探索 AI personas</p>
-            <p className="text-sm text-[#86868B] font-light leading-relaxed mb-8">发现页有 115 个预设分身等你聊天</p>
-            <button
-              onClick={() => router.push('/login')}
-              className="px-8 py-3.5 rounded-full bg-[#1D1D1F] text-white text-sm font-light"
-            >
-              登录后开始探索
-            </button>
-          </div>
-        </main>
-        <TabBar activeTab={activeTab} onTabChange={setActiveTab} />
-      </div>
-    );
-  }
+  const handleNavigateToDiscover = () => setActiveTab('discover');
 
   return (
     <div
@@ -395,10 +329,8 @@ export default function ChatsPage() {
         overflowX: 'hidden',
       }}
     >
-      {/* App Bar */}
       <AppBar title={TAB_TITLES[activeTab]} />
 
-      {/* Content */}
       <main
         className="flex-1 overflow-y-auto pb-[calc(56px+env(safe-area-inset-bottom,0px))]"
         style={{ overscrollBehavior: 'contain' }}
@@ -407,15 +339,14 @@ export default function ChatsPage() {
           <LoadingSpinner />
         ) : (
           <>
-            {activeTab === 'chat' && <ChatTab personas={myPersonas} />}
-            {activeTab === 'contacts' && <ContactsTab personas={myPersonas} />}
+            {activeTab === 'chat' && <ChatTab personas={myPersonas} onNavigate={handleNavigateToDiscover} />}
+            {activeTab === 'contacts' && <ContactsTab personas={myPersonas} onNavigate={handleNavigateToDiscover} />}
             {activeTab === 'discover' && <DiscoverTab />}
             {activeTab === 'me' && <MeTab />}
           </>
         )}
       </main>
 
-      {/* Tab Bar */}
       <TabBar activeTab={activeTab} onTabChange={setActiveTab} />
     </div>
   );
