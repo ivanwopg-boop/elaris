@@ -33,24 +33,24 @@ async def _sse_event(event_name: str, data: dict) -> str:
 
 
 @router.post("", response_model=GroupChatOut, status_code=status.HTTP_201_CREATED)
-async def create_group_chat(data: GroupChatCreate, user: User = Depends(require_premium), db: AsyncSession = Depends(get_db)):
+async def create_group_chat(data: GroupChatCreate, user: User = Depends(require_auth), db: AsyncSession = Depends(get_db)):
     chat = await create_chat(data.title, data.persona_ids, data.persona_roles, db, user_id=user.id)
-    return _chat_to_out(chat, 0)
+    return await _chat_to_out(chat, 0, db)
 
 
 @router.get("", response_model=list[GroupChatOut])
-async def list_group_chats(user: User = Depends(require_premium), db: AsyncSession = Depends(get_db)):
+async def list_group_chats(user: User = Depends(require_auth), db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(GroupChat).where(GroupChat.user_id == user.id).order_by(GroupChat.created_at.desc()))
     chats = result.scalars().all()
     outs = []
     for c in chats:
         mc = await db.execute(select(func.count()).select_from(GroupChatMessage).where(GroupChatMessage.chat_id == c.id))
-        outs.append(_chat_to_out(c, mc.scalar() or 0))
+        outs.append(await _chat_to_out(c, mc.scalar() or 0, db))
     return outs
 
 
 @router.get("/{chat_id}", response_model=GroupChatDetail)
-async def get_group_chat(chat_id: str, user: User = Depends(require_premium), db: AsyncSession = Depends(get_db)):
+async def get_group_chat(chat_id: str, user: User = Depends(require_auth), db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(GroupChat).where(GroupChat.id == chat_id, GroupChat.user_id == user.id))
     chat = result.scalar_one_or_none()
     if not chat:
@@ -63,7 +63,7 @@ async def get_group_chat(chat_id: str, user: User = Depends(require_premium), db
     messages = msg_result.scalars().all()
 
     return GroupChatDetail(
-        chat=_chat_to_out(chat, mc.scalar() or 0),
+        chat=await _chat_to_out(chat, mc.scalar() or 0, db),
         messages=[GroupChatMessageOut(
             id=m.id, chat_id=m.chat_id, sender_type=m.sender_type,
             sender_id=m.sender_id, sender_name=m.sender_name,
@@ -109,7 +109,7 @@ async def group_chat_send_blocking(
 
 
 @router.get("/{chat_id}/sse")
-async def group_chat_sse(chat_id: str, message: str, user: User = Depends(require_premium), db: AsyncSession = Depends(get_db)):
+async def group_chat_sse(chat_id: str, message: str, user: User = Depends(require_auth), db: AsyncSession = Depends(get_db)):
     # verify ownership
     """SSE endpoint: user sends a message → all personas respond streaming."""
 
@@ -215,7 +215,7 @@ async def remove_persona(
 
 
 @router.delete("/{chat_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_group_chat(chat_id: str, user: User = Depends(require_premium), db: AsyncSession = Depends(get_db)):
+async def delete_group_chat(chat_id: str, user: User = Depends(require_auth), db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(GroupChat).where(GroupChat.id == chat_id, GroupChat.user_id == user.id))
     chat = result.scalar_one_or_none()
     if not chat:
@@ -224,10 +224,24 @@ async def delete_group_chat(chat_id: str, user: User = Depends(require_premium),
     await db.flush()
 
 
-def _chat_to_out(chat: GroupChat, msg_count: int = 0) -> GroupChatOut:
+async def _chat_to_out(chat: GroupChat, msg_count: int = 0, db: AsyncSession = None) -> GroupChatOut:
+    from app.models.db_models import Persona
+    from sqlalchemy import select
+    pids = json.loads(chat.persona_ids)
+    names = {}
+    if db:
+        for pid in pids:
+            try:
+                stmt = select(Persona.name).where(Persona.id == pid)
+                row = (await db.execute(stmt)).scalar_one_or_none()
+                if row:
+                    names[pid] = row
+            except Exception:
+                pass
     return GroupChatOut(
         id=chat.id, title=chat.title,
-        persona_ids=json.loads(chat.persona_ids),
+        persona_ids=pids,
+        persona_names=names,
         persona_roles=json.loads(chat.persona_roles) if chat.persona_roles else {},
         status=chat.status, message_count=msg_count,
         created_at=chat.created_at, updated_at=chat.updated_at,

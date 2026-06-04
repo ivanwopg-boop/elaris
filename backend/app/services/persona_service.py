@@ -32,13 +32,37 @@ async def get_persona(persona_id: str, db: AsyncSession, user_id: str | None = N
         return None
     # Allow premium users to access preset personas (user_id=NULL)
 
-    # Get latest soul
+    # Get latest soul (any lang, version desc)
     soul_result = await db.execute(
         select(PersonaSoul)
         .where(PersonaSoul.persona_id == persona_id)
         .order_by(PersonaSoul.version.desc())
     )
     soul = soul_result.scalars().first()
+
+    # Get souls_by_lang - one per language
+    all_souls_result = await db.execute(
+        select(PersonaSoul)
+        .where(PersonaSoul.persona_id == persona_id)
+        .order_by(PersonaSoul.version.desc())
+    )
+    all_souls = all_souls_result.scalars().all()
+    souls_by_lang = {}
+    for s in all_souls:
+        if s.lang not in souls_by_lang:
+            try:
+                soul_data = json.loads(s.soul_json)
+            except Exception:
+                soul_data = {}
+            souls_by_lang[s.lang] = {
+                "version": s.version,
+                "has_soul": True,
+                "soul": soul_data,
+            }
+    # Ensure all 3 langs are present (even if missing)
+    for lang in ["en", "zh-CN"]:
+        if lang not in souls_by_lang:
+            souls_by_lang[lang] = {"version": 0, "has_soul": False, "soul": None}
 
     # Get file count
     from app.models.db_models import PersonaFile
@@ -58,6 +82,7 @@ async def get_persona(persona_id: str, db: AsyncSession, user_id: str | None = N
         "soul": json.loads(soul.soul_json) if soul else None,
         "soul_version": soul.version if soul else None,
         "file_count": file_count,
+        "souls_by_lang": souls_by_lang,
     }
 
 

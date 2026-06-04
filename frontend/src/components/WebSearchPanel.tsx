@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { cn } from "@/lib/utils";
 import { Card } from "./ui/card";
 import { Button } from "./ui/button";
+import { useLangStore, translations } from "@/lib/i18n";
 
 interface WebSearchPanelProps {
   personaId: string;
@@ -13,6 +14,8 @@ interface WebSearchPanelProps {
 }
 
 export function WebSearchPanel({ personaId, onSearch, results, className }: WebSearchPanelProps) {
+  const { lang } = useLangStore();
+  const t = translations[lang];
   const [customQuery, setCustomQuery] = useState("");
   const [searching, setSearching] = useState(false);
   const [autoQueries, setAutoQueries] = useState<string[]>([]);
@@ -36,14 +39,14 @@ export function WebSearchPanel({ personaId, onSearch, results, className }: WebS
 
   return (
     <div className={cn("space-y-3", className)}>
-      <h4 className="text-sm font-medium text-text-secondary">Web Search</h4>
+      <h4 className="text-sm font-medium text-text-secondary">{t.start_web_search || "Start Web Search"}</h4>
 
       <Button
         size="sm"
         loading={searching}
         onClick={() => startSearch(autoQueries.length > 0 ? autoQueries : ["default search"])}
       >
-        🔍 Start Web Search
+        🔍 {t.start_web_search || "Start Web Search"}
       </Button>
 
       {/* Custom query */}
@@ -69,7 +72,7 @@ export function WebSearchPanel({ personaId, onSearch, results, className }: WebS
           {autoQueries.map((q, i) => (
             <span key={i} className="px-2 py-1 bg-bg-card rounded-lg text-xs text-text-secondary flex items-center gap-1">
               {q}
-              <button onClick={() => setAutoQueries((prev) => prev.filter((_, j) => j !== i))}>✕</button>
+              <button onClick={() => setAutoQueries((prev) => prev.filter((_, j) => j !== i))} className="text-text-tertiary hover:text-red-400">✕</button>
             </span>
           ))}
         </div>
@@ -78,13 +81,13 @@ export function WebSearchPanel({ personaId, onSearch, results, className }: WebS
       {/* Results */}
       {results.length > 0 && (
         <div className="space-y-2 mt-4">
-          <p className="text-xs text-text-tertiary">Search results:</p>
+          <p className="text-xs text-text-tertiary">{t.search || "Search"} results:</p>
           {results.map((r, i) => (
             <Card key={i} className="p-3">
-              <p className="text-xs font-medium text-text-secondary mb-1">Search：{r.query}</p>
+              <p className="text-xs font-medium text-text-secondary mb-1">{t.search || "Search"}：{r.query}</p>
               {r.results?.slice(0, 3).map((item: any, j: number) => (
                 <div key={j} className="text-xs text-text-tertiary py-1 border-t border-border/50">
-                  <a href={item.url} target="_blank" className="text-accent-blue hover:underline">{item.title}</a>
+                  <a href={item.url} target="_blank" rel="noopener noreferrer" className="text-accent-blue hover:underline">{item.title}</a>
                   <p className="mt-0.5">{item.snippet}</p>
                 </div>
               ))}
@@ -95,5 +98,3 @@ export function WebSearchPanel({ personaId, onSearch, results, className }: WebS
     </div>
   );
 }
-
-

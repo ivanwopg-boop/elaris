@@ -11,6 +11,7 @@ import { SoulCard } from "@/components/SoulCard";
 import { DistillProgress } from "@/components/DistillProgress";
 import { Avatar } from "@/components/Avatar";
 import { api, PersonaDetail, FileOut } from "@/lib/api";
+import { useLangStore, translations } from "@/lib/i18n";
 import { formatDate, fileIcon } from "@/lib/utils";
 
 export default function PersonaDetailPage() {
@@ -28,48 +29,59 @@ export default function PersonaDetailPage() {
   const [uploadStatus, setUploadStatus] = useState<"idle" | "uploading" | "done" | "error">("idle");
   const [uploadMsg, setUploadMsg] = useState<string>("");
   const [activeTab, setActiveTab] = useState<"soul" | "files" | "search">("soul");
+  const { lang } = useLangStore();
+  const t = translations[lang];
 
   const loadData = useCallback(async () => {
     try {
       const p = await api.getPersona(id);
       setPersona(p);
-      if (p.soul) {
-        setSoul(p.soul);
-        setSoulVersion(p.soul_version);
+      // Use soul for current language from souls_by_lang
+      const langSoul = p.souls_by_lang?.[lang];
+      if (langSoul?.has_soul && langSoul?.soul) {
+        setSoul(langSoul.soul);
+        setSoulVersion(langSoul.version);
+      } else {
+        // Fallback to default soul
+        setSoul(p.soul || null);
+        setSoulVersion(p.soul_version ?? null);
       }
       const f = await api.listFiles(id);
       setFiles(f);
     } catch (e: any) {
-      alert("Load failed: " + e.message);
+      alert(t.load_failed || "Load failed: " + e.message);
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, lang]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
   useEffect(() => {
-    if (!persona || persona.has_soul) return;
+    if (!persona || !persona.has_soul) return;
+    const langSoul = persona.souls_by_lang?.[lang];
+    if (langSoul?.has_soul) return;
     const interval = setInterval(async () => {
       try {
         const p = await api.getPersona(id);
         setPersona(p);
-        if (p.soul) {
-          setSoul(p.soul);
-          setSoulVersion(p.soul_version);
+        const ls = p.souls_by_lang?.[lang];
+        if (ls?.has_soul && ls?.soul) {
+          setSoul(ls.soul);
+          setSoulVersion(ls.version);
           setDistillStatus("done");
           clearInterval(interval);
         }
       } catch {}
     }, 3000);
     return () => clearInterval(interval);
-  }, [persona?.has_soul, persona?.id]);
+  }, [persona?.has_soul, persona?.id, lang]);
 
   const handleDistill = async () => {
     setDistillStatus("distilling");
     setDistillError(undefined);
     try {
-      const result = await api.distill(id);
+      const result = await api.distill(id, lang);
       setSoul(result.soul);
       setSoulVersion(result.version);
       setDistillStatus("done");
@@ -97,7 +109,7 @@ export default function PersonaDetailPage() {
       }
       loadData();
     } catch (e: any) {
-      setUploadMsg("Upload failed: " + (e?.message || e?.detail || "Unknown error"));
+      setUploadMsg((t.upload_failed || "Upload failed: ") + (e?.message || e?.detail || "Unknown error"));
       setUploadStatus("error");
     }
   };
@@ -105,28 +117,28 @@ export default function PersonaDetailPage() {
   const handleManualInput = async (fields: Record<string, string>) => {
     try {
       await api.addManualInput(id, fields);
-      alert("Saved!");
+      alert(t.saved);
     } catch (e: any) {
-      alert("SaveFailed: " + e.message);
+      alert((t.save_failed || "Save failed: ") + e.message);
     }
   };
 
   const handleDeleteFile = async (fileId: string) => {
-    if (!confirm("Delete this file?")) return;
+    if (!confirm(t.delete_confirm)) return;
     try {
       await api.deleteFile(id, fileId);
       loadData();
     } catch (e: any) {
-      alert("DeleteFailed: " + e.message);
+      alert((t.delete || "Delete") + " failed: " + e.message);
     }
   };
 
 if (loading) {
-    return <div className="text-center text-[#86868B] text-sm font-light py-24">Loading...</div>;
+    return <div className="text-center text-[#86868B] text-sm font-light py-24">{t.loading}</div>;
   }
 
   if (!persona) {
-    return <div className="text-center text-[#86868B] text-sm font-light py-24">Persona not found</div>;
+    return <div className="text-center text-[#86868B] text-sm font-light py-24">{t.persona_not_found}</div>;
   }
 
   return (
@@ -137,7 +149,7 @@ if (loading) {
           <div className="relative group">
             <Avatar name={persona.name} url={persona.avatar_url} size="lg" className="w-16 h-16 text-2xl" />
             <label className="absolute inset-0 rounded-full opacity-0 group-hover:opacity-100 bg-black/40 flex items-center justify-center cursor-pointer transition-opacity">
-              <span className="text-white text-xs font-light">Edit</span>
+              <span className="text-white text-xs font-light">{t.edit}</span>
               <input type="file" accept="image/*" className="hidden"
                 onChange={async (e) => {
                   const file = e.target.files?.[0];
@@ -155,18 +167,16 @@ if (loading) {
           </div>
         </div>
         <div className="flex gap-2">
-          <Button variant="secondary" onClick={() => router.push(`/chat/${id}`)}>Chat</Button>
-          <Button variant="secondary" onClick={() => router.push(`/write/${id}`)}>Write</Button>
-          <Button variant="secondary" onClick={() => router.push(`/advise/${id}`)}>Advise</Button>
+          <Button variant="secondary" onClick={() => window.location.href = `/guest-chat/${id}`}>{t.chat || "Chat"}</Button>
         </div>
       </div>
 
       {/* Tabs */}
       <div className="flex gap-6 border-b border-[rgba(0,0,0,0.06)] mb-8">
         {[
-          { key: "soul" as const, label: "Soul" },
-          { key: "files" as const, label: `Files (${files.length})` },
-          { key: "search" as const, label: "Search" },
+          { key: "soul" as const, label: t.tab_soul },
+          { key: "files" as const, label: `${t.tab_files} (${files.length})` },
+          { key: "search" as const, label: t.tab_search },
         ].map((tab) => (
           <button
             key={tab.key}
@@ -187,24 +197,31 @@ if (loading) {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-5">
             <SoulCard soul={soul} version={soulVersion ?? undefined} name={persona?.name} avatar_url={persona?.avatar_url} />
-            <DistillProgress status={distillStatus} error={distillError} version={soulVersion ?? undefined} />
-            <div className="flex gap-2">
-              <Button onClick={handleDistill} loading={distillStatus === "distilling"}>
-                {soul ? "Redistill" : "Start Distillation"}
-              </Button>
-
-            </div>
+            {persona.user_id && (
+              <>
+                <DistillProgress status={distillStatus} error={distillError} version={soulVersion ?? undefined} />
+                <div className="flex gap-2">
+                  <Button onClick={handleDistill} loading={distillStatus === "distilling"}>
+                    {soul ? t.redistill : t.start_distillation}
+                  </Button>
+                </div>
+              </>
+            )}
           </div>
 
           <div className="space-y-5">
-            <ManualInputForm onSave={handleManualInput} />
-            <FileUploader onFilesSelected={(files) => handleUploadFiles(files, [])} />
-            {uploadStatus !== "idle" && (
-              <div className={`text-xs text-center py-2 rounded-[8px] font-light ${
-                uploadStatus === "done" ? "text-green-600 bg-green-50" : uploadStatus === "error" ? "text-red-500 bg-red-50" : "text-[#86868B]"
-              }`}>
-                {uploadStatus === "uploading" ? "Uploading..." : uploadMsg}
-              </div>
+            {persona.user_id && (
+              <>
+                <ManualInputForm onSave={handleManualInput} />
+                <FileUploader onFilesSelected={(files) => handleUploadFiles(files, [])} />
+                {uploadStatus !== "idle" && (
+                  <div className={`text-xs text-center py-2 rounded-[8px] font-light ${
+                    uploadStatus === "done" ? "text-green-600 bg-green-50" : uploadStatus === "error" ? "text-red-500 bg-red-50" : "text-[#86868B]"
+                  }`}>
+                    {uploadStatus === "uploading" ? t.uploading : uploadMsg}
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -213,12 +230,14 @@ if (loading) {
       {/* Tab: Files */}
       {activeTab === "files" && (
         <div>
-          <FileUploader onFilesSelected={(files) => handleUploadFiles(files, [])} className="mb-5" />
+          {persona.user_id && (
+            <FileUploader onFilesSelected={(files) => handleUploadFiles(files, [])} className="mb-5" />
+          )}
           {uploadStatus !== "idle" && (
             <div className={`text-xs text-center py-2 rounded-[8px] mb-4 font-light ${
               uploadStatus === "done" ? "text-green-600 bg-green-50" : uploadStatus === "error" ? "text-red-500 bg-red-50" : "text-[#86868B]"
             }`}>
-              {uploadStatus === "uploading" ? "Uploading..." : uploadMsg}
+              {uploadStatus === "uploading" ? t.uploading : uploadMsg}
             </div>
           )}
 
@@ -234,7 +253,7 @@ if (loading) {
                       <p className="text-sm font-light text-[#1D1D1F] truncate">{f.file_name}</p>
                       <p className="text-xs text-[#86868B] font-light">
                         {formatDate(f.created_at)}
-                        {f.parsed_content && ` · ${f.parsed_content.length} chars`}
+                        {f.parsed_content && ` · ${f.parsed_content.length} ${t.chars}`}
                       </p>
                     </div>
                   </div>

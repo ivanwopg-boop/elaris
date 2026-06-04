@@ -1,8 +1,11 @@
 'use client';
 
 import { useState } from 'react';
+import { useLangStore, translations } from '@/lib/i18n';
 
 export default function AdminInviteCodesPage() {
+  const { lang } = useLangStore();
+  const t = translations[lang];
   const [count, setCount] = useState(1);
   const [tier, setTier] = useState('premium');
   const [results, setResults] = useState<any[]>([]);
@@ -114,7 +117,7 @@ export default function AdminInviteCodesPage() {
                 <div>
                   <div className="text-sm font-light text-[#1D1D1F] tracking-wider">{r.code}</div>
                   <div className="text-xs text-[#86868B] font-light mt-1">
-                    {r.tier} · Quota {r.max_uses}
+                    {r.tier} · {t.quota} {r.max_uses}
                   </div>
                 </div>
                 <div className="flex gap-2">

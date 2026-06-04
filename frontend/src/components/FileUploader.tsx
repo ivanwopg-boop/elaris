@@ -2,6 +2,7 @@
 
 import React, { useRef, useState } from "react";
 import { cn } from "@/lib/utils";
+import { useLangStore, translations } from "@/lib/i18n";
 
 interface FileUploaderProps {
   onFilesSelected: (files: File[]) => void;
@@ -9,6 +10,8 @@ interface FileUploaderProps {
 }
 
 export function FileUploader({ onFilesSelected, className }: FileUploaderProps) {
+  const { lang } = useLangStore();
+  const t = translations[lang];
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
 
@@ -41,8 +44,8 @@ export function FileUploader({ onFilesSelected, className }: FileUploaderProps) 
         onDrop={handleDrop}
       >
         <div className="text-3xl mb-2">📁</div>
-        <p className="text-sm text-text-secondary">Drag files here or click to select</p>
-        <p className="text-xs text-text-tertiary mt-1">PDF, DOCX, TXT, images supported</p>
+        <p className="text-sm text-text-secondary">{t.drag_files_here}</p>
+        <p className="text-xs text-text-tertiary mt-1">{t.supported_formats}</p>
         <input
           ref={inputRef}
           type="file"

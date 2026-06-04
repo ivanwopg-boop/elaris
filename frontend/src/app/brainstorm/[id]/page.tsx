@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
+import { useLangStore, translations } from '@/lib/i18n';
 import { useParams, useRouter } from "next/navigation";
 import { Avatar } from "@/components/Avatar";
 import { api, BrainstormMessageOut } from "@/lib/api";
@@ -55,6 +56,8 @@ function Bubble({ name, content, ci, avatarUrl }: { name: string; content: strin
 // ── Main page ────────────────────────────────────────────────────────────────
 
 export default function BrainstormPage() {
+  const { lang } = useLangStore();
+  const t = translations[lang];
   const params = useParams();
   const router = useRouter();
   const id = params.id as string;
@@ -223,7 +226,7 @@ export default function BrainstormPage() {
     <div className="h-screen flex flex-col bg-white">
       <header className="shrink-0 border-b border-[rgba(0,0,0,0.06)] bg-white/95 z-10">
         <div className="max-w-3xl mx-auto px-4 h-14 flex items-center gap-3">
-          <button onClick={() => router.push("/brainstorms")} className="text-[#86868B] hover:text-[#1D1D1F] text-2xl font-light leading-none">‹</button>
+          <button onClick={() => router.push("/brainstorms")} className="text-[#86868B] hover:text-[#1D1D1F] text-2xl font-light leading-none">{t.back}</button>
           <div className="text-sm font-light flex-1 truncate">Brainstorm</div>
           {status === "running" && <span className="text-[11px] text-[#6E6E73] animate-pulse font-light">Discussing...</span>}
           {status === "done" && <button onClick={() => handleExport("docx")} className="text-[11px] text-[#86868B] hover:text-[#1D1D1F] px-2 py-1 font-light">DOCX</button>}
@@ -253,7 +256,7 @@ export default function BrainstormPage() {
             <StreamingBubble key={p.localId} msg={p} ci={getCi(p)} />
           ))}
 
-          {error && <div className="text-center text-sm text-red-400 py-8 font-light">⚠️ {error}</div>}
+          {error && <div className="text-center text-sm text-red-400 py-8 font-light">⚠️ {t.error_occurred || "Error"}: {error}</div>}
 
           {summary && (
             <div className="mt-6 p-5 rounded-[12px]" style={{ backgroundColor: `${COLORS[0]}06`, border: `1px solid ${COLORS[0]}15` }}>

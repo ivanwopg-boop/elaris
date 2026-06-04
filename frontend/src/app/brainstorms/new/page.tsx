@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useLangStore, translations } from '@/lib/i18n';
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,6 +9,8 @@ import { FileUploader } from "@/components/FileUploader";
 import { api, PersonaOut } from "@/lib/api";
 
 export default function NewBrainstormPage() {
+  const { lang } = useLangStore();
+  const t = translations[lang];
   const router = useRouter();
   const [personas, setPersonas] = useState<PersonaOut[]>([]);
   const [loading, setLoading] = useState(true);
@@ -69,7 +72,7 @@ export default function NewBrainstormPage() {
   return (
     <div className="max-w-5xl mx-auto px-6 py-16">
       <button onClick={() => router.push("/brainstorms")} className="text-xs text-[#86868B] font-light hover:text-[#6E6E73] mb-6">
-        ← Back
+        {t.back}
       </button>
       <h1 className="text-2xl font-extralight tracking-tight mb-10">New Brainstorm</h1>
 
@@ -101,7 +104,7 @@ export default function NewBrainstormPage() {
                   <div key={i} className="flex items-center gap-2 text-xs text-[#86868B] font-light">
                     <span>·</span>
                     <span className="flex-1 truncate">{f.name}</span>
-                    <button onClick={() => setFiles((prev) => prev.filter((_, j) => j !== i))} className="text-red-400 font-light">✕</button>
+                    <button onClick={() => setFiles((prev) => prev.filter((_, j) => j !== i))} className="text-red-400 font-light">{t.close}</button>
                   </div>
                 ))}
               </div>

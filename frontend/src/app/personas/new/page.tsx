@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useLangStore, translations } from '@/lib/i18n';
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,8 @@ const COMPANY_OPTIONS = ["", "Tech Company", "Internet Company", "Financial Inst
 const BACKGROUND_OPTIONS = ["", "Serial Entrepreneur", "Tech Expert", "Business Consultant", "Academic Researcher", "Artist/Creator", "Investor", "Executive", "Educator", "Engineer"];
 
 export default function CreatePersonaPage() {
+  const { lang } = useLangStore();
+  const t = translations[lang];
   const router = useRouter();
   const [name, setName] = useState("");
   const [title, setTitle] = useState("");
@@ -62,7 +65,7 @@ export default function CreatePersonaPage() {
 
   return (
     <div className="max-w-3xl mx-auto px-6 py-16">
-      <button onClick={() => router.push("/personas")} className="text-xs text-[#86868B] font-light hover:text-[#6E6E73] mb-6">← Back</button>
+      <button onClick={() => router.push("/personas")} className="text-xs text-[#86868B] font-light hover:text-[#6E6E73] mb-6">{t.back}</button>
       <h1 className="text-2xl font-extralight tracking-tight mb-10">Create Persona</h1>
 
       <div className="space-y-5">
@@ -159,7 +162,7 @@ export default function CreatePersonaPage() {
                 <div key={i} className="flex items-center gap-2 text-xs text-[#86868B] font-light">
                   <span>·</span>
                   <span className="flex-1 truncate">{f.name}</span>
-                  <button onClick={() => setFiles((prev) => prev.filter((_, j) => j !== i))} className="text-red-400">✕</button>
+                  <button onClick={() => setFiles((prev) => prev.filter((_, j) => j !== i))} className="text-red-400">{t.close}</button>
                 </div>
               ))}
             </div>

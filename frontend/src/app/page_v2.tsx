@@ -1,6 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import { useLangStore, translations } from '@/lib/i18n';
 import { useAuthStore } from '@/lib/auth-store';
 
 const STEPS = [
@@ -82,6 +83,8 @@ const DEMO_MESSAGES = [
 ];
 
 export default function HomePageV2() {
+  const { lang } = useLangStore();
+  const t = translations[lang];
   const router = useRouter();
   const { token } = useAuthStore();
 
@@ -102,7 +105,7 @@ export default function HomePageV2() {
       {/* PERSONA CREATION */}
       <section className="max-w-5xl mx-auto px-6 pb-24">
         <h2 className="text-xs font-light text-[#86868B] tracking-[0.15em] uppercase mb-10 text-center">
-          From human to digital — a persona is born
+          {t.from_human_to_digital}
         </h2>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-12">

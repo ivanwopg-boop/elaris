@@ -52,6 +52,13 @@ async def require_auth(
     return user
 
 
+async def require_auth_optional(
+    user: User | None = Depends(get_current_user),
+) -> User | None:
+    """Optional authentication. Returns None if not logged in."""
+    return user
+
+
 def require_tier(required_tier: str):
     """Require a specific tier (premium)."""
     async def _check(user: User = Depends(require_auth)) -> User:

@@ -14,11 +14,44 @@ from app.models.db_models import (
 from app.models.schemas import PersonaProfile
 from app.models.schemas import PersonaProfile
 from app.core.minimax_client import minimax_client
-from app.core.prompts import FIRST_DISTILL_PROMPT, UPDATE_DISTILL_PROMPT, SEARCH_ANALYSIS_PROMPT
+from app.core.prompts import (FIRST_DISTILL_PROMPT, FIRST_DISTILL_PROMPT_ZH_CN, FIRST_DISTILL_PROMPT_ZH_TW,
+    UPDATE_DISTILL_PROMPT, SEARCH_ANALYSIS_PROMPT)
 from app.services.web_search import search_web
 
 
-async def distill_persona(persona_id: str, db: AsyncSession) -> dict:
+def _get_distill_prompt(lang: str, name: str, title_line: str, company_line: str, all_materials: str, existing_soul, version_from):
+    """Select the right prompt template based on language."""
+    if lang == 'zh-CN':
+        base = FIRST_DISTILL_PROMPT_ZH_CN
+
+    else:
+        base = FIRST_DISTILL_PROMPT
+
+    if existing_soul:
+        try:
+            old_profile = PersonaProfile(**json.loads(existing_soul.soul_json))
+            normalized_soul = old_profile.model_dump_json(indent=2, ensure_ascii=False)
+        except Exception:
+            normalized_soul = existing_soul.soul_json
+        prompt = UPDATE_DISTILL_PROMPT.format(
+            name=name,
+            soul_json=normalized_soul,
+            new_materials=all_materials,
+            all_materials=all_materials,
+        )
+        version_from = existing_soul.version
+    else:
+        prompt = base.format(
+            name=name,
+            title_line=title_line,
+            company_line=company_line,
+            all_materials=all_materials,
+        )
+        version_from = None
+    return prompt, version_from
+
+
+async def distill_persona(persona_id: str, db: AsyncSession, lang: str = "en") -> dict:
     """Run distillation for a persona, returns the new soul."""
     # 1. Load persona
     result = await db.execute(select(Persona).where(Persona.id == persona_id))
@@ -29,10 +62,10 @@ async def distill_persona(persona_id: str, db: AsyncSession) -> dict:
     # 2. Gather all materials
     all_materials = await _gather_materials(persona_id, db)
 
-    # 3. Check if existing soul
+    # 3. Check if existing soul for this lang
     soul_result = await db.execute(
         select(PersonaSoul)
-        .where(PersonaSoul.persona_id == persona_id)
+        .where(PersonaSoul.persona_id == persona_id, PersonaSoul.lang == lang)
         .order_by(PersonaSoul.version.desc())
     )
     existing_soul = soul_result.scalars().first()
@@ -53,31 +86,7 @@ async def distill_persona(persona_id: str, db: AsyncSession) -> dict:
         elif mi.field_key == "company":
             company_line = f"Company: {mi.field_value}\n"
 
-    if existing_soul:
-        # Ensure old soul data has all new fields (fill missing with defaults)
-        try:
-            old_profile = PersonaProfile(**json.loads(existing_soul.soul_json))
-            normalized_soul = old_profile.model_dump_json(indent=2, ensure_ascii=False)
-        except Exception:
-            normalized_soul = existing_soul.soul_json
-
-        # Update distillation
-        prompt = UPDATE_DISTILL_PROMPT.format(
-            name=name,
-            soul_json=normalized_soul,
-            new_materials=all_materials,
-            all_materials=all_materials,
-        )
-        version_from = existing_soul.version
-    else:
-        # First distillation
-        prompt = FIRST_DISTILL_PROMPT.format(
-            name=name,
-            title_line=title_line,
-            company_line=company_line,
-            all_materials=all_materials,
-        )
-        version_from = None
+    prompt, version_from = _get_distill_prompt(lang, name, title_line, company_line, all_materials, existing_soul, None)
 
     # 5. Call LLM API
     messages = [
@@ -117,8 +126,11 @@ async def distill_persona(persona_id: str, db: AsyncSession) -> dict:
         id=str(uuid.uuid4()),
         persona_id=persona_id,
         version=new_version,
+        lang=lang,
         soul_json=soul_json,
         distill_source_count=total_sources,
+        distill_file_ids="[]",
+        distill_search_ids="[]",
     )
     db.add(new_soul)
 

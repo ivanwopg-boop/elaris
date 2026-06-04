@@ -74,7 +74,13 @@ export const api = {
 
 
   // Personas
-  listPersonas: () =>
+  listConversations: () =>
+      api.request<ConversationOut[]>('/conversations'),
+    createConversation: (data: { type: string; name?: string; persona_id?: string; participant_ids?: string[] }) =>
+      api.request<ConversationOut>('/conversations', { method: 'POST', body: JSON.stringify(data) }),
+    deleteConversation: (id: string) =>
+      api.request<void>('/conversations/' + id, { method: 'DELETE' }),
+    listPersonas: () =>
     api.request<PersonaOut[]>("/personas"),
 
   listPresets: () =>
@@ -83,7 +89,7 @@ export const api = {
   getPersona: (id: string) =>
     api.request<PersonaDetail>(`/personas/${id}`),
 
-  createPersona: (data: { name: string; description?: string }) =>
+  createPersona: (data: { name: string; description?: string; source_id?: string }) =>
     api.request<PersonaOut>("/personas", {
       method: "POST",
       body: JSON.stringify(data),
@@ -148,11 +154,11 @@ export const api = {
     }),
 
   // Distill
-  distill: (personaId: string) =>
-    api.request<DistillResponse>(`/personas/${personaId}/distill`, { method: "POST" }),
+  distill: (personaId: string, lang: string = "en") =>
+    api.request<DistillResponse>(`/personas/${personaId}/distill?lang=${encodeURIComponent(lang)}`, { method: "POST" }),
 
-  getSoul: (personaId: string) =>
-    api.request<any>(`/personas/${personaId}/soul`),
+  getSoul: (personaId: string, lang: string = "en") =>
+    api.request<any>(`/personas/${personaId}/soul?lang=${encodeURIComponent(lang)}`),
 
   // Chat / Write / Advise
   chat: (personaId: string, message: string, mode: "chat" | "write" | "advise" = "chat", context?: string) =>
@@ -253,12 +259,26 @@ export interface PersonaOut {
   created_at: string;
   updated_at: string;
   has_soul: boolean;
+  user_id: string | null;
+}
+
+export interface ConversationOut {
+  id: string;
+  persona_id: string;
+  persona_name: string;
+  persona_avatar: string | null;
+  last_message: string | null;
+  updated_at: string;
+  type?: string;
+  name?: string | null;
+  participant_ids?: string[];
 }
 
 export interface PersonaDetail extends PersonaOut {
   soul: any | null;
   file_count: number;
   soul_version: number | null;
+  souls_by_lang: Record<string, { version: number; has_soul: boolean; soul: any | null }>;
 }
 
 export interface FileOut {

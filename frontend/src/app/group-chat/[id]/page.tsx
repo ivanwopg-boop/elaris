@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
+import { useLangStore, translations } from '@/lib/i18n';
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/Avatar";
@@ -38,6 +39,8 @@ function Bubble({ name, content, ci, avatarUrl, isUser, isFresh }: { name: strin
 }
 
 export default function GroupChatRoom() {
+  const { lang } = useLangStore();
+  const t = translations[lang];
   const params = useParams(); const router = useRouter();
   const id = params.id as string;
 
@@ -111,9 +114,12 @@ export default function GroupChatRoom() {
   const allPersonaNames = [...new Set(
     chat?.persona_ids.map((pid: string) => (personaNameMap[pid]?.name) || pid) || []
   )];
-  const filteredMentions = allPersonaNames.filter((n: string) =>
-    n.toLowerCase().includes(mentionFilter.toLowerCase())
-  );
+  // Only show names that are real (not UUIDs) and match filter
+  const filteredMentions = allPersonaNames
+    .filter((n: string) => !n.includes('-') && n.length > 5)
+    .filter((n: string) =>
+      n.toLowerCase().includes(mentionFilter.toLowerCase())
+    );
 
   useEffect(() => { ref.current?.scrollIntoView({ behavior: "smooth" }); }, [allMsgs.length, thinking]);
 
@@ -137,7 +143,7 @@ export default function GroupChatRoom() {
 
   const send = async () => {
     if (!input.trim() || sending) return;
-    const text = input.trim(); setInput(""); setSending(true); setThinking("Waiting for response...");
+    const text = input.trim(); setInput(""); setSending(true); setThinking(t.waiting);
     setAllMsgs((p) => [...p, { id: `u-${Date.now()}`, sender_type: "user", sender_name: "Me", content: text }]);
     startPolling();
     try {
@@ -164,15 +170,15 @@ export default function GroupChatRoom() {
     <div className="h-screen flex flex-col bg-white relative">
       <header className="shrink-0 border-b border-[rgba(0,0,0,0.06)] bg-white/95 z-10">
         <div className="max-w-3xl mx-auto px-4 h-14 flex items-center gap-3">
-          <button onClick={() => router.push("/group-chat")} className="text-[#86868B] hover:text-[#1D1D1F] text-2xl font-light leading-none">‹</button>
+          <button onClick={() => router.push("/group-chat")} className="text-[#86868B] hover:text-[#1D1D1F] text-2xl font-light leading-none">{t.back}</button>
           <div className="text-sm font-light flex-1 truncate">{chat.title}</div>
-          <div className="text-[11px] text-[#86868B] font-light">{chat.persona_ids.length}people</div>
+          <div className="text-[11px] text-[#86868B] font-light">{chat.persona_ids.length}{t.people}</div>
           <button onClick={async () => {
             const allP = await api.listPersonas();
             const inChat = new Set(chat.persona_ids);
             setInviteList(allP.filter((p: any) => !inChat.has(p.id)));
             setShowInvite(true);
-          }} className="text-[11px] text-[#0071E3] hover:text-[#1D1D1F] px-2.5 py-1 border border-[rgba(0,113,227,0.2)] rounded-[8px] transition-colors font-light">+ Invite</button>
+          }} className="text-[11px] text-[#0071E3] hover:text-[#1D1D1F] px-2.5 py-1 border border-[rgba(0,113,227,0.2)] rounded-[8px] transition-colors font-light">+ {t.invite}</button>
           <button onClick={async () => {
             const allP = await api.listPersonas();
             setMemberPersonas(allP.filter((p: any) => chat.persona_ids.includes(p.id)));
@@ -187,7 +193,7 @@ export default function GroupChatRoom() {
           <div className="bg-white border border-[rgba(0,0,0,0.06)] rounded-[12px] w-72 overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.08)]" onClick={(e) => e.stopPropagation()}>
             <div className="px-4 py-3 border-b border-[rgba(0,0,0,0.06)] flex items-center justify-between">
               <span className="text-sm font-light text-[#1D1D1F]">Group Members</span>
-              <button onClick={() => setShowMembers(false)} className="text-[#86868B] hover:text-[#1D1D1F] text-xl font-light leading-none">×</button>
+              <button onClick={() => setShowMembers(false)} className="text-[#86868B] hover:text-[#1D1D1F] text-xl font-light leading-none">{t.close}</button>
             </div>
             <div className="max-h-64 overflow-y-auto">
               {memberPersonas.map((p: any) => (
@@ -205,7 +211,7 @@ export default function GroupChatRoom() {
                       const d = await api.getGroupChat(chat.id);
                       setAllMsgs(d.messages); lastCount.current = d.messages.length;
                       setMemberPersonas((prev) => prev.filter((m: any) => m.id !== p.id));
-                    }).catch((err) => alert("Remove failed: " + (err?.message || err?.detail || err)));
+                    }).catch((err) => alert(t.remove_failed + (err?.message || err?.detail || err)));
                   }} className="text-[11px] text-[#86868B] hover:text-red-500 px-2 py-1 rounded-[8px] border border-[rgba(0,0,0,0.08)] hover:border-red-500/30 transition-colors font-light">Remove</button>
                 </div>
               ))}
@@ -220,7 +226,7 @@ export default function GroupChatRoom() {
           <div className="bg-white border border-[rgba(0,0,0,0.06)] rounded-[12px] w-72 overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.08)]">
             <div className="px-4 py-3 border-b border-[rgba(0,0,0,0.06)] flex items-center justify-between">
               <span className="text-sm font-light text-[#1D1D1F]">Invite Persona</span>
-              <button onClick={() => setShowInvite(false)} className="text-[#86868B] hover:text-[#1D1D1F] text-xl font-light leading-none">×</button>
+              <button onClick={() => setShowInvite(false)} className="text-[#86868B] hover:text-[#1D1D1F] text-xl font-light leading-none">{t.close}</button>
             </div>
             <div className="max-h-64 overflow-y-auto">
               {inviteList.length === 0 ? (
@@ -238,7 +244,7 @@ export default function GroupChatRoom() {
                         setPersonaNameMap((prev) => ({ ...prev, [p.id]: { name: p.name, avatar_url: p.avatar_url } }));
                         setShowInvite(false);
                       })
-                      .catch((err) => alert("Invite failed: " + (err?.detail || "Unknown error")))
+                      .catch((err) => alert(t.invite_failed + (err?.detail || "Unknown error")))
                       .finally(() => setInviting(false));
                   }}
                   disabled={inviting}
@@ -269,7 +275,7 @@ export default function GroupChatRoom() {
           {allMsgs.map((m: any) => {
             const fresh = freshIds.has(m.id);
             if (m.sender_type === "user" || m.sender_name === "Me")
-              return <Bubble key={m.id} name="Me" content={m.content} ci={99} isUser isFresh={fresh} />;
+              return <Bubble key={m.id} name={t.me} content={m.content} ci={99} isUser isFresh={fresh} />;
             if (m.sender_type === "system")
               return <div key={m.id} className="text-center text-xs text-[#86868B] py-2 italic font-light">{m.content}</div>;
             const ci = chat.persona_ids.indexOf(m.sender_id || "");

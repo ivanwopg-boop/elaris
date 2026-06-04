@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { useLangStore, translations } from '@/lib/i18n';
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,6 +10,8 @@ import { useAppStore } from "@/store";
 import { api } from "@/lib/api";
 
 export default function PersonaListPage() {
+  const { lang } = useLangStore();
+  const t = translations[lang];
   const router = useRouter();
   const { personas, loading, error, loadPersonas, clearError } = useAppStore();
 
@@ -61,7 +64,7 @@ export default function PersonaListPage() {
                 }}
                 className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[#86868B] hover:text-red-500 hover:bg-red-50 transition-all text-xs font-light"
                 title="DeletePersonas"
-              >✕</button>
+              >{t.close}</button>
             </div>
             {p.description && (
               <p className="text-xs text-[#86868B] font-light line-clamp-2">{p.description}</p>

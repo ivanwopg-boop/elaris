@@ -1,6 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
+import { useLangStore, translations } from '@/lib/i18n';
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
@@ -8,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { api, PersonaDetail } from "@/lib/api";
 
 export default function WritePage() {
+  const { lang } = useLangStore();
+  const t = translations[lang];
   const params = useParams();
   const router = useRouter();
   const id = params.id as string;
@@ -41,7 +44,7 @@ export default function WritePage() {
         onClick={() => router.push(`/persona/${id}`)}
         className="text-xs text-[#86868B] font-light hover:text-[#6E6E73] mb-5"
       >
-        ← Back {persona?.name || "..."}
+        {t.back} {persona?.name || "..."}
       </button>
 
       <h1 className="text-2xl font-extralight tracking-tight mb-1">Writing Assistant</h1>

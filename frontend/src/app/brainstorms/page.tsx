@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useLangStore, translations } from '@/lib/i18n';
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,6 +9,8 @@ import { api, PersonaOut, BrainstormSessionOut } from "@/lib/api";
 import { formatDate } from "@/lib/utils";
 
 export default function BrainstormsPage() {
+  const { lang } = useLangStore();
+  const t = translations[lang];
   const router = useRouter();
   const [sessions, setSessions] = useState<BrainstormSessionOut[]>([]);
   const [loading, setLoading] = useState(true);
@@ -58,11 +61,11 @@ export default function BrainstormsPage() {
               <div className="min-w-0 flex-1">
                 <h3 className="font-light text-sm">{s.title}</h3>
                 <p className="text-xs text-[#86868B] font-light mt-1">
-                  {s.topics.map((t: any) => t.title).join(" · ")} — {formatDate(s.created_at)}
+                  {s.topics.map((topic: any) => topic.title).join(" · ")} — {formatDate(s.created_at)}
                 </p>
                 <p className="text-xs text-[#86868B] font-light">
-                  {s.persona_ids.length} people · {s.completed_rounds}/{s.max_rounds} rounds
-                  {s.message_count > 0 && ` · ${s.message_count} messages`}
+                  {s.persona_ids.length} {t.people} · {s.completed_rounds}/{s.max_rounds} {t.rounds}
+                  {s.message_count > 0 && ` · ${s.message_count} ${t.messages}`}
                 </p>
               </div>
               <div className="flex items-center gap-3 shrink-0">
@@ -74,10 +77,7 @@ export default function BrainstormsPage() {
                     e.stopPropagation();
                     if (confirm("Delete this discussion?")) api.deleteBrainstorm(s.id).then(() => setSessions((prev) => prev.filter((x) => x.id !== s.id)));
                   }}
-                  className="text-[#86868B] hover:text-red-400 text-lg font-light leading-none transition-colors"
-                >
-                  ×
-                </button>
+                  className="text-[#86868B] hover:text-red-400 text-lg font-light leading-none transition-colors">×</button>
               </div>
             </Card>
           );

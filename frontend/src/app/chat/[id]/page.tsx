@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
+import { useLangStore, translations } from '@/lib/i18n';
 import { useParams, useRouter } from "next/navigation";
+import { ChevronLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/Avatar";
 import { api, PersonaDetail } from "@/lib/api";
@@ -19,6 +21,8 @@ function TypeText({ text, speed = 35 }: { text: string; speed?: number }) {
 }
 
 export default function ChatPage() {
+  const { lang } = useLangStore();
+  const t = translations[lang];
   const params = useParams(); const router = useRouter();
   const id = params.id as string;
   const [persona, setPersona] = useState<PersonaDetail | null>(null);
@@ -30,7 +34,37 @@ export default function ChatPage() {
   const esRef = useRef<EventSource | null>(null);
   const liveRef = useRef("");
 
-  useEffect(() => { api.getPersona(id).then(setPersona).catch(() => router.push("/")); }, [id, router]);
+  // Separate effect to load messages - runs after mount
+  useEffect(() => {
+    // Load conversation messages after component mounts (client-side only)
+    const timer = setTimeout(() => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const convId = urlParams.get('conv');
+      console.log('[DEBUG] chat page loaded, convId:', convId, 'full URL:', window.location.href);
+      if (convId) {
+        console.log('[DEBUG] fetching messages for convId:', convId);
+        api.request<any[]>(`/conversations/${convId}/messages`)
+          .then(data => {
+            console.log('[DEBUG] messages loaded:', data);
+            if (Array.isArray(data) && data.length > 0) {
+              console.log('[DEBUG] setting msgs state with', data.length, 'messages');
+              setMsgs(data.map((m: any) => ({ role: m.role, content: m.content, id: m.id })));
+            } else {
+              console.log('[DEBUG] no messages in response');
+            }
+          })
+          .catch((err: any) => console.error('[DEBUG] load messages failed:', err));
+      } else {
+        console.log('[DEBUG] no convId in URL');
+      }
+    }, 500); // Small delay to ensure client-side rendering
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Effect to load persona (separate from messages)
+  useEffect(() => {
+    api.getPersona(id).then(setPersona).catch(() => router.push("/"));
+  }, [id, router]);
   useEffect(() => { ref.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs.length, liveContent]);
 
   useEffect(() => { liveRef.current = liveContent; }, [liveContent]);
@@ -44,15 +78,25 @@ export default function ChatPage() {
     const es = new EventSource(`/api/v1/chat/${id}/stream?message=${encodeURIComponent(text)}`);
     esRef.current = es;
 
+    let msgKey = `u-${Date.now()}`;
+    const appendMsg = (role: string, content: string) => {
+      setMsgs((p) => {
+        // Deduplicate: skip if last msg has same role+content+相近id
+        const last = p[p.length - 1];
+        if (last && last.role === role && last.content === content) return p;
+        return [...p, { role, content, id: role === "user" ? msgKey : `a-${Date.now()}` }];
+      });
+    };
+
     es.addEventListener("chat_message", (e) => {
       try { const ev = JSON.parse(e.data); const c = ev.content || ev.text || ""; setLiveContent(c); liveRef.current = c; } catch {}
     });
 
     es.addEventListener("done", () => {
       es.close(); setSending(false);
-      const c = liveRef.current;
-      if (c) {
-        setMsgs((p) => [...p, { role: "assistant", content: c, id: `a-${Date.now()}` }]);
+      const content = liveRef.current;
+      if (content) {
+        appendMsg("assistant", content);
         setLiveContent(""); liveRef.current = "";
       }
     });
@@ -66,7 +110,9 @@ export default function ChatPage() {
     <div className="h-screen flex flex-col bg-white">
       <header className="shrink-0 border-b border-[rgba(0,0,0,0.06)] bg-white/95 z-10">
         <div className="max-w-3xl mx-auto px-4 h-14 flex items-center gap-3">
-          <button onClick={() => router.push(`/persona/${id}`)} className="text-[#86868B] hover:text-[#1D1D1F] text-2xl font-light leading-none">‹</button>
+          <button onClick={() => router.push("/chats")} className="text-[#86868B] hover:text-[#1D1D1F] p-1.5 -ml-1.5 rounded-full hover:bg-[rgba(0,0,0,0.04)] active:bg-[rgba(0,0,0,0.08)] transition-colors">
+            <ChevronLeft size={20} strokeWidth={1.5} />
+          </button>
           <Avatar name={persona?.name || "?"} url={persona?.avatar_url} size="sm" className="shrink-0" />
           <div className="text-sm font-light flex-1 truncate">{n}</div>
         </div>

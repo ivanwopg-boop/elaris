@@ -114,6 +114,7 @@ class PersonaCreate(BaseModel):
     name: str
     description: str | None = None
     avatar_url: str | None = None
+    source_id: str | None = None  # If set, copy soul from this preset persona
 
 
 class PersonaUpdate(BaseModel):
@@ -130,14 +131,16 @@ class PersonaOut(BaseModel):
     created_at: datetime
     updated_at: datetime
     has_soul: bool = False
+    user_id: str | None = None  # NULL = preset persona
 
     model_config = {"from_attributes": True}
 
 
 class PersonaDetail(PersonaOut):
-    soul: PersonaProfile | None = None
+    soul: PersonaProfile | None = None  # current language soul
     file_count: int = 0
     soul_version: int | None = None
+    souls_by_lang: dict[str, dict] = {}  # {"en": {version, has_soul}, "zh-CN": {...}}
 
 
 # ── File ─────────────────────────────────────────────────

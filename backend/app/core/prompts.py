@@ -270,3 +270,156 @@ Output strictly in the following JSON structure (no other text):
   "tensions": "Contradictions or tensions if any"
 }}
 """
+
+FIRST_DISTILL_PROMPT_ZH_CN = """You are a cognitive analysis expert. Extract this person's complete cognitive profile from the materials below — not what they said, but how they think.
+
+## 目标人物
+Name: {name}
+{title_line}{company_line}
+
+## 提供的内容材料
+{all_materials}
+
+## 内容材料说明
+If you see "Original Text Sample" or "Text Excerpts", pay special attention:
+These are this person's own words. Extract from them:
+- Sentence patterns (short/long, question/statement ratio)
+- High-frequency vocabulary and specialized terms
+- Language rhythm (conclusion first or setup first)
+- Certainty level (rarely uses "maybe" / "perhaps" or frequently uses them)
+- Use of analogies and metaphors
+Populate results into the expression_dna field.
+
+## Extraction Methodology
+
+### Mental Model Triple Verification
+Each mental model must pass these three verifications:
+1. **Cross-domain** — This person has used this thinking framework in at least 2 different domains
+2. **Generative** — The model can be used to infer their likely stance on new questions
+3. **Exclusive** — Not all smart people think this way — it reflects this person's unique perspective
+
+### Expression DNA Quantification
+From the person's text, calculate: avg sentence length (chars), question ratio, analogy density, first-person ratio, certainty tone ratio, transition frequency.
+
+### Handling Contradictions
+If this person expresses contradictory views in different contexts: do not smooth them over. Record them as "Core Tensions" instead.
+
+## Output Requirements
+Output strictly in the following JSON structure in **Simplified Chinese**, no other text:
+{{
+  "basic_info": {{
+    "name": "姓名",
+    "title": "职位/头衔",
+    "company": "公司/组织",
+    "background": "背景简介"
+  }},
+  "personality": {{
+    "extrovert_level": 0,
+    "rational_level": 0,
+    "risk_tolerance": 0,
+    "description": "性格特征描述（中文）"
+  }},
+  "communication_style": {{
+    "formal_level": 0,
+    "tone": "沟通风格特点",
+    "common_phrases": ["口头禅1", "口头禅2"],
+    "preferred_channels": ["偏好沟通渠道"]
+  }},
+  "knowledge_areas": ["专业领域1", "专业领域2"],
+  "decision_patterns": {{
+    "priority_framework": "决策优先级框架",
+    "risk_approach": "风险态度",
+    "decision_speed": "决策速度"
+  }},
+  "values": ["核心价值1", "核心价值2"],
+  "mental_models": ["心智模型1", "心智模型2"],
+  "expression_dna": {{
+    "avg_sentence_length": 0,
+    "question_ratio": 0,
+    "analogy_density": 0,
+    "first_person_ratio": 0,
+    "certainty_tone_ratio": 0,
+    "transition_frequency": 0
+  }},
+  "decision_heuristics": ["决策启发式1", "决策启发式2"],
+  "core_tensions": ["核心张力1", "核心张力2"]
+}}
+"""
+
+
+
+FIRST_DISTILL_PROMPT_ZH_TW = """You are a cognitive analysis expert. Extract this person's complete cognitive profile from the materials below — not what they said, but how they think.
+
+## 目標人物
+Name: {name}
+{title_line}{company_line}
+
+## 提供的內容材料
+{all_materials}
+
+## 內容材料說明
+If you see "Original Text Sample" or "Text Excerpts", pay special attention:
+These are this person's own words. Extract from them:
+- Sentence patterns (short/long, question/statement ratio)
+- High-frequency vocabulary and specialized terms
+- Language rhythm (conclusion first or setup first)
+- Certainty level (rarely uses "maybe" / "perhaps" or frequently uses them)
+- Use of analogies and metaphors
+Populate results into the expression_dna field.
+
+## Extraction Methodology
+
+### Mental Model Triple Verification
+Each mental model must pass these three verifications:
+1. **Cross-domain** — This person has used this thinking framework in at least 2 different domains
+2. **Generative** — The model can be used to infer their likely stance on new questions
+3. **Exclusive** — Not all smart people think this way — it reflects this person's unique perspective
+
+### Expression DNA Quantification
+From the person's text, calculate: avg sentence length (chars), question ratio, analogy density, first-person ratio, certainty tone ratio, transition frequency.
+
+### Handling Contradictions
+If this person expresses contradictory views in different contexts: do not smooth them over. Record them as "Core Tensions" instead.
+
+## Output Requirements
+Output strictly in the following JSON structure in **Traditional Chinese**, no other text:
+{{
+  "basic_info": {{
+    "name": "姓名",
+    "title": "職位/頭銜",
+    "company": "公司/組織",
+    "background": "背景簡介"
+  }},
+  "personality": {{
+    "extrovert_level": 0,
+    "rational_level": 0,
+    "risk_tolerance": 0,
+    "description": "性格特徵描述（繁體中文）"
+  }},
+  "communication_style": {{
+    "formal_level": 0,
+    "tone": "溝通風格特點",
+    "common_phrases": ["口頭禪1", "口頭禪2"],
+    "preferred_channels": ["偏好溝通渠道"]
+  }},
+  "knowledge_areas": ["專業領域1", "專業領域2"],
+  "decision_patterns": {{
+    "priority_framework": "決策優先級框架",
+    "risk_approach": "風險態度",
+    "decision_speed": "決策速度"
+  }},
+  "values": ["核心價值1", "核心價值2"],
+  "mental_models": ["心智模型1", "心智模型2"],
+  "expression_dna": {{
+    "avg_sentence_length": 0,
+    "question_ratio": 0,
+    "analogy_density": 0,
+    "first_person_ratio": 0,
+    "certainty_tone_ratio": 0,
+    "transition_frequency": 0
+  }},
+  "decision_heuristics": ["決策啟發式1", "決策啟發式2"],
+  "core_tensions": ["核心張力1", "核心張力2"]
+}}
+"""
+

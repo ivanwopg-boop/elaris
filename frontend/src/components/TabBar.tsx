@@ -1,70 +1,59 @@
 'use client';
 
-import React from 'react';
+import { useRouter } from 'next/navigation';
 import { MessageSquare, Users, Compass, User } from 'lucide-react';
+import { useLangStore, translations } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 
-export type TabKey = 'chat' | 'contacts' | 'discover' | 'me';
-
-interface TabBarProps {
-  activeTab: TabKey;
-  onTabChange: (tab: TabKey) => void;
-}
-
-const TABS: { key: TabKey; label: string; icon: React.ReactNode }[] = [
-  { key: 'chat', label: '聊天', icon: <MessageSquare size={22} strokeWidth={1.5} /> },
-  { key: 'contacts', label: '通讯录', icon: <Users size={22} strokeWidth={1.5} /> },
-  { key: 'discover', label: '发现', icon: <Compass size={22} strokeWidth={1.5} /> },
-  { key: 'me', label: '我', icon: <User size={22} strokeWidth={1.5} /> },
+const tabs = [
+  { key: 'chat', labelKey: 'tab_chat', icon: (s: number) => <MessageSquare size={s} strokeWidth={1.5} /> },
+  { key: 'contacts', labelKey: 'tab_contacts', icon: (s: number) => <Users size={s} strokeWidth={1.5} /> },
+  { key: 'discover', labelKey: 'tab_discover', icon: (s: number) => <Compass size={s} strokeWidth={1.5} /> },
+  { key: 'me', labelKey: 'tab_me', icon: (s: number) => <User size={s} strokeWidth={1.5} /> },
 ];
 
-export default function TabBar({ activeTab, onTabChange }: TabBarProps) {
+interface TabBarProps {
+  active: string;
+  onTabChange?: (tab: string) => void;
+}
+
+export default function TabBar({ active, onTabChange }: TabBarProps) {
+  const router = useRouter();
+  const { lang } = useLangStore();
+  const t = translations[lang];
+
+  const handleTabClick = (key: string) => {
+    // Immediate callback for instant tab switch (no router.push here to avoid re-render)
+    if (onTabChange) {
+      onTabChange(key);
+    }
+  };
+
   return (
-    <nav
-      className="fixed bottom-0 left-0 right-0 z-50 bg-white/98 backdrop-blur-md border-t border-[rgba(0,0,0,0.08)]"
-      style={{
-        paddingBottom: 'env(safe-area-inset-bottom, 0px)',
-        // Ensure it never bleeds beyond screen edges
-        maxWidth: '100vw',
-        overflowX: 'hidden',
-      }}
+    <div
+      className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-sm border-t border-[rgba(0,0,0,0.06)]"
+      style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
-      <div
-        className="max-w-lg mx-auto flex items-stretch"
-        style={{
-          height: 'calc(56px + env(safe-area-inset-bottom, 0px))',
-          minHeight: '56px',
-        }}
-      >
-        {TABS.map(({ key, label, icon }) => (
-          <button
-            key={key}
-            onClick={() => onTabChange(key)}
-            // Minimum tap target 44×44px, flex-1 for equal distribution
-            className={cn(
-              'flex flex-col items-center justify-center flex-1',
-              'text-[13px] font-light tracking-wide',
-              'transition-colors select-none touch-manipulation',
-              'active:bg-[rgba(0,0,0,0.04)]',
-              activeTab === key
-                ? 'text-[#1D1D1F]'
-                : 'text-[#8E8E93]'
-            )}
-            style={{ minHeight: '56px' }}
-            aria-label={label}
-          >
-            <span className="relative mb-1">
-              {icon}
-              {activeTab === key && (
-                <span
-                  className="absolute -top-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-[#0071E3]"
-                />
+      <div className="flex h-14">
+        {tabs.map((tab) => {
+          const isActive = active === tab.key;
+          return (
+            <button
+              key={tab.key}
+              onClick={() => handleTabClick(tab.key)}
+              className={cn(
+                'flex-1 flex flex-col items-center justify-center gap-0.5 transition-colors',
+                isActive ? 'text-[#1D1D1F]' : 'text-[#86868B]'
               )}
-            </span>
-            <span>{label}</span>
-          </button>
-        ))}
+            >
+              {tab.icon(isActive ? 22 : 20)}
+              <span className={cn('text-[10px]', isActive ? 'font-normal text-[#1D1D1F]' : 'font-light text-[#86868B]')}>
+                {String(t[tab.labelKey] || tab.labelKey)}
+              </span>
+            </button>
+          );
+        })}
       </div>
-    </nav>
+    </div>
   );
 }

@@ -1,7 +1,7 @@
 """SQLAlchemy ORM models."""
 
 from datetime import datetime, timezone
-from sqlalchemy import String, Text, Integer, Float, DateTime, ForeignKey, JSON
+from sqlalchemy import String, Text, Integer, Float, DateTime, ForeignKey, JSON, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
 
@@ -26,6 +26,7 @@ class Persona(Base):
     manual_inputs: Mapped[list["PersonaManualInput"]] = relationship(back_populates="persona", cascade="all, delete-orphan")
     web_searches: Mapped[list["WebSearchResult"]] = relationship(back_populates="persona", cascade="all, delete-orphan")
     souls: Mapped[list["PersonaSoul"]] = relationship(back_populates="persona", cascade="all, delete-orphan")
+    contacts: Mapped[list["Contact"]] = relationship(back_populates="persona", cascade="all, delete-orphan")
 
 
 # ── PersonaFile ──────────────────────────────────────────
@@ -79,6 +80,7 @@ class PersonaSoul(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     persona_id: Mapped[str] = mapped_column(String(36), ForeignKey("personas.id", ondelete="CASCADE"), nullable=False)
+    lang: Mapped[str] = mapped_column(String(10), nullable=False, default="en")
     version: Mapped[int] = mapped_column(Integer, nullable=False)
     soul_json: Mapped[str] = mapped_column(Text, nullable=False)  # full PersonaProfile JSON
     distill_source_count: Mapped[int] = mapped_column(Integer, default=0)
@@ -197,6 +199,34 @@ class Session(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
 
 
+
+
+class Conversation(Base):
+    __tablename__ = "conversations"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    persona_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    type: Mapped[str] = mapped_column(String(16), default='single')
+    name: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    participant_ids: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
+
+
+class ConversationMessage(Base):
+    __tablename__ = "conversation_messages"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    conversation_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    user_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    persona_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    role: Mapped[str] = mapped_column(String(16), nullable=False)  # "user" or "assistant"
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    sources: Mapped[str] = mapped_column(Text, default="[]")
+    style_match: Mapped[float] = mapped_column(Float, default=0)
+
 class InviteCode(Base):
     __tablename__ = "invite_codes"
 
@@ -207,3 +237,17 @@ class InviteCode(Base):
     created_by: Mapped[str | None] = mapped_column(String(36), nullable=True)
     expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+class Contact(Base):
+    __tablename__ = "contacts"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    user_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    persona_id: Mapped[str] = mapped_column(String(36), ForeignKey("personas.id", ondelete="cascade"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+    persona: Mapped["Persona"] = relationship("Persona", back_populates="contacts", lazy="joined")
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "persona_id", name="uq_user_persona"),
+    )

@@ -3,7 +3,7 @@
 import uuid
 import json
 from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -131,12 +131,17 @@ async def list_web_searches(persona_id: str, user: User = Depends(require_auth),
 
 # ── Distill ──────────────────────────────────────────────
 @router.post("/distill", response_model=DistillResponse)
-async def run_distillation(persona_id: str, user: User = Depends(require_auth), db: AsyncSession = Depends(get_db)):
+async def run_distillation(
+    persona_id: str,
+    lang: str = Query("en", description="Language: en | zh-CN"),
+    user: User = Depends(require_auth),
+    db: AsyncSession = Depends(get_db),
+):
     """Run distillation synchronously (DeepSeek responds in <1s)."""
     await _check_persona(persona_id, user.id, db)
     try:
         await ensure_web_search_results(persona_id, db)
-        result = await distill_persona(persona_id, db)
+        result = await distill_persona(persona_id, db, lang=lang)
         return DistillResponse(**result)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -241,19 +246,25 @@ async function startDistill() {{
 
 
 @router.get("/soul")
-async def get_current_soul(persona_id: str, user: User = Depends(require_auth), db: AsyncSession = Depends(get_db)):
+async def get_current_soul(
+    persona_id: str,
+    lang: str = Query("en", description="Language: en | zh-CN"),
+    user: User = Depends(require_auth),
+    db: AsyncSession = Depends(get_db),
+):
     await _check_persona(persona_id, user.id, db)
     result = await db.execute(
         select(PersonaSoul)
-        .where(PersonaSoul.persona_id == persona_id)
+        .where(PersonaSoul.persona_id == persona_id, PersonaSoul.lang == lang)
         .order_by(PersonaSoul.version.desc())
     )
     soul = result.scalars().first()
     if not soul:
-        raise HTTPException(status_code=404, detail="No soul found, run distillation first")
+        raise HTTPException(status_code=404, detail=f"No soul found for lang={lang}, run distillation first")
     return {
         "id": soul.id,
         "persona_id": soul.persona_id,
+        "lang": soul.lang,
         "version": soul.version,
         "soul_json": json.loads(soul.soul_json),
         "distill_source_count": soul.distill_source_count,

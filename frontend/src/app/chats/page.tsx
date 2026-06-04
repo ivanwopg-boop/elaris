@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter } from 'next/navigation';
-import { MessageSquare, Compass, User, LogOut, ChevronRight } from 'lucide-react';
-import TabBar, { TabKey } from '@/components/TabBar';
+import { MessageSquare, Compass, User, LogOut, ChevronRight, Plus, Users, Sparkles } from 'lucide-react';
+import TabBar from '@/components/TabBar';
 import { Avatar } from '@/components/Avatar';
 import { api } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
+import { useLangStore, translations, type Lang } from '@/lib/i18n';
 
 interface PersonaSummary {
   id: string;
@@ -18,52 +19,166 @@ interface PersonaSummary {
   has_soul: boolean;
 }
 
+type TabKey = 'chat' | 'contacts' | 'discover' | 'me';
+
+
+const PRESET_CATEGORIES = [
+  { key: "all", label: "All" },
+  { key: "tech", label: "Tech" },
+  { key: "chinese", label: "Chinese" },
+  { key: "world", label: "World Leaders" },
+  { key: "sports", label: "Sports" },
+  { key: "entertainment", label: "Entertainment" },
+  { key: "business", label: "Business" },
+  { key: "thinker", label: "Thinkers" },
+];
+
+const CATEGORY_KEYWORDS: Record<string, string[]> = {
+  "tech": ["Elon Musk", "Steve Jobs", "Sam Altman", "Steve Wozniak", "Larry Page", "Sergey Brin", "Bill Gates", "Tim Cook", "Jony Ive", "Geoffrey Hinton", "Yann LeCun", "Andrew Ng", "MrBeast", "Nassim Taleb"],
+  "chinese": ["Mo Yan", "Li Ao", "Han Han", "Wang Shuo", "Mu Xin", "Lu Xun", "Dangnianmingyue", "Murong Xuecun", "当年明月", "Zhang Yiming", "Jack Ma", "Wu Jun", "Li Yongle"],
+  "world": ["Lee Hsien Loong", "Hun Sen", "Srettha Thavisin", "Narendra Modi", "Joko Widodo", "Benjamin Netanyahu", "Angela Merkel", "Volodymyr Zelenskyy", "Vladimir Putin", "Emmanuel Macron", "Justin Trudeau", "Joe Biden", "Barack Obama", "Donald Trump", "Mao Zedong"],
+  "sports": ["Cristiano Ronaldo", "Lionel Messi", "LeBron James", "Michael Jordan", "Novak Djokovic", "Tiger Woods", "Chris Paul"],
+  "entertainment": ["Lady Gaga", "James Cameron", "Christopher Nolan", "Hayao Miyazaki", "Joe Rogan"],
+  "business": ["Warren Buffett", "Charlie Munger", "Jeff Bezos", "Larry Ellison"],
+  "thinker": ["Li Bai", "Su Shi", "Wang Yangming", "Zeng Guofan"],
+};
+
+function getCategory(name: string): string {
+  for (const [cat, names] of Object.entries(CATEGORY_KEYWORDS)) {
+    for (const n of names) {
+      if (name.toLowerCase().includes(n.toLowerCase())) return cat;
+    }
+  }
+  return "other";
+}
+
 // ── Helpers ───────────────────────────────────────────────────
 
-function LoadingSpinner({ message = '加载中...' }: { message?: string }) {
+function LoadingSpinner({ message }: { message?: string }) {
+  const { lang } = useLangStore() as { lang: Lang };
+  const t = translations[lang];
   return (
     <div className="flex flex-col items-center justify-center py-20">
       <div className="w-8 h-8 rounded-full border-2 border-[rgba(0,0,0,0.1)] border-t-[#0071E3] animate-spin mb-3" />
-      <p className="text-sm text-[#86868B] font-light">{message}</p>
+      <p className="text-sm text-[#86868B] font-light">{message || t.loading}</p>
     </div>
   );
 }
 
 // ── App Bar ────────────────────────────────────────────────────
 
-function AppBar({ title }: { title: string }) {
+function AppBar({ title, action }: { title: string; action?: React.ReactNode }) {
   return (
     <header
       className="sticky top-0 z-40 bg-white/98 backdrop-blur-md border-b border-[rgba(0,0,0,0.06)]"
       style={{ maxWidth: '100vw', overflowX: 'hidden' }}
     >
       <div className="h-12 flex items-center justify-center px-4">
+        {action && <div className="absolute right-4">{action}</div>}
         <h1 className="text-base font-light tracking-wide text-[#1D1D1F]">{title}</h1>
       </div>
     </header>
   );
 }
 
-// ── Chat Tab ────────────────────────────────────────────────────
+// ── Conversation type ───────────────────────────────────────────
+interface ConversationItem {
+  id: string;
+  persona_id: string;
+  persona_name: string;
+  persona_avatar: string | null;
+  last_message: string | null;
+  updated_at: string;
+  type?: string;
+  name?: string | null;
+  participant_ids?: string[];
+}
 
-function ChatTab({ personas, onNavigate }: { personas: PersonaSummary[]; onNavigate: () => void }) {
-  if (personas.length === 0) {
+// ── Chat Tab (Conversation List) ─────────────────────────────
+
+function ChatTab({ tabStrings, conversations, setConversations, onNavigate }: { tabStrings: Record<string, string>; conversations: ConversationItem[]; setConversations: any; onNavigate: () => void }) {
+  const router = useRouter();
+  const [loading, setLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [revealedId, setRevealedId] = useState<string | null>(null);
+  const [longPressTimer, setLongPressTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
+  const [touchStartX, setTouchStartX] = useState<number>(0);
+
+  const loadConversations = async () => {
+    try {
+      const [data, groupData] = await Promise.all([
+        api.listConversations(),
+        api.listGroupChats().catch(() => []),
+      ]);
+      // Convert group chats to ConversationItem format
+      const groupItems: ConversationItem[] = groupData.map((g: any) => ({
+        id: g.id,
+        persona_id: g.persona_ids?.[0] || '',
+        persona_name: g.title || 'Group Chat',
+        persona_avatar: null,
+        last_message: null,
+        updated_at: g.created_at,
+        type: 'group' as const,
+        name: g.title,
+        participant_ids: g.persona_ids,
+      }));
+      // Merge and sort by updated_at desc
+      const merged = [...data, ...groupItems].sort((a, b) =>
+        new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+      );
+      setConversations(merged as ConversationItem[]);
+    } catch {
+      setConversations([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { loadConversations(); }, []);
+
+  const handleDelete = async (e: React.MouseEvent, convId: string) => {
+    e.stopPropagation();
+    if (!confirm(tabStrings.delete_confirm_conv || "Delete this conversation?")) return;
+    setDeletingId(convId);
+    try {
+      await api.deleteConversation(convId);
+      setConversations((prev: ConversationItem[]) => prev.filter((c: ConversationItem) => c.id !== convId));
+    } catch (err: any) {
+      alert((tabStrings.delete_failed || "Delete failed: ") + (err?.message || err));
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const formatTime = (iso: string) => {
+    const d = new Date(iso);
+    const now = new Date();
+    const diff = now.getTime() - d.getTime();
+    if (diff < 86400000) return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    if (diff < 604800000) return d.toLocaleDateString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' });
+    return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  };
+
+  if (loading) {
+    return <LoadingSpinner />;
+  }
+
+  if (conversations.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
         <div className="w-20 h-20 rounded-full bg-[#F5F5F7] flex items-center justify-center mb-5">
           <MessageSquare size={28} strokeWidth={1.5} className="text-[#86868B]" />
         </div>
-        <p className="text-base font-light text-[#1D1D1F] mb-1">暂无对话</p>
-        <p className="text-sm text-[#86868B] font-light mb-8 leading-relaxed">开始探索发现页的 AI persona，和他们对话</p>
+        <p className="text-base font-light text-[#1D1D1F] mb-1">{tabStrings.no_chats}</p>
+        <p className="text-sm text-[#86868B] font-light mb-8 leading-relaxed">{tabStrings.chat_with_them}</p>
         <div className="relative">
           <button
             onClick={onNavigate}
             className="px-8 py-3.5 rounded-full bg-[#1D1D1F] text-white text-sm font-light hover:bg-[#3C3C3E] active:bg-[#000] transition-colors flex items-center justify-center gap-2"
           >
-            去发现 AI personas
-            <span className="text-lg">→</span>
+            {tabStrings.go_discover}
+            <ChevronRight size={16} strokeWidth={1.5} />
           </button>
-          <span className="absolute -top-3 -right-6 animate-bounce text-xl">👇</span>
         </div>
       </div>
     );
@@ -71,46 +186,113 @@ function ChatTab({ personas, onNavigate }: { personas: PersonaSummary[]; onNavig
 
   return (
     <div className="bg-white">
-      {personas.map((p) => (
-        <button
-          key={p.id}
-          onClick={() => window.location.href = `/chat/${p.id}`}
-          className="w-full flex items-center gap-3 px-4 py-4 text-left border-b border-[rgba(0,0,0,0.04)] active:bg-[rgba(0,0,0,0.03)] transition-colors"
+      {conversations.map((conv) => (
+        <div
+          key={conv.id}
+          className={`flex items-center gap-3 px-4 py-4 border-b border-[rgba(0,0,0,0.04)] active:bg-[rgba(0,0,0,0.02)] transition-colors cursor-pointer ${revealedId === conv.id ? 'bg-[#FFF9F9]' : ''}`}
           style={{ minHeight: '64px' }}
+          onClick={() => router.push(conv.type === 'group' ? `/group-chat/${conv.id}` : `/chat/${conv.persona_id}?conv=${conv.id}`)}
+          onContextMenu={(e) => { e.preventDefault(); handleDelete(e as any, conv.id); }}
+          onTouchStart={(e) => { setTouchStartX(e.touches[0].clientX); }}
+          onTouchMove={(e) => {
+            const diff = e.touches[0].clientX - touchStartX;
+            if (diff < -80) { setRevealedId(conv.id); }
+            else if (diff > 80) { setRevealedId(null); }
+          }}
+          onTouchEnd={() => { setRevealedId(null); }}
         >
-          <Avatar name={p.name} url={p.avatar_url} size="md" />
+          <Avatar name={conv.persona_name} url={conv.persona_avatar} size="md" />
           <div className="flex-1 min-w-0">
-            <p className="text-base font-normal text-[#1D1D1F] truncate">{p.name}</p>
-            {p.description && (
-              <p className="text-sm text-[#86868B] font-light truncate mt-0.5">{p.description}</p>
+            <p className="text-base font-normal text-[#1D1D1F] truncate">{conv.persona_name}</p>
+            {conv.last_message && (
+              <p className="text-sm text-[#86868B] font-light truncate mt-0.5">{conv.last_message}</p>
             )}
           </div>
-          {!p.has_soul && (
-            <span className="text-xs text-[#AEAEB2] font-light shrink-0 mr-1">未蒸馏</span>
-          )}
-          <ChevronRight size={18} className="text-[#C7C7CC] shrink-0" strokeWidth={1.5} />
-        </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-xs text-[#AEAEB2] font-light">{formatTime(conv.updated_at)}</span>
+            {revealedId === conv.id && (
+              <span className="text-xs text-[#FF3B30] font-light animate-pulse">← swipe to cancel</span>
+            )}
+            <div
+              onClick={(e) => handleDelete(e, conv.id)}
+              role="button"
+              aria-label={tabStrings.delete || "Delete"}
+              className="w-8 h-8 rounded-full flex items-center justify-center text-[#C7C7CC] hover:text-red-500 hover:bg-red-50 active:bg-red-100 transition-all text-xl font-light ml-1 cursor-pointer"
+            >
+              {deletingId === conv.id ? (
+                <span className="w-4 h-4 rounded-full border-2 border-[#C7C7CC] border-t-transparent animate-spin inline-block" />
+              ) : (
+                <span>×</span>
+              )}
+            </div>
+            <ChevronRight size={18} className="text-[#C7C7CC]" strokeWidth={1.5} />
+          </div>
+        </div>
       ))}
     </div>
   );
 }
 
+
 // ── Contacts Tab ──────────────────────────────────────────────
 
-function ContactsTab({ personas, onNavigate }: { personas: PersonaSummary[]; onNavigate: () => void }) {
-  if (personas.length === 0) {
+function ContactsTab({ isActive, onNavigate, tabStrings }: { isActive?: boolean; onNavigate: () => void; tabStrings: Record<string, string> }) {
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [localPersonas, setLocalPersonas] = useState<PersonaSummary[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!isActive) return;
+    setLoading(true);
+    fetch('/api/v1/personas/contacts')
+      .then(r => r.json())
+      .then(data => { if (Array.isArray(data)) setLocalPersonas(data); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [isActive]);
+
+  // Listen for contacts reload event from Discover tab
+  useEffect(() => {
+    const handler = () => {
+      fetch('/api/v1/personas/contacts')
+        .then(r => r.json())
+        .then(data => { if (Array.isArray(data)) setLocalPersonas(data); })
+        .catch(() => {});
+    };
+    window.addEventListener('reload-contacts', handler);
+    return () => window.removeEventListener('reload-contacts', handler);
+  }, []);
+
+  const handleDelete = async (e: React.MouseEvent, personaId: string) => {
+    e.stopPropagation();
+    if (!confirm(tabStrings.delete_confirm_contact || "Delete this contact?")) return;
+    setDeletingId(personaId);
+    try {
+      const res = await fetch(`/api/v1/personas/contacts/${personaId}`, { method: 'DELETE' });
+      if (res.ok) setLocalPersonas(prev => prev.filter(p => p.id !== personaId));
+      else alert(tabStrings.delete_failed || 'Delete failed');
+    } catch {
+      alert(tabStrings.delete_failed || 'Delete failed');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  if (loading) return <LoadingSpinner />;
+
+  if (localPersonas.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
         <div className="w-20 h-20 rounded-full bg-[#F5F5F7] flex items-center justify-center mb-5">
           <Compass size={28} strokeWidth={1.5} className="text-[#86868B]" />
         </div>
-        <p className="text-base font-light text-[#1D1D1F] mb-1">暂无联系人</p>
-        <p className="text-sm text-[#86868B] font-light mb-8 leading-relaxed">去发现页添加你感兴趣的 AI persona</p>
+        <p className="text-base font-light text-[#1D1D1F] mb-1">{tabStrings.no_contacts}</p>
+        <p className="text-sm text-[#86868B] font-light mb-8 leading-relaxed">{tabStrings.add_contacts_hint}</p>
         <button
           onClick={onNavigate}
           className="px-8 py-3.5 rounded-full bg-[#1D1D1F] text-white text-sm font-light hover:bg-[#3C3C3E] active:bg-[#000] transition-colors"
         >
-          去发现
+          {tabStrings.go_discover}
         </button>
       </div>
     );
@@ -118,12 +300,13 @@ function ContactsTab({ personas, onNavigate }: { personas: PersonaSummary[]; onN
 
   return (
     <div className="bg-white">
-      {personas.map((p) => (
-        <button
+      {localPersonas.map((p) => (
+        <div
           key={p.id}
-          onClick={() => window.location.href = `/chat/${p.id}`}
-          className="w-full flex items-center gap-3 px-4 py-4 text-left border-b border-[rgba(0,0,0,0.04)] active:bg-[rgba(0,0,0,0.03)] transition-colors"
+          className="flex items-center gap-3 px-4 py-4 border-b border-[rgba(0,0,0,0.04)] active:bg-[rgba(0,0,0,0.02)] transition-colors cursor-pointer"
           style={{ minHeight: '64px' }}
+          onClick={() => window.location.href = `/persona/${p.id}`}
+          onContextMenu={(e) => { e.preventDefault(); handleDelete(e as any, p.id); }}
         >
           <Avatar name={p.name} url={p.avatar_url} size="md" />
           <div className="flex-1 min-w-0">
@@ -132,8 +315,22 @@ function ContactsTab({ personas, onNavigate }: { personas: PersonaSummary[]; onN
               <p className="text-sm text-[#86868B] font-light truncate mt-0.5">{p.description}</p>
             )}
           </div>
-          <ChevronRight size={18} className="text-[#C7C7CC] shrink-0" strokeWidth={1.5} />
-        </button>
+          <div className="flex items-center gap-1 shrink-0">
+            <button
+              onClick={(e) => handleDelete(e, p.id)}
+              disabled={deletingId === p.id}
+              className="w-8 h-8 rounded-full flex items-center justify-center text-[#C7C7CC] hover:text-red-500 hover:bg-red-50 active:bg-red-100 transition-all text-xl font-light"
+              title={tabStrings.delete || "Delete"}
+            >
+              {deletingId === p.id ? (
+                <span className="w-4 h-4 rounded-full border-2 border-[#C7C7CC] border-t-transparent animate-spin inline-block" />
+              ) : (
+                <span>×</span>
+              )}
+            </button>
+            <ChevronRight size={18} className="text-[#C7C7CC]" strokeWidth={1.5} />
+          </div>
+        </div>
       ))}
     </div>
   );
@@ -141,17 +338,30 @@ function ContactsTab({ personas, onNavigate }: { personas: PersonaSummary[]; onN
 
 // ── Discover Tab ──────────────────────────────────────────────
 
-function DiscoverTab() {
+const FEATURED_IDS = ["338103d3-2555-4e17-9bb6-2801521d5e36",
+    "c5effabc-cfd0-4bdb-8222-6baa7b5e365c",
+    "65b2c442-d15c-42bb-8f2d-c4d8e25ca3fe",
+    "254072df-98f4-437d-bfd6-bdb64db5ea52",
+    "2acdfdd2-9b03-4cc7-8fb5-0438ead2dc05"];
+
+function DiscoverTab({ tabStrings, onContactAdded }: { tabStrings: Record<string, string>; onContactAdded?: () => void }) {
+  const { lang } = useLangStore();
   const router = useRouter();
+  const token = useAuthStore((s) => s.token);
   const [presets, setPresets] = useState<PersonaSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeCat, setActiveCat] = useState("all");
 
   useEffect(() => {
     api.listPresets()
-      .then(setPresets)
+      .then((all) => {
+        // Guests (no token): only show 5 featured. Logged-in: show all.
+        const list = !token ? all.filter((p: any) => FEATURED_IDS.includes(p.id)) : all;
+        setPresets(list);
+      })
       .catch(() => setPresets([]))
       .finally(() => setLoading(false));
-  }, []);
+  }, [token]);
 
   if (loading) return <LoadingSpinner />;
 
@@ -161,8 +371,8 @@ function DiscoverTab() {
         <div className="w-20 h-20 rounded-full bg-[#F5F5F7] flex items-center justify-center mb-5">
           <Compass size={28} strokeWidth={1.5} className="text-[#86868B]" />
         </div>
-        <p className="text-base font-light text-[#1D1D1F] mb-1">暂无预设</p>
-        <p className="text-sm text-[#86868B] font-light leading-relaxed">稍后再来看看有什么可探索的</p>
+        <p className="text-base font-light text-[#1D1D1F] mb-1">{tabStrings.no_presets}</p>
+        <p className="text-sm text-[#86868B] font-light leading-relaxed">{tabStrings.check_back_later}</p>
       </div>
     );
   }
@@ -170,57 +380,97 @@ function DiscoverTab() {
   const handleAddToContacts = async (e: React.MouseEvent, p: PersonaSummary) => {
     e.stopPropagation();
     try {
-      await api.createPersona({ name: p.name, description: p.description || '' });
-      alert(`${p.name} 已添加到通讯录`);
+      await fetch(`/api/v1/personas/contacts/${p.id}`, { method: 'POST' });
+      if (onContactAdded) onContactAdded();
+      alert(`${p.name} ` + tabStrings.added_to_contacts);
     } catch {
-      alert('添加失败，请重试');
+      alert(tabStrings.add_failed);
     }
   };
 
+  const handleDeletePreset = async (e: React.MouseEvent, p: PersonaSummary) => {
+    e.stopPropagation();
+    if (!confirm(`Delete this preset from Discover?`)) return;
+    try {
+      const res = await fetch(`/api/v1/personas/presets/${p.id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setPresets(prev => prev.filter(x => x.id !== p.id));
+      } else {
+        alert('Delete failed');
+      }
+    } catch {
+      alert('Delete failed');
+    }
+  };
+
+  const filtered = activeCat === "all" ? presets : presets.filter((p) => getCategory(p.name) === activeCat);
+
   return (
-    <div className="p-4 grid grid-cols-1 gap-3">
-      {presets.map((p) => (
-        <div
-          key={p.id}
-          className="rounded-2xl border border-[rgba(0,0,0,0.06)] bg-white overflow-hidden"
-        >
+    <div>
+      <div className="flex gap-2 px-4 py-3 overflow-x-auto border-b border-[rgba(0,0,0,0.04)]">
+        {PRESET_CATEGORIES.map((cat) => (
           <button
-            onClick={() => window.location.href = `/chat/${p.id}`}
-            className="w-full text-left p-4 active:bg-[rgba(0,0,0,0.02)] transition-colors"
+            key={cat.key}
+            onClick={() => setActiveCat(cat.key)}
+            className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-light transition-colors ${activeCat === cat.key ? 'bg-[#1D1D1F] text-white' : 'bg-[#F5F5F7] text-[#86868B]'}`}
           >
-            <div className="flex items-start gap-4">
-              <Avatar name={p.name} url={p.avatar_url} size="lg" />
-              <div className="flex-1 min-w-0">
-                <p className="text-base font-normal text-[#1D1D1F] mb-1">{p.name}</p>
-                {p.description && (
-                  <p className="text-sm text-[#86868B] font-light leading-relaxed line-clamp-2">{p.description}</p>
+            {cat.label}
+          </button>
+        ))}
+      </div>
+      <div className="p-4 grid grid-cols-1 gap-3">
+        {filtered.map((p) => (
+          <div key={p.id} className="rounded-2xl border border-[rgba(0,0,0,0.06)] bg-white overflow-hidden">
+            <button
+              onClick={() => window.location.href = `/persona/${p.id}`}
+              className="w-full text-left p-4 active:bg-[rgba(0,0,0,0.02)] transition-colors"
+            >
+              <div className="flex items-start gap-4">
+                <Avatar name={p.name} url={p.avatar_url} size="lg" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-base font-normal text-[#1D1D1F] mb-1">{p.name}</p>
+                  {p.description && (
+                    <p className="text-sm text-[#86868B] font-light leading-relaxed line-clamp-2">{p.description}</p>
+                  )}
+                </div>
+                {token && (
+                  <button
+                    onClick={(e) => handleDeletePreset(e, p)}
+                    className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-[#C7C7CC] hover:text-red-500 hover:bg-red-50 active:bg-red-100 transition-all text-xl font-light"
+                    title="Delete"
+                  >
+                    ×
+                  </button>
                 )}
               </div>
+            </button>
+            <div className="px-4 pb-4 flex gap-2">
+              {token && (
+                <button
+                  onClick={(e) => handleAddToContacts(e, p)}
+                  className="flex-1 py-2.5 rounded-full border border-[rgba(0,0,0,0.12)] text-sm font-light text-[#1D1D1F] bg-white active:bg-[rgba(0,0,0,0.04)] transition-colors"
+                >
+                  {tabStrings.add_to_contacts}
+                </button>
+              )}
+              <button
+                onClick={() => window.location.href = `/guest-chat/${p.id}`}
+                className="flex-1 py-2.5 rounded-full bg-[#1D1D1F] text-white text-sm font-light active:bg-[#3C3C3E] transition-colors"
+              >
+                {tabStrings.start_chat}
+              </button>
             </div>
-          </button>
-          <div className="px-4 pb-4 flex gap-2">
-            <button
-              onClick={(e) => handleAddToContacts(e, p)}
-              className="flex-1 py-2.5 rounded-full border border-[rgba(0,0,0,0.12)] text-sm font-light text-[#1D1D1F] bg-white active:bg-[rgba(0,0,0,0.04)] transition-colors"
-            >
-              ＋ 添加到通讯录
-            </button>
-            <button
-              onClick={() => window.location.href = `/chat/${p.id}`}
-              className="flex-1 py-2.5 rounded-full bg-[#1D1D1F] text-white text-sm font-light active:bg-[#3C3C3E] transition-colors"
-            >
-              开始对话
-            </button>
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 }
 
 // ── Me Tab ────────────────────────────────────────────────────
+// ── Me Tab ────────────────────────────────────────────────────
 
-function MeTab() {
+function MeTab({ tabStrings }: { tabStrings: Record<string, string> }) {
   const router = useRouter();
   const { user, clearAuth } = useAuthStore();
 
@@ -231,8 +481,8 @@ function MeTab() {
   };
 
   const menuItems = [
-    { label: '我的 Personas', onClick: () => window.location.href = '/personas', icon: '👤' },
-    { label: '创建 Persona', onClick: () => window.location.href = '/personas/new', icon: '✨' },
+    { label: tabStrings.my, onClick: () => window.location.href = '/personas', icon: '👤' },
+    { label: tabStrings.create_persona, onClick: () => window.location.href = '/personas/new', icon: '✨' },
   ];
 
   return (
@@ -242,12 +492,12 @@ function MeTab() {
           <User size={22} className="text-[#86868B]" strokeWidth={1.5} />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-lg font-normal text-[#1D1D1F]">{user?.name || '访客'}</p>
+          <p className="text-lg font-normal text-[#1D1D1F]">{user?.name || tabStrings.guest}</p>
           {user?.email && (
             <p className="text-sm text-[#86868B] font-light mt-0.5 truncate">{user.email}</p>
           )}
           {!user && (
-            <p className="text-sm text-[#86868B] font-light mt-0.5">未登录</p>
+            <p className="text-sm text-[#86868B] font-light mt-0.5">{tabStrings.not_logged_in}</p>
           )}
         </div>
       </div>
@@ -272,51 +522,75 @@ function MeTab() {
           className="w-full py-3.5 rounded-full border border-[rgba(0,0,0,0.12)] text-sm font-normal text-[#1D1D1F] bg-white active:bg-[rgba(0,0,0,0.03)] transition-colors flex items-center justify-center gap-2"
         >
           <LogOut size={16} strokeWidth={1.5} />
-          退出登录
+          {tabStrings.logout}
         </button>
       )}
     </div>
   );
 }
 
-// ── Tab Titles ─────────────────────────────────────────────────
 
-const TAB_TITLES: Record<TabKey, string> = {
-  chat: '聊天',
-  contacts: '通讯录',
-  discover: '发现',
-  me: '我',
-};
 
 // ── Main Page ─────────────────────────────────────────────────
 
-export default function ChatsPage() {
+function ChatsContent() {
   const router = useRouter();
   const token = useAuthStore((s) => s.token);
-  const [activeTab, setActiveTab] = useState<TabKey>('discover');
+  const { lang } = useLangStore() as { lang: Lang };
+  const t = translations[lang];
+  const [activeTab, setActiveTab] = useState<TabKey>('chat');
+  // Pre-compute all tab-specific strings
+  const TAB_STRINGS = {
+    no_chats: t.no_chats,
+    chat_with_them: t.chat_with_them,
+    go_discover: t.go_discover,
+    no_contacts: t.no_contacts,
+    add_contacts_hint: t.add_contacts_hint,
+    no_presets: t.no_presets,
+    check_back_later: t.check_back_later,
+    added_to_contacts: t.added_to_contacts,
+    add_failed: t.add_failed,
+    add_to_contacts: t.add_to_contacts,
+    start_chat: t.start_chat,
+    guest: t.guest,
+    not_logged_in: t.not_logged_in,
+    logout: t.logout,
+    my_personas: t.my + ' Personas',
+  };
+  const TAB_TITLES: Record<TabKey, string> = {
+    chat: t.tab_chat,
+    contacts: t.tab_contacts,
+    discover: t.tab_discover,
+    me: t.tab_me,
+  };
   const [myPersonas, setMyPersonas] = useState<PersonaSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showActionSheet, setShowActionSheet] = useState(false);
+  const [contacts, setContacts] = useState<any[]>([]);
+  const [conversations, setConversations] = useState<ConversationItem[]>([]);
 
-  // Support deep-link: /chats?tab=discover
+  // Keep URL in sync with activeTab state (after state update, push to URL)
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const tab = params.get('tab') as TabKey;
-    if (tab && ['chat', 'contacts', 'discover', 'me'].includes(tab)) {
-      setActiveTab(tab);
+    const url = new URL(window.location.href);
+    const currentTab = url.searchParams.get('tab');
+    if (currentTab !== activeTab) {
+      url.searchParams.set('tab', activeTab);
+      window.history.replaceState({}, '', url.toString());
     }
-  }, []);
+  }, [activeTab]);
 
-  // Load user's personas (if logged in)
-  useEffect(() => {
+  const loadMyPersonas = () => {
     if (!token) {
       setLoading(false);
       return;
     }
     api.listPersonas()
-      .then((all) => setMyPersonas(all))
+      .then((all) => setMyPersonas(all.filter((p: any) => p.user_id !== null)))
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [token]);
+  };
+
+  useEffect(() => { loadMyPersonas(); }, [token]);
 
   const handleNavigateToDiscover = () => setActiveTab('discover');
 
@@ -329,7 +603,20 @@ export default function ChatsPage() {
         overflowX: 'hidden',
       }}
     >
-      <AppBar title={TAB_TITLES[activeTab]} />
+      <AppBar
+        title={TAB_TITLES[activeTab]}
+        action={
+          (activeTab === 'chat' || activeTab === 'contacts') ? (
+            <button
+              onClick={() => setShowActionSheet(true)}
+              className="w-7 h-7 rounded-full bg-[#1D1D1F] text-white flex items-center justify-center hover:bg-[#3C3C3E] active:bg-[#000] transition-colors"
+              style={{ lineHeight: 1 }}
+            >
+              <Plus size={15} strokeWidth={2} />
+            </button>
+          ) : undefined
+        }
+      />
 
       <main
         className="flex-1 overflow-y-auto pb-[calc(56px+env(safe-area-inset-bottom,0px))]"
@@ -339,15 +626,67 @@ export default function ChatsPage() {
           <LoadingSpinner />
         ) : (
           <>
-            {activeTab === 'chat' && <ChatTab personas={myPersonas} onNavigate={handleNavigateToDiscover} />}
-            {activeTab === 'contacts' && <ContactsTab personas={myPersonas} onNavigate={handleNavigateToDiscover} />}
-            {activeTab === 'discover' && <DiscoverTab />}
-            {activeTab === 'me' && <MeTab />}
+            {activeTab === 'chat' && <ChatTab tabStrings={TAB_STRINGS} conversations={conversations} setConversations={setConversations} onNavigate={handleNavigateToDiscover} />}
+            {activeTab === 'contacts' && <ContactsTab isActive={activeTab === 'contacts'} onNavigate={handleNavigateToDiscover} tabStrings={TAB_STRINGS} />}
+            {activeTab === 'discover' && <DiscoverTab tabStrings={TAB_STRINGS} onContactAdded={() => {
+            // Reload contacts tab by triggering a re-render
+            window.dispatchEvent(new CustomEvent('reload-contacts'));
+          }} />}
+            {activeTab === 'me' && <MeTab tabStrings={TAB_STRINGS} />}
           </>
         )}
       </main>
 
-      <TabBar activeTab={activeTab} onTabChange={setActiveTab} />
+      {showActionSheet && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center" onClick={() => setShowActionSheet(false)}>
+          <div className="absolute inset-0 bg-black/40" />
+          <div
+            className="relative w-full max-w-md bg-white rounded-t-2xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="h-1 w-10 rounded-full bg-[#D1D1D6] absolute top-2 left-1/2 -translate-x-1/2" />
+            <div className="pt-6 pb-8 px-4">
+              <p className="text-center text-sm font-light text-[#86868B] mb-4">Choose an action</p>
+              <div className="space-y-2">
+                <button
+                  onClick={() => { setShowActionSheet(false); router.push('/group-chat/new'); }}
+                  className="w-full flex items-center gap-4 px-4 py-4 rounded-xl bg-[#F5F5F7] hover:bg-[#EDEDED] active:bg-[#E5E5E5] transition-colors"
+                >
+                  <div className="w-10 h-10 rounded-full bg-[#1D1D1F] flex items-center justify-center">
+                    <Users size={20} strokeWidth={1.5} className="text-white" />
+                  </div>
+                  <div className="text-left flex-1">
+                    <p className="text-sm font-normal text-[#1D1D1F]">Create Group Chat</p>
+                    <p className="text-xs text-[#86868B] font-light">Chat with multiple personas</p>
+                  </div>
+                </button>
+                <button
+                  onClick={() => { setShowActionSheet(false); router.push('/personas/new'); }}
+                  className="w-full flex items-center gap-4 px-4 py-4 rounded-xl bg-[#F5F5F7] hover:bg-[#EDEDED] active:bg-[#E5E5E5] transition-colors"
+                >
+                  <div className="w-10 h-10 rounded-full bg-[#1D1D1F] flex items-center justify-center">
+                    <Sparkles size={20} strokeWidth={1.5} className="text-white" />
+                  </div>
+                  <div className="text-left flex-1">
+                    <p className="text-sm font-normal text-[#1D1D1F]">Create Persona</p>
+                    <p className="text-xs text-[#86868B] font-light">Distill your own AI twin</p>
+                  </div>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <TabBar active={activeTab} onTabChange={(tab) => setActiveTab(tab as TabKey)} />
     </div>
+  );
+}
+
+export default function ChatsPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><div className="w-8 h-8 rounded-full border-2 border-[rgba(0,0,0,0.1)] border-t-[#0071E3] animate-spin" /></div>}>
+      <ChatsContent />
+    </Suspense>
   );
 }

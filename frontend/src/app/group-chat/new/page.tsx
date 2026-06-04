@@ -1,12 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useLangStore, translations } from '@/lib/i18n';
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { api, PersonaOut } from "@/lib/api";
 
 export default function NewGroupChatPage() {
+  const { lang } = useLangStore();
+  const t = translations[lang];
   const router = useRouter();
   const [personas, setPersonas] = useState<PersonaOut[]>([]);
   const [loading, setLoading] = useState(true);
@@ -37,7 +40,7 @@ export default function NewGroupChatPage() {
 
   return (
     <div className="max-w-4xl mx-auto px-6 py-16">
-      <button onClick={() => router.push("/group-chat")} className="text-xs text-[#86868B] font-light hover:text-[#6E6E73] mb-6">← Back</button>
+      <button onClick={() => router.push("/group-chat")} className="text-xs text-[#86868B] font-light hover:text-[#6E6E73] mb-6">{t.back}</button>
       <h1 className="text-2xl font-extralight tracking-tight mb-10">Create Group Chat</h1>
 
       <div className="space-y-6">
