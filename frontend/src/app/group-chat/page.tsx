@@ -23,18 +23,18 @@ export default function GroupChatsPage() {
     <div className="max-w-4xl mx-auto px-6 py-16">
       <div className="flex items-center justify-between mb-10">
         <div>
-          <h1 className="text-2xl font-extralight tracking-tight">Group Chat</h1>
-          <p className="text-sm text-[#86868B] font-light mt-1">Chat with multiple personas in the same conversation</p>
+          <h1 className="text-2xl font-extralight tracking-tight">{t.group_title}</h1>
+          <p className="text-sm text-[#86868B] font-light mt-1">{t.group_subtitle}</p>
         </div>
-        <Button onClick={() => router.push("/group-chat/new")}>Create Group Chat</Button>
+        <Button onClick={() => router.push("/group-chat/new")}>{t.create_group_chat}</Button>
       </div>
 
       {loading && <p className="text-center text-[#86868B] text-sm font-light py-12">Loading...</p>}
 
       {!loading && chats.length === 0 && (
         <div className="text-center py-24">
-          <p className="text-[#86868B] text-sm font-light mb-4">No group chats yet. Create one to chat with multiple personas</p>
-          <Button onClick={() => router.push("/group-chat/new")}>Create Group Chat</Button>
+          <p className="text-[#86868B] text-sm font-light mb-4">{t.no_group_chats}</p>
+          <Button onClick={() => router.push("/group-chat/new")}>{t.create_group_chat}</Button>
         </div>
       )}
 

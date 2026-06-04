@@ -26,13 +26,13 @@ export default function NewGroupChatPage() {
   const toggle = (id: string) => setSelected((p) => p.includes(id) ? p.filter((x) => x !== id) : [...p, id]);
 
   const handleCreate = async () => {
-    if (!title.trim()) { alert("Please enterGroup ChatName"); return; }
-    if (selected.length < 1) { alert("Select at least 1 persona"); return; }
+    if (!title.trim()) { alert(t.enter_group_name); return; }
+    if (selected.length < 1) { alert(t.select_at_least_one); return; }
     setCreating(true);
     try {
       const chat = await api.createGroupChat({ title: title.trim(), persona_ids: selected, persona_roles: roles });
       router.push(`/group-chat/${chat.id}`);
-    } catch (e: any) { alert("Creation failed: " + e.message); }
+    } catch (e: any) { alert(t.creation_failed + ": " + e.message); }
     finally { setCreating(false); }
   };
 
