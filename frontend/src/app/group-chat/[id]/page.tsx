@@ -175,11 +175,11 @@ export default function GroupChatRoom() {
     setSending(false); setThinking(null);
   };
 
-  if (loading) return <div className="flex items-center justify-center h-screen text-sm text-[#86868B] font-light">Loading...</div>;
-  if (!chat) return <div className="flex items-center justify-center h-screen text-sm text-[#86868B] font-light">Group chat not found</div>;
+  if (loading) return <div className="flex items-center justify-center flex-col" style={{ height: "100dvh" }}><p className="text-sm text-[#86868B] font-light">Loading...</p></div>;
+  if (!chat) return <div className="flex items-center justify-center flex-col" style={{ height: "100dvh" }}><p className="text-sm text-[#86868B] font-light">Group chat not found</p></div>;
 
   return (
-    <div className="h-screen flex flex-col bg-white relative">
+    <div className="flex flex-col bg-white relative" style={{ height: "100dvh" }}>
       <header className="shrink-0 border-b border-[rgba(0,0,0,0.06)] bg-white/95 z-10">
         <div className="max-w-3xl mx-auto px-4 h-14 flex items-center gap-3">
           <button onClick={() => router.push("/group-chat")} className="text-[#86868B] hover:text-[#1D1D1F] text-2xl font-light leading-none">{t.back}</button>

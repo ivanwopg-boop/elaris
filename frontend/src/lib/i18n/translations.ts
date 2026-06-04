@@ -366,6 +366,7 @@ export const translations: Record<Lang, Record<string, string>> = {
     continue_as_guest: "以游客身份继续 →",
     guest_prompt_title: "注册账号保存对话，解锁全部 100+ 人物",
     sign_up_free: "免费注册",
+    delete_failed: "删除失败",
   },
 };
 

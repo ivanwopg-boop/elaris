@@ -406,10 +406,10 @@ function DiscoverTab({ tabStrings, onContactAdded }: { tabStrings: Record<string
       if (res.ok) {
         setPresets(prev => prev.filter(x => x.id !== p.id));
       } else {
-        alert('Delete failed');
+        alert(tabStrings.delete_failed || 'Delete failed');
       }
     } catch {
-      alert('Delete failed');
+      alert(tabStrings.delete_failed || 'Delete failed');
     }
   };
 
