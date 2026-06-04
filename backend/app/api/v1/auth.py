@@ -211,6 +211,43 @@ async def get_me(user: User = Depends(require_auth), db: AsyncSession = Depends(
     )
 
 
+
+
+@router.patch("/me")
+async def update_me(request: Request, user: User = Depends(require_auth), db: AsyncSession = Depends(get_db)):
+    """PATCH /auth/me - update name"""
+    data = await request.json()
+    result = await db.execute(select(User).where(User.id == user.id))
+    db_user = result.scalar_one_or_none()
+    if not db_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if "name" in data:
+        db_user.name = data["name"]
+    await db.commit()
+    return {"ok": True}
+
+
+@router.put("/password")
+async def change_password(request: Request, user: User = Depends(require_auth), db: AsyncSession = Depends(get_db)):
+    """PUT /auth/password - change password"""
+    from passlib.context import CryptContext
+    pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
+    data = await request.json()
+    old_pw = data.get("old_password", "")
+    new_pw = data.get("new_password", "")
+    if not old_pw or not new_pw:
+        raise HTTPException(status_code=400, detail="Missing password")
+    if len(new_pw) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+    result = await db.execute(select(User).where(User.id == user.id))
+    db_user = result.scalar_one_or_none()
+    if not db_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if not pwd_ctx.verify(old_pw, db_user.hashed_password):
+        raise HTTPException(status_code=400, detail="Incorrect current password")
+    db_user.hashed_password = pwd_ctx.hash(new_pw)
+    await db.commit()
+    return {"ok": True}
 # ── OAuth placeholders (requires API keys setup) ───────
 @router.get("/google")
 async def auth_google():

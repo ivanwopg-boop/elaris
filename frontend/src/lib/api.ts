@@ -71,6 +71,10 @@ export const api = {
 
   getMe: () =>
     api.request<any>("/auth/me"),
+  updateProfile: (data: { name: string }) =>
+    api.request<{ ok: boolean }>("/auth/me", { method: "PATCH", body: JSON.stringify(data) }),
+  changePassword: (data: { old_password: string; new_password: string }) =>
+    api.request<{ ok: boolean }>("/auth/password", { method: "PUT", body: JSON.stringify(data) }),
 
 
   // Personas

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
-import { useLangStore, translations } from '@/lib/i18n';
+import { useLangStore, translations, getLocalizedPresetName } from '@/lib/i18n';
 import { useParams, useRouter } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -31,9 +31,9 @@ export default function ChatPage() {
   const [sending, setSending] = useState(false);
   const [liveContent, setLiveContent] = useState("");
   const ref = useRef<HTMLDivElement>(null);
+  const msgContainerRef = useRef<HTMLDivElement>(null);
   const esRef = useRef<EventSource | null>(null);
   const liveRef = useRef("");
-
   // Separate effect to load messages - runs after mount
   useEffect(() => {
     // Load conversation messages after component mounts (client-side only)
@@ -65,7 +65,25 @@ export default function ChatPage() {
   useEffect(() => {
     api.getPersona(id).then(setPersona).catch(() => router.push("/"));
   }, [id, router]);
-  useEffect(() => { ref.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs.length, liveContent]);
+  // Scroll to bottom using the container's scrollHeight
+  // Padding on the container itself ensures last message clears the fixed footer
+  const scrollToBottom = () => {
+    const el = msgContainerRef.current;
+    if (!el) return;
+    // Use setTimeout to ensure DOM has been fully rendered
+    setTimeout(() => {
+      el.scrollTop = el.scrollHeight + 200;
+    }, 0);
+  };
+
+  useEffect(() => {
+    if (msgs.length === 0) return;
+    scrollToBottom();
+  }, [msgs.length]);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [liveContent]);
 
   useEffect(() => { liveRef.current = liveContent; }, [liveContent]);
 
@@ -75,13 +93,15 @@ export default function ChatPage() {
     esRef.current?.close();
     setMsgs((p) => [...p, { role: "user", content: text, id: `u-${Date.now()}` }]);
 
-    const es = new EventSource(`/api/v1/chat/${id}/stream?message=${encodeURIComponent(text)}`);
+    const _token = (() => { try { const s = localStorage.getItem('auth-storage'); if (s) return JSON.parse(s).state?.token; } catch {} return null; })();
+    const _params = new URLSearchParams({ message: text });
+    if (_token) _params.set('token', _token);
+    const es = new EventSource(`/api/v1/chat/${id}/stream?${_params.toString()}`);
     esRef.current = es;
 
     let msgKey = `u-${Date.now()}`;
     const appendMsg = (role: string, content: string) => {
       setMsgs((p) => {
-        // Deduplicate: skip if last msg has same role+content+相近id
         const last = p[p.length - 1];
         if (last && last.role === role && last.content === content) return p;
         return [...p, { role, content, id: role === "user" ? msgKey : `a-${Date.now()}` }];
@@ -89,40 +109,48 @@ export default function ChatPage() {
     };
 
     es.addEventListener("chat_message", (e) => {
-      try { const ev = JSON.parse(e.data); const c = ev.content || ev.text || ""; setLiveContent(c); liveRef.current = c; } catch {}
+      try { const ev = JSON.parse((e as any).data); const c = ev.content || ev.text || ""; setLiveContent(c); liveRef.current = c; } catch {}
+    });
+
+    es.addEventListener("error", (e) => {
+      es.close(); setSending(false);
+      setLiveContent(''); liveRef.current = '';
     });
 
     es.addEventListener("done", () => {
       es.close(); setSending(false);
       const content = liveRef.current;
-      if (content) {
-        appendMsg("assistant", content);
-        setLiveContent(""); liveRef.current = "";
-      }
+      if (content) { appendMsg("assistant", content); setLiveContent(""); liveRef.current = ""; }
     });
 
-    es.onerror = () => { es.close(); setSending(false); };
+    es.onopen = () => {};
+    es.onerror = () => {
+      es.close();
+      setSending(false);
+      setLiveContent('');
+      liveRef.current = '';
+    };
   };
 
   const n = persona?.name || "person";
 
   return (
-    <div className="h-screen flex flex-col bg-white">
+    <div className="flex flex-col bg-white" style={{ height: '100dvh' }}>
       <header className="shrink-0 border-b border-[rgba(0,0,0,0.06)] bg-white/95 z-10">
         <div className="max-w-3xl mx-auto px-4 h-14 flex items-center gap-3">
           <button onClick={() => router.push("/chats")} className="text-[#86868B] hover:text-[#1D1D1F] p-1.5 -ml-1.5 rounded-full hover:bg-[rgba(0,0,0,0.04)] active:bg-[rgba(0,0,0,0.08)] transition-colors">
             <ChevronLeft size={20} strokeWidth={1.5} />
           </button>
           <Avatar name={persona?.name || "?"} url={persona?.avatar_url} size="sm" className="shrink-0" />
-          <div className="text-sm font-light flex-1 truncate">{n}</div>
+          <div className="text-sm font-light flex-1 truncate">{getLocalizedPresetName(n, lang)}</div>
         </div>
       </header>
 
-      <div className="flex-1 overflow-y-auto px-4 py-6">
+      <div ref={msgContainerRef} className="flex-1 overflow-y-auto px-4 py-4" style={{ overscrollBehavior: 'contain', paddingBottom: 'calc(env(safe-area-inset-bottom) + 120px)', WebkitOverflowScrolling: 'touch' }}>
         <div className="max-w-3xl mx-auto">
           {msgs.length === 0 && !liveContent && (
             <div className="text-center pt-24">
-              <p className="text-sm text-[#86868B] font-light">Start a conversation with {n}</p>
+              <p className="text-sm text-[#86868B] font-light">Start a conversation with {getLocalizedPresetName(n, lang)}</p>
             </div>
           )}
           {msgs.map((m) => (
@@ -157,11 +185,10 @@ export default function ChatPage() {
               </div>
             </div>
           )}
-          <div ref={ref} />
         </div>
       </div>
 
-      <footer className="shrink-0 border-t border-[rgba(0,0,0,0.06)] bg-white/95">
+      <footer className="fixed bottom-0 left-0 right-0 z-40 border-t border-[rgba(0,0,0,0.06)] bg-white/95" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
         <div className="max-w-3xl mx-auto px-4 py-4 flex gap-2">
           <input value={input} onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && send()}

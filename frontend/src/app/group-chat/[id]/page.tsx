@@ -121,7 +121,10 @@ export default function GroupChatRoom() {
       n.toLowerCase().includes(mentionFilter.toLowerCase())
     );
 
+  // Scroll to bottom on initial load and when messages change
   useEffect(() => { ref.current?.scrollIntoView({ behavior: "smooth" }); }, [allMsgs.length, thinking]);
+  // Scroll to bottom on initial history load
+  useEffect(() => { if (allMsgs.length > 0) { setTimeout(() => ref.current?.scrollIntoView(), 50); } }, []);
 
   const startPolling = () => {
     if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
@@ -132,7 +135,11 @@ export default function GroupChatRoom() {
           const newMsgs = d.messages.slice(lastCount.current);
           lastCount.current = d.messages.length;
           setFreshIds((prev) => { const next = new Set(prev); newMsgs.forEach((m: any) => next.add(m.id)); return next; });
-          setAllMsgs((prev) => [...prev, ...newMsgs]);
+          setAllMsgs((prev) => {
+            const existingIds = new Set(prev.map((m: any) => m.id));
+            const unique = newMsgs.filter((m: any) => !existingIds.has(m.id));
+            return [...prev, ...unique];
+          });
           setPersonaNameMap((prev) => { const next = { ...prev }; newMsgs.forEach((m: any) => { if (m.sender_type === "persona" && m.sender_id && m.sender_name) next[m.sender_id] = { name: m.sender_name, avatar_url: m.avatar_url }; }); return next; });
           setThinking(null);
         }
@@ -144,6 +151,8 @@ export default function GroupChatRoom() {
   const send = async () => {
     if (!input.trim() || sending) return;
     const text = input.trim(); setInput(""); setSending(true); setThinking(t.waiting);
+    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+    lastCount.current += 1;
     setAllMsgs((p) => [...p, { id: `u-${Date.now()}`, sender_type: "user", sender_name: "Me", content: text }]);
     startPolling();
     try {
@@ -151,12 +160,15 @@ export default function GroupChatRoom() {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: text }),
       });
-      // Fetch updated messages
       const updated = await api.getGroupChat(id);
       if (updated.messages.length > lastCount.current) {
         const newMsgs = updated.messages.slice(lastCount.current);
         lastCount.current = updated.messages.length;
-        setAllMsgs((prev) => [...prev, ...newMsgs]);
+        setAllMsgs((prev) => {
+          const existingIds = new Set(prev.map((m: any) => m.id));
+          const unique = newMsgs.filter((m: any) => !existingIds.has(m.id));
+          return [...prev, ...unique];
+        });
       }
       if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
     } catch {}
@@ -265,7 +277,7 @@ export default function GroupChatRoom() {
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto px-4 py-6">
+      <div className="flex-1 overflow-y-auto px-4 py-6" style={{ overscrollBehavior: 'contain' }}>
         <div className="max-w-3xl mx-auto">
           {allMsgs.length === 0 && (
             <div className="text-center pt-24">
@@ -295,8 +307,9 @@ export default function GroupChatRoom() {
         </div>
       </div>
 
-      <footer className="shrink-0 border-t border-[rgba(0,0,0,0.06)] bg-white/95">
-        <div className="max-w-3xl mx-auto px-4 py-4 flex gap-2">
+      
+            <footer className="fixed bottom-0 left-0 right-0 z-30 border-t border-[rgba(0,0,0,0.06)] bg-white/95" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+        <div className="max-w-3xl mx-auto px-4 py-3 flex gap-2 items-end">
           <div className="flex-1 relative">
             {showMentions && filteredMentions.length > 0 && (
               <div className="absolute bottom-full mb-2 left-0 w-48 bg-white border border-[rgba(0,0,0,0.06)] rounded-[10px] overflow-hidden shadow-[0_4px_16px_rgba(0,0,0,0.06)] z-20">

@@ -80,7 +80,10 @@ export default function GuestChatPage() {
     setMsgs(newMsgs);
     saveGuestMessages(id, newMsgs);
 
-    const es = new EventSource(`/api/v1/chat/${id}/stream?message=${encodeURIComponent(text)}`);
+    const _token = (() => { try { const s = localStorage.getItem('auth-storage'); if (s) return JSON.parse(s).state?.token; } catch {} return null; })();
+    const _params = new URLSearchParams({ message: text });
+    if (_token) _params.set('token', _token);
+    const es = new EventSource(`/api/v1/chat/${id}/stream?${_params.toString()}`);
     esRef.current = es;
 
     const appendMsg = (role: string, content: string) => {
@@ -92,9 +95,15 @@ export default function GuestChatPage() {
     };
 
     es.addEventListener("chat_message", (e) => {
-      try { const ev = JSON.parse(e.data); const c = ev.content || ev.text || ""; setLiveContent(c); liveRef.current = c; } catch {}
+      try { const ev = JSON.parse((e as any).data); const c = ev.content || ev.text || ""; setLiveContent(c); liveRef.current = c; } catch {}
     });
 
+    es.addEventListener("error", (e) => {
+      es.close(); setSending(false);
+      setLiveContent(''); liveRef.current = '';
+      let msg = "Request failed. Please try again.";
+      try { const ev = JSON.parse((e as any).data); if (ev.message) msg = "⚠️ " + ev.message; } catch {}
+    });
     es.addEventListener("done", () => {
       es.close(); setSending(false);
       const content = liveRef.current;
@@ -104,7 +113,13 @@ export default function GuestChatPage() {
       }
     });
 
-    es.onerror = () => { es.close(); setSending(false); };
+    es.onopen = () => { /* connected */ };
+    es.onerror = () => {
+      es.close();
+      setSending(false);
+      setLiveContent('');
+      liveRef.current = '';
+    };
   };
 
   const n = persona?.name || "person";
@@ -122,7 +137,7 @@ export default function GuestChatPage() {
         </div>
       </header>
 
-      <main className="flex-1 overflow-y-auto">
+      <main className="flex-1 overflow-y-auto" style={{ overscrollBehavior: 'contain' }}>
         <div className="max-w-3xl mx-auto p-4 space-y-4 pb-2">
           {msgs.length === 0 && !liveContent && (
             <div className="text-center py-16 text-[#86868B] text-sm font-light">
@@ -172,7 +187,8 @@ export default function GuestChatPage() {
         </div>
       )}
 
-      <footer className="shrink-0 border-t border-[rgba(0,0,0,0.06)] bg-white">
+      <div className="h-20" /> {/* spacer for fixed footer */}
+      <footer className="fixed bottom-0 left-0 right-0 z-30 border-t border-[rgba(0,0,0,0.06)] bg-white" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
         <div className="max-w-3xl mx-auto px-4 py-3">
           <div className="flex gap-2">
             <textarea

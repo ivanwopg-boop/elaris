@@ -2,12 +2,12 @@
 
 import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter } from 'next/navigation';
-import { MessageSquare, Compass, User, LogOut, ChevronRight, Plus, Users, Sparkles } from 'lucide-react';
+import { MessageSquare, Compass, User, LogOut, ChevronRight, Plus, Users, Sparkles, Settings, HelpCircle, Info } from 'lucide-react';
 import TabBar from '@/components/TabBar';
 import { Avatar } from '@/components/Avatar';
 import { api } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
-import { useLangStore, translations, type Lang } from '@/lib/i18n';
+import { useLangStore, translations, type Lang, getLocalizedPresetName } from '@/lib/i18n';
 
 interface PersonaSummary {
   id: string;
@@ -97,6 +97,7 @@ interface ConversationItem {
 // ── Chat Tab (Conversation List) ─────────────────────────────
 
 function ChatTab({ tabStrings, conversations, setConversations, onNavigate }: { tabStrings: Record<string, string>; conversations: ConversationItem[]; setConversations: any; onNavigate: () => void }) {
+  const { lang } = useLangStore() as { lang: Lang };
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -201,9 +202,9 @@ function ChatTab({ tabStrings, conversations, setConversations, onNavigate }: { 
           }}
           onTouchEnd={() => { setRevealedId(null); }}
         >
-          <Avatar name={conv.persona_name} url={conv.persona_avatar} size="md" />
+          <Avatar name={getLocalizedPresetName(conv.persona_name, lang)} url={conv.persona_avatar} size="md" />
           <div className="flex-1 min-w-0">
-            <p className="text-base font-normal text-[#1D1D1F] truncate">{conv.persona_name}</p>
+            <p className="text-base font-normal text-[#1D1D1F] truncate">{getLocalizedPresetName(conv.persona_name, lang)}</p>
             {conv.last_message && (
               <p className="text-sm text-[#86868B] font-light truncate mt-0.5">{conv.last_message}</p>
             )}
@@ -236,32 +237,10 @@ function ChatTab({ tabStrings, conversations, setConversations, onNavigate }: { 
 
 // ── Contacts Tab ──────────────────────────────────────────────
 
-function ContactsTab({ isActive, onNavigate, tabStrings }: { isActive?: boolean; onNavigate: () => void; tabStrings: Record<string, string> }) {
+function ContactsTab({ isActive, onNavigate, tabStrings, contacts, setContacts, token }: { isActive?: boolean; onNavigate: () => void; tabStrings: Record<string, string>; contacts?: any[]; setContacts?: any; token?: string | null }) {
+  const { lang } = useLangStore();
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [localPersonas, setLocalPersonas] = useState<PersonaSummary[]>([]);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    if (!isActive) return;
-    setLoading(true);
-    fetch('/api/v1/personas/contacts')
-      .then(r => r.json())
-      .then(data => { if (Array.isArray(data)) setLocalPersonas(data); })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [isActive]);
-
-  // Listen for contacts reload event from Discover tab
-  useEffect(() => {
-    const handler = () => {
-      fetch('/api/v1/personas/contacts')
-        .then(r => r.json())
-        .then(data => { if (Array.isArray(data)) setLocalPersonas(data); })
-        .catch(() => {});
-    };
-    window.addEventListener('reload-contacts', handler);
-    return () => window.removeEventListener('reload-contacts', handler);
-  }, []);
+  const loading = false; // ChatsContent handles fetching
 
   const handleDelete = async (e: React.MouseEvent, personaId: string) => {
     e.stopPropagation();
@@ -269,7 +248,7 @@ function ContactsTab({ isActive, onNavigate, tabStrings }: { isActive?: boolean;
     setDeletingId(personaId);
     try {
       const res = await fetch(`/api/v1/personas/contacts/${personaId}`, { method: 'DELETE' });
-      if (res.ok) setLocalPersonas(prev => prev.filter(p => p.id !== personaId));
+      if (res.ok) setContacts((prev: any[]) => prev.filter((p: any) => p.id !== personaId));
       else alert(tabStrings.delete_failed || 'Delete failed');
     } catch {
       alert(tabStrings.delete_failed || 'Delete failed');
@@ -278,9 +257,30 @@ function ContactsTab({ isActive, onNavigate, tabStrings }: { isActive?: boolean;
     }
   };
 
-  if (loading) return <LoadingSpinner />;
+  // Fetch contacts from API if not provided via prop
+  const [localContacts, setLocalContacts] = useState<any[]>([]);
+  useEffect(() => {
+    if (!token) return;
+    if (contacts && contacts.length > 0) return; // already have contacts from parent
+    fetch('/api/v1/personas/contacts')
+      .then(r => r.ok ? r.json() : [])
+      .then(data => { if (Array.isArray(data)) setLocalContacts(data); })
+      .catch(() => {});
+  }, [token]);
 
-  if (localPersonas.length === 0) {
+  // Listen for contact-added event from DiscoverTab (fired on successful POST)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const p = (e as CustomEvent).detail;
+      if (p) setLocalContacts(prev => [...prev, p]);
+    };
+    window.addEventListener('contact-added', handler);
+    return () => window.removeEventListener('contact-added', handler);
+  }, []);
+
+  const displayContacts = contacts && contacts.length > 0 ? contacts : localContacts;
+
+  if (displayContacts.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
         <div className="w-20 h-20 rounded-full bg-[#F5F5F7] flex items-center justify-center mb-5">
@@ -300,7 +300,7 @@ function ContactsTab({ isActive, onNavigate, tabStrings }: { isActive?: boolean;
 
   return (
     <div className="bg-white">
-      {localPersonas.map((p) => (
+      {displayContacts.map((p: any) => (
         <div
           key={p.id}
           className="flex items-center gap-3 px-4 py-4 border-b border-[rgba(0,0,0,0.04)] active:bg-[rgba(0,0,0,0.02)] transition-colors cursor-pointer"
@@ -308,9 +308,9 @@ function ContactsTab({ isActive, onNavigate, tabStrings }: { isActive?: boolean;
           onClick={() => window.location.href = `/persona/${p.id}`}
           onContextMenu={(e) => { e.preventDefault(); handleDelete(e as any, p.id); }}
         >
-          <Avatar name={p.name} url={p.avatar_url} size="md" />
+          <Avatar name={getLocalizedPresetName(p.name, lang)} url={p.avatar_url} size="md" />
           <div className="flex-1 min-w-0">
-            <p className="text-base font-normal text-[#1D1D1F] truncate">{p.name}</p>
+            <p className="text-base font-normal text-[#1D1D1F] truncate">{getLocalizedPresetName(p.name, lang)}</p>
             {p.description && (
               <p className="text-sm text-[#86868B] font-light truncate mt-0.5">{p.description}</p>
             )}
@@ -344,8 +344,18 @@ const FEATURED_IDS = ["338103d3-2555-4e17-9bb6-2801521d5e36",
     "254072df-98f4-437d-bfd6-bdb64db5ea52",
     "2acdfdd2-9b03-4cc7-8fb5-0438ead2dc05"];
 
-function DiscoverTab({ tabStrings, onContactAdded }: { tabStrings: Record<string, string>; onContactAdded?: () => void }) {
+function DiscoverTab({ tabStrings, onContactAdded }: { tabStrings: Record<string, string>; onContactAdded?: (p?: any) => void }) {
   const { lang } = useLangStore();
+  const CATEGORIES = [
+    { key: "all", label: lang === "zh-CN" ? "全部" : "All" },
+    { key: "tech", label: lang === "zh-CN" ? "科技" : "Tech" },
+    { key: "chinese", label: lang === "zh-CN" ? "中文人物" : "Chinese" },
+    { key: "world", label: lang === "zh-CN" ? "世界领袖" : "World Leaders" },
+    { key: "sports", label: lang === "zh-CN" ? "体育" : "Sports" },
+    { key: "entertainment", label: lang === "zh-CN" ? "娱乐" : "Entertainment" },
+    { key: "business", label: lang === "zh-CN" ? "商业" : "Business" },
+    { key: "thinker", label: lang === "zh-CN" ? "思想家" : "Thinkers" },
+  ];
   const router = useRouter();
   const token = useAuthStore((s) => s.token);
   const [presets, setPresets] = useState<PersonaSummary[]>([]);
@@ -380,8 +390,8 @@ function DiscoverTab({ tabStrings, onContactAdded }: { tabStrings: Record<string
   const handleAddToContacts = async (e: React.MouseEvent, p: PersonaSummary) => {
     e.stopPropagation();
     try {
-      await fetch(`/api/v1/personas/contacts/${p.id}`, { method: 'POST' });
-      if (onContactAdded) onContactAdded();
+      const res = await fetch(`/api/v1/personas/contacts/${p.id}`, { method: 'POST' });
+      if (res.ok && onContactAdded) onContactAdded(p);
       alert(`${p.name} ` + tabStrings.added_to_contacts);
     } catch {
       alert(tabStrings.add_failed);
@@ -408,7 +418,7 @@ function DiscoverTab({ tabStrings, onContactAdded }: { tabStrings: Record<string
   return (
     <div>
       <div className="flex gap-2 px-4 py-3 overflow-x-auto border-b border-[rgba(0,0,0,0.04)]">
-        {PRESET_CATEGORIES.map((cat) => (
+        {CATEGORIES.map((cat) => (
           <button
             key={cat.key}
             onClick={() => setActiveCat(cat.key)}
@@ -426,9 +436,9 @@ function DiscoverTab({ tabStrings, onContactAdded }: { tabStrings: Record<string
               className="w-full text-left p-4 active:bg-[rgba(0,0,0,0.02)] transition-colors"
             >
               <div className="flex items-start gap-4">
-                <Avatar name={p.name} url={p.avatar_url} size="lg" />
+                <Avatar name={getLocalizedPresetName(p.name, lang)} url={p.avatar_url} size="lg" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-base font-normal text-[#1D1D1F] mb-1">{p.name}</p>
+                  <p className="text-base font-normal text-[#1D1D1F] mb-1">{getLocalizedPresetName(p.name, lang)}</p>
                   {p.description && (
                     <p className="text-sm text-[#86868B] font-light leading-relaxed line-clamp-2">{p.description}</p>
                   )}
@@ -481,8 +491,11 @@ function MeTab({ tabStrings }: { tabStrings: Record<string, string> }) {
   };
 
   const menuItems = [
-    { label: tabStrings.my, onClick: () => window.location.href = '/personas', icon: '👤' },
-    { label: tabStrings.create_persona, onClick: () => window.location.href = '/personas/new', icon: '✨' },
+    { label: tabStrings.my_personas, onClick: () => window.location.href = '/personas', icon: <User size={20} strokeWidth={1.5} /> },
+    { label: tabStrings.create_persona, onClick: () => window.location.href = '/personas/new', icon: <Sparkles size={20} strokeWidth={1.5} /> },
+    { label: tabStrings.account_settings, onClick: () => window.location.href = '/settings', icon: <Settings size={20} strokeWidth={1.5} /> },
+    { label: tabStrings.help_feedback, onClick: () => window.location.href = 'mailto:support@elaris.ai', icon: <HelpCircle size={20} strokeWidth={1.5} /> },
+    { label: tabStrings.about, onClick: () => window.location.href = '/about', icon: <Info size={20} strokeWidth={1.5} /> },
   ];
 
   return (
@@ -510,7 +523,7 @@ function MeTab({ tabStrings }: { tabStrings: Record<string, string> }) {
             className="w-full flex items-center gap-3 px-5 py-4 text-left border-b border-[rgba(0,0,0,0.04)] last:border-b-0 active:bg-[rgba(0,0,0,0.02)] transition-colors"
             style={{ minHeight: '52px' }}
           >
-            <span className="text-base">{item.icon}</span>
+            <span className="text-[#86868B]">{item.icon}</span>
             <span className="text-sm font-normal text-[#1D1D1F]">{item.label}</span>
           </button>
         ))}
@@ -539,6 +552,7 @@ function ChatsContent() {
   const { lang } = useLangStore() as { lang: Lang };
   const t = translations[lang];
   const [activeTab, setActiveTab] = useState<TabKey>('chat');
+  // contactsRefresh removed
   // Pre-compute all tab-specific strings
   const TAB_STRINGS = {
     no_chats: t.no_chats,
@@ -555,7 +569,10 @@ function ChatsContent() {
     guest: t.guest,
     not_logged_in: t.not_logged_in,
     logout: t.logout,
-    my_personas: t.my + ' Personas',
+    my_personas: t.my_personas,
+    create_persona: t.create_persona,
+    account_settings: t.account_settings,
+    help_feedback: t.help_feedback,
   };
   const TAB_TITLES: Record<TabKey, string> = {
     chat: t.tab_chat,
@@ -567,6 +584,7 @@ function ChatsContent() {
   const [loading, setLoading] = useState(true);
   const [showActionSheet, setShowActionSheet] = useState(false);
   const [contacts, setContacts] = useState<any[]>([]);
+  // Contacts are fetched directly via ContactsTab when it mounts
   const [conversations, setConversations] = useState<ConversationItem[]>([]);
 
   // Keep URL in sync with activeTab state (after state update, push to URL)
@@ -627,11 +645,8 @@ function ChatsContent() {
         ) : (
           <>
             {activeTab === 'chat' && <ChatTab tabStrings={TAB_STRINGS} conversations={conversations} setConversations={setConversations} onNavigate={handleNavigateToDiscover} />}
-            {activeTab === 'contacts' && <ContactsTab isActive={activeTab === 'contacts'} onNavigate={handleNavigateToDiscover} tabStrings={TAB_STRINGS} />}
-            {activeTab === 'discover' && <DiscoverTab tabStrings={TAB_STRINGS} onContactAdded={() => {
-            // Reload contacts tab by triggering a re-render
-            window.dispatchEvent(new CustomEvent('reload-contacts'));
-          }} />}
+            {activeTab === 'contacts' && <ContactsTab isActive={activeTab === 'contacts'} onNavigate={handleNavigateToDiscover} tabStrings={TAB_STRINGS} contacts={contacts} setContacts={setContacts} token={token} />}
+            {activeTab === 'discover' && <DiscoverTab tabStrings={TAB_STRINGS} onContactAdded={(p) => { window.dispatchEvent(new CustomEvent('contact-added', { detail: p })); }} />}
             {activeTab === 'me' && <MeTab tabStrings={TAB_STRINGS} />}
           </>
         )}

@@ -17,6 +17,7 @@ from app.core.prompts import CHAT_SYSTEM_PROMPT, WRITE_SYSTEM_PROMPT, ADVISE_SYS
 from app.core.auth_deps import require_auth, require_auth_optional
 from app.core.auth import decode_token
 from app.models.db_models import User
+from fastapi.responses import JSONResponse
 
 router = APIRouter(prefix="", tags=["Chat"])
 
@@ -103,8 +104,10 @@ async def _sse_event(event_name: str, data: dict) -> str:
 # ── SSE streaming endpoints ──────────────────────────────────
 
 def _get_user_from_request(request) -> str | None:
-    """Extract user_id from access_token cookie."""
+    """Extract user_id from access_token cookie or query param (SSE can't send cookies)."""
     token = request.cookies.get("access_token")
+    if not token:
+        token = request.query_params.get("token")
     if not token:
         return None
     payload = decode_token(token)
