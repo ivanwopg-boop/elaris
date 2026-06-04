@@ -152,7 +152,9 @@ function ChatTab({ tabStrings, conversations, setConversations, onNavigate }: { 
   };
 
   const formatTime = (iso: string) => {
-    const d = new Date(iso);
+    // DB stores UTC time; append Z so JS parses as UTC, then toLocale converts to local
+    const utcIso = iso.endsWith('Z') || iso.includes('+') ? iso : iso.replace(' ', 'T') + 'Z';
+    const d = new Date(utcIso);
     const now = new Date();
     const diff = now.getTime() - d.getTime();
     if (diff < 86400000) return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
