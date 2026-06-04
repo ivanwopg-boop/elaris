@@ -3,6 +3,7 @@
 import uuid
 import hashlib
 import secrets
+import bcrypt
 from datetime import datetime, timezone, timedelta
 
 from jose import jwt, JWTError
@@ -16,18 +17,14 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
 
 
 def hash_password(password: str) -> str:
-    """Hash a password with a random salt using PBKDF2."""
-    salt = secrets.token_hex(16)
-    hash_str = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 100000).hex()
-    return f"{salt}${hash_str}"
+    """Hash a password with bcrypt."""
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt(12)).decode("utf-8")
 
 
 def verify_password(password: str, hashed: str) -> bool:
-    """Verify a password against its hash."""
+    """Verify a password against its bcrypt hash."""
     try:
-        salt, stored = hashed.split("$")
-        expected = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 100000).hex()
-        return secrets.compare_digest(expected, stored)
+        return bcrypt.checkpw(password.encode("utf-8"), hashed.encode("utf-8"))
     except Exception:
         return False
 

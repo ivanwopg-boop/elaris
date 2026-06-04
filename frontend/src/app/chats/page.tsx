@@ -250,8 +250,10 @@ function ContactsTab({ isActive, onNavigate, tabStrings, contacts, setContacts, 
     setDeletingId(personaId);
     try {
       const res = await fetch(`/api/v1/personas/contacts/${personaId}`, { method: 'DELETE' });
-      if (res.ok) setContacts((prev: any[]) => prev.filter((p: any) => p.id !== personaId));
-      else alert(tabStrings.delete_failed || 'Delete failed');
+      if (res.ok) {
+        setContacts((prev: any[]) => prev.filter((p: any) => p.id !== personaId));
+        setLocalContacts((prev: any[]) => prev.filter((p: any) => p.id !== personaId));
+      } else alert(tabStrings.delete_failed || 'Delete failed');
     } catch {
       alert(tabStrings.delete_failed || 'Delete failed');
     } finally {
@@ -274,7 +276,10 @@ function ContactsTab({ isActive, onNavigate, tabStrings, contacts, setContacts, 
   useEffect(() => {
     const handler = (e: Event) => {
       const p = (e as CustomEvent).detail;
-      if (p) setLocalContacts(prev => [...prev, p]);
+      if (p) {
+        setLocalContacts(prev => [...prev, p]);
+        setContacts?.((prev: any[]) => prev ? [...prev, p] : [p]);
+      }
     };
     window.addEventListener('contact-added', handler);
     return () => window.removeEventListener('contact-added', handler);
