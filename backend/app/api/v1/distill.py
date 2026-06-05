@@ -25,8 +25,14 @@ def _now():
 
 
 async def _check_persona(persona_id: str, user_id: str, db: AsyncSession) -> None:
-    result = await db.execute(select(Persona).where(Persona.id == persona_id, Persona.user_id == user_id))
-    if not result.scalar_one_or_none():
+    result = await db.execute(select(Persona).where(Persona.id == persona_id))
+    persona = result.scalar_one_or_none()
+    if not persona:
+        raise HTTPException(status_code=404, detail="Persona not found")
+    # Preset personas (user_id=NULL) are public — allow any authenticated user
+    if persona.user_id is None:
+        return
+    if persona.user_id != user_id:
         raise HTTPException(status_code=404, detail="Persona not found")
 
 
