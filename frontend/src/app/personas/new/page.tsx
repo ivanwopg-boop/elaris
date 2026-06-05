@@ -38,8 +38,10 @@ export default function CreatePersonaPage() {
       const result = await api.distill(persona.id, lang);
 
       setStage("done");
-      // Navigate to the persona page after a short delay
-      setTimeout(() => router.push(`/persona/${persona.id}`), 1500);
+      // Add to contacts
+      await fetch(`/api/v1/personas/contacts/${persona.id}`, { method: "POST" });
+      // Navigate to contacts tab after a short delay
+      setTimeout(() => router.push("/chats?tab=contacts"), 1500);
     } catch (e: any) {
       setStage("error");
       setError(e.message || "Distillation failed");
