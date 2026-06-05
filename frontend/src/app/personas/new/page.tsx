@@ -38,12 +38,12 @@ export default function CreatePersonaPage() {
       const result = await api.distill(persona.id, lang);
 
       setStage("done");
-      // Add to contacts & notify tabs
+      // Add to contacts & notify tabs BEFORE navigation
       const addRes = await fetch(`/api/v1/personas/contacts/${persona.id}`, { method: "POST" });
       if (addRes.ok) {
-        window.dispatchEvent(new CustomEvent("contact-added", { detail: { id: persona.id, name: data.name } }));
+        window.dispatchEvent(new CustomEvent("contact-added", { detail: { id: persona.id, name: persona.name } }));
       }
-      // Navigate to contacts tab after a short delay
+      // Navigate to contacts tab — event fires before mount so ContactsTab useEffect catches it
       setTimeout(() => router.push("/chats?tab=contacts"), 1500);
     } catch (e: any) {
       setStage("error");
