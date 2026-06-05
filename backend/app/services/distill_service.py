@@ -103,6 +103,16 @@ async def distill_persona(persona_id: str, db: AsyncSession, lang: str = "en") -
 
     # Validate it's a proper PersonaProfile
     try:
+        # Fix float values for integer fields (DeepSeek may return 0.6 instead of 60)
+        def fix_floats(obj, path=""):
+            if isinstance(obj, dict):
+                return {k: fix_floats(v, f"{path}.{k}") for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [fix_floats(v, f"{path}[i]") for v in obj]
+            elif isinstance(obj, float) and obj < 1:
+                return int(obj * 100)
+            return obj
+        soul_data = fix_floats(soul_data)
         profile = PersonaProfile(**soul_data)
     except Exception as e:
         raise ValueError(f"AI returned data format error: {e}\nRaw data: {str(soul_data)[:500]}")
