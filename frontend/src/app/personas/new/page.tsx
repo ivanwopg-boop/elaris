@@ -38,8 +38,11 @@ export default function CreatePersonaPage() {
       const result = await api.distill(persona.id, lang);
 
       setStage("done");
-      // Add to contacts
-      await fetch(`/api/v1/personas/contacts/${persona.id}`, { method: "POST" });
+      // Add to contacts & notify tabs
+      const addRes = await fetch(`/api/v1/personas/contacts/${persona.id}`, { method: "POST" });
+      if (addRes.ok) {
+        window.dispatchEvent(new CustomEvent("contact-added", { detail: { id: persona.id, name: data.name } }));
+      }
       // Navigate to contacts tab after a short delay
       setTimeout(() => router.push("/chats?tab=contacts"), 1500);
     } catch (e: any) {
