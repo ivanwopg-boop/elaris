@@ -41,9 +41,11 @@ export default function CreatePersonaPage() {
       // Add to contacts & notify tabs BEFORE navigation
       const addRes = await fetch(`/api/v1/personas/contacts/${persona.id}`, { method: "POST" });
       if (addRes.ok) {
+        // Store in sessionStorage so ContactsTab catches it after navigation
+        sessionStorage.setItem("pending-contact-add", JSON.stringify({ id: persona.id, name: persona.name }));
         window.dispatchEvent(new CustomEvent("contact-added", { detail: { id: persona.id, name: persona.name } }));
       }
-      // Navigate to contacts tab — event fires before mount so ContactsTab useEffect catches it
+      // Navigate to contacts tab
       setTimeout(() => router.push("/chats?tab=contacts"), 1500);
     } catch (e: any) {
       setStage("error");

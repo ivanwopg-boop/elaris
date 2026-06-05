@@ -268,7 +268,28 @@ function ContactsTab({ isActive, onNavigate, tabStrings, contacts, setContacts, 
     if (contacts && contacts.length > 0) return; // already have contacts from parent
     fetch('/api/v1/personas/contacts')
       .then(r => r.ok ? r.json() : [])
-      .then(data => { if (Array.isArray(data)) setLocalContacts(data); })
+      .then(data => {
+        if (Array.isArray(data)) setLocalContacts(data);
+        // Check for pending contact from new-persona flow
+        const pendingRaw = sessionStorage.getItem("pending-contact-add");
+        if (pendingRaw) {
+          sessionStorage.removeItem("pending-contact-add");
+          try {
+            const pending = JSON.parse(pendingRaw);
+            if (pending && pending.id) {
+              setLocalContacts((prev: any[]) => {
+                if (prev.some((c: any) => c.id === pending.id)) return prev;
+                return [...prev, pending];
+              });
+              setContacts?.((prev: any[]) => {
+                if (!prev) return [pending];
+                if (prev.some((c: any) => c.id === pending.id)) return prev;
+                return [...prev, pending];
+              });
+            }
+          } catch {}
+        }
+      })
       .catch(() => {});
   }, [token]);
 
