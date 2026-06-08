@@ -90,9 +90,6 @@ export const api = {
   listPresets: () =>
     api.request<PersonaOut[]>("/personas/presets"),
 
-  listDiscover: (lang: string) =>
-    api.request<any[]>("/personas/discover?lang=" + encodeURIComponent(lang)),
-
   getPersona: (id: string) =>
     api.request<PersonaDetail>(`/personas/${id}`),
 

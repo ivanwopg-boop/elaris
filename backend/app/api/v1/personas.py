@@ -75,34 +75,6 @@ async def list_personas(user: User = Depends(require_auth_optional), db: AsyncSe
     return await persona_service.list_personas(db, user_id=user.id if user else None, include_presets=True)
 
 
-
-@router.get("/discover", response_model=list[PersonaOut])
-async def list_discover(
-    user: User = Depends(require_auth),
-    db: AsyncSession = Depends(get_db),
-    lang: str = Query("en"),
-):
-    """List all public personas (presets + user-created)."""
-    result = await db.execute(
-        select(Persona).where(
-            (Persona.user_id.is_(None)) | (Persona.is_public == True)
-        ).order_by(Persona.category, Persona.name)
-    )
-    personas = result.scalars().all()
-    out = []
-    for p in personas:
-        soul_result = await db.execute(
-            select(PersonaSoul)
-            .where(PersonaSoul.persona_id == p.id, PersonaSoul.lang == lang)
-            .order_by(PersonaSoul.version.desc())
-        )
-        ls = soul_result.scalars().first()
-        pd = _persona_to_out(p, ls)
-        pd["category"] = p.category
-        out.append(pd)
-    return out
-
-
 @router.get("/presets", response_model=list[PersonaOut])
 async def list_presets(db: AsyncSession = Depends(get_db)):
     """List preset personas (user_id=NULL) for the Discover tab."""

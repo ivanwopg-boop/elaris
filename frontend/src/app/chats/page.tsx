@@ -17,7 +17,6 @@ interface PersonaSummary {
   created_at: string;
   updated_at: string;
   has_soul: boolean;
-  category?: string | null;
 }
 
 type TabKey = 'chat' | 'contacts' | 'discover' | 'me';
@@ -392,7 +391,7 @@ function DiscoverTab({ tabStrings, onContactAdded }: { tabStrings: Record<string
   const [activeCat, setActiveCat] = useState("all");
 
   useEffect(() => {
-    api.listDiscover(lang)
+    api.listPresets()
       .then((all) => {
         // Guests (no token): only show 5 featured. Logged-in: show all.
         const list = !token ? all.filter((p: any) => FEATURED_IDS.includes(p.id)) : all;
@@ -442,7 +441,7 @@ function DiscoverTab({ tabStrings, onContactAdded }: { tabStrings: Record<string
     }
   };
 
-  const filtered = activeCat === "all" ? presets : presets.filter((p) => (p.category || getCategory(p.name)) === activeCat);
+  const filtered = activeCat === "all" ? presets : presets.filter((p) => getCategory(p.name) === activeCat);
 
   return (
     <div>
