@@ -20,7 +20,7 @@ export function Avatar({ name, url, size = "md", className }: AvatarProps) {
   const initial = name.trim().charAt(0).toUpperCase();
   const initials = name.trim().split(/\s+/).map((w) => w.charAt(0)).join("").slice(0, 2).toUpperCase();
 
-  const fallbackUrl = `https://api.dicebear.com/9.x/shapes/svg?seed=${encodeURIComponent(name)}&backgroundColor=1D1D1F,2D2D2F,0071E3,86868B,4A4A4D`;
+  const fallbackUrl = `https://api.dicebear.com/9.x/shapes/svg?seed=${encodeURIComponent(name)}&backgroundColor=EAEAEF,CFCFD6,3A8FD4,9A9AA0,C2C2C8`;
 
   const effectiveUrl = !url || failed ? fallbackUrl : url;
 
