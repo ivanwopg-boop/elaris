@@ -138,7 +138,7 @@ export default function GuestChatPage() {
   const t2 = translations[lang];
 
   return (
-    <div className="flex flex-col bg-white overflow-hidden" style={{ height: '100dvh', maxHeight: '100dvh' }}>
+    <div className="flex flex-col bg-white overflow-hidden" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}>
       <header className="shrink-0 border-b border-[rgba(0,0,0,0.06)] bg-white/95 z-10">
         <div className="max-w-3xl mx-auto px-4 h-14 flex items-center gap-3">
           <button onClick={() => router.push("/chats")} className="text-[#86868B] hover:text-[#1D1D1F] p-1.5 -ml-1.5 rounded-full hover:bg-[rgba(0,0,0,0.04)] active:bg-[rgba(0,0,0,0.08)] transition-colors">
