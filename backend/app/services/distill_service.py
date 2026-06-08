@@ -110,17 +110,19 @@ async def distill_persona(persona_id: str, db: AsyncSession, lang: str = "en",
         lang, name, title_line, company_line, all_materials, existing_soul, use_v2)
 
     # 5. Call LLM API
+    lang_instruction = "Output exclusively in Chinese (中文)." if lang == "zh-CN" else "Output exclusively in English."
     system_msg = (
         "You are a professional personality analyst, skilled at distilling "
-        "personality traits from text materials."
+        "personality traits from text materials. "
     )
     if use_v2:
         system_msg = (
             "You are a cognitive biographer. Your task is to construct a deep "
             "cognitive portrait -- not cataloguing facts, but understanding how "
             "this person actually thinks, what they believe in their bones, "
-            "what makes them react, and how they express themselves."
+            "what makes them react, and how they express themselves. "
         )
+    system_msg += lang_instruction
     messages = [
         {"role": "system", "content": system_msg},
         {"role": "user", "content": prompt},
