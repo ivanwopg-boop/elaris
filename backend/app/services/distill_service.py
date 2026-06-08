@@ -42,6 +42,10 @@ def _get_distill_prompt(lang: str, name: str, title_line: str, company_line: str
             all_materials=all_materials,
         )
         version_from = existing_soul.version if existing_soul else None
+        # zh-CN: enforce Chinese output since v2 prompt template is in English
+        if lang == 'zh-CN':
+            cn_inst = '【关键指令：所有输出内容必须使用中文。JSON字段名保持英文，每个字段的值必须用中文。包括identity.name、life_arc、voice_samples等。】'
+            prompt = cn_inst + '\n\n' + prompt
     else:
         # v1 path
         if lang == 'zh-CN':
