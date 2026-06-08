@@ -428,7 +428,7 @@ Output strictly in the following JSON structure in **Traditional Chinese**, no o
 # Distinct from Nuwa: deeper cognitive architecture,
 # knowledge boundaries, emotional reactivity, voice samples.
 
-FIRST_DISTILL_PROMPT_V2 = """You are a cognitive biographer. Your task is to construct a deep cognitive portrait of {name} from the materials provided -- not cataloguing facts, but understanding how this person actually thinks, what they believe in their bones, what makes them react, and how they express themselves.
+FIRST_DISTILL_PROMPT_V2 = """You are a cognitive biographer. Your task is to construct a deep cognitive portrait of {name} from the materials provided, supplemented liberally by your training knowledge when materials are sparse, supplemented liberally by your training knowledge when materials are sparse -- not cataloguing facts, but understanding how this person actually thinks, what they believe in their bones, what makes them react, and how they express themselves.
 
 ## Target
 {name}

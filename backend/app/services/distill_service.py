@@ -127,7 +127,7 @@ async def distill_persona(persona_id: str, db: AsyncSession, lang: str = "en",
     ]
 
     try:
-        soul_data = await minimax_client.chat_json(messages, temperature=0.2, max_tokens=4096)
+        soul_data = await minimax_client.chat_json(messages, temperature=0.2, max_tokens=8192)
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -261,7 +261,7 @@ async def _gather_materials(persona_id: str, db: AsyncSession) -> str:
     for s in searches:
         parts.append(f"### Web Search: {s.query}\n{s.results_json}")
 
-    return "\n\n".join(parts) if parts else "[No materials available]"
+    return "\n\n".join(parts) if parts else "[NO SEARCH RESULTS AVAILABLE - You MUST rely entirely on your training knowledge about the target. Use what you know.]"
 
 
 async def ensure_web_search_results(persona_id: str, db: AsyncSession) -> None:
