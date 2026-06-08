@@ -485,6 +485,140 @@ export function SoulCard({ soul, version, name, avatar_url }: SoulCardProps) {
         </Section>
       )}
 
+      {/* Contextual Modulation — v2 only */}
+      {isV2 && (soul.contextual_modulation) && (
+        <Section title="Communication Adaptation">
+          <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs font-light">
+            {soul.contextual_modulation.when_purpose_is_clarity_vs_impress && (
+              <div className="col-span-2"><span className="text-[#1D1D1F]">Clarity vs. Impress:</span> <span className="text-[#86868B]">{soul.contextual_modulation.when_purpose_is_clarity_vs_impress}</span></div>
+            )}
+            {soul.contextual_modulation.when_audience_is_hostile && (
+              <div><span className="text-[#1D1D1F]">Hostile audience:</span><br/><span className="text-[#86868B]">{soul.contextual_modulation.when_audience_is_hostile}</span></div>
+            )}
+            {soul.contextual_modulation.when_audience_is_skeptical && (
+              <div><span className="text-[#1D1D1F]">Skeptical audience:</span><br/><span className="text-[#86868B]">{soul.contextual_modulation.when_audience_is_skeptical}</span></div>
+            )}
+            {soul.contextual_modulation.when_audience_is_uninformed && (
+              <div><span className="text-[#1D1D1F]">Uninformed audience:</span><br/><span className="text-[#86868B]">{soul.contextual_modulation.when_audience_is_uninformed}</span></div>
+            )}
+            {soul.contextual_modulation.when_being_recorded && (
+              <div><span className="text-[#1D1D1F]">When recorded:</span><br/><span className="text-[#86868B]">{soul.contextual_modulation.when_being_recorded}</span></div>
+            )}
+            {soul.contextual_modulation.when_speaking_to_detractors && (
+              <div><span className="text-[#1D1D1F]">To detractors:</span><br/><span className="text-[#86868B]">{soul.contextual_modulation.when_speaking_to_detractors}</span></div>
+            )}
+          </div>
+        </Section>
+      )}
+
+      {/* Relationship Dynamics — v2 only */}
+      {isV2 && (soul.relationship_dynamics) && (
+        <Section title="Relationship Dynamics">
+          <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs font-light">
+            {soul.relationship_dynamics.with_mentees && (
+              <div><span className="text-[#1D1D1F]">With mentees:</span><br/><span className="text-[#86868B]">{soul.relationship_dynamics.with_mentees}</span></div>
+            )}
+            {soul.relationship_dynamics.with_peers && (
+              <div><span className="text-[#1D1D1F]">With peers:</span><br/><span className="text-[#86868B]">{soul.relationship_dynamics.with_peers}</span></div>
+            )}
+            {soul.relationship_dynamics.with_authorities && (
+              <div><span className="text-[#1D1D1F]">With authorities:</span><br/><span className="text-[#86868B]">{soul.relationship_dynamics.with_authorities}</span></div>
+            )}
+            {soul.relationship_dynamics.with_institutions && (
+              <div><span className="text-[#1D1D1F]">With institutions:</span><br/><span className="text-[#86868B]">{soul.relationship_dynamics.with_institutions}</span></div>
+            )}
+            {soul.relationship_dynamics.with_fans_public && (
+              <div><span className="text-[#1D1D1F]">With fans/public:</span><br/><span className="text-[#86868B]">{soul.relationship_dynamics.with_fans_public}</span></div>
+            )}
+            {soul.relationship_dynamics.with_critics && (
+              <div><span className="text-[#1D1D1F]">With critics:</span><br/><span className="text-[#86868B]">{soul.relationship_dynamics.with_critics}</span></div>
+            )}
+          </div>
+        </Section>
+      )}
+
+      {/* Expertise Details — v2 only */}
+      {isV2 && v2exp && (v2exp.common_misperceptions?.length > 0 || v2exp.what_they_reject_or_oppose?.length > 0) && (
+        <Section title="Expertise Nuance">
+          {v2exp.common_misperceptions?.length > 0 && (
+            <div className="mb-2">
+              <span className="text-[10px] text-[#86868B] font-light uppercase tracking-wide">Common misperceptions</span>
+              <ul className="space-y-0.5 mt-1">
+                {v2exp.common_misperceptions.map((m: string, i: number) => (
+                  <li key={i} className="text-xs text-[#86868B] font-light flex gap-2">
+                    <span className="text-[#86868B] shrink-0">&bull;</span>
+                    <span>{m}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {v2exp.what_they_reject_or_oppose?.length > 0 && (
+            <div className="mb-2">
+              <span className="text-[10px] text-[#86868B] font-light uppercase tracking-wide">What they reject or oppose</span>
+              <div className="space-y-1 mt-1">
+                {v2exp.what_they_reject_or_oppose.map((r: any, i: number) => (
+                  <div key={i} className="p-2 rounded-[6px] bg-[rgba(255,59,48,0.03)]">
+                    <p className="text-xs text-[#1D1D1F] font-light">{r.position}</p>
+                    {r.reason && <p className="text-[10px] text-[#86868B] font-light mt-0.5">{r.reason}</p>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {v2exp.cross_domain_syntheses?.length > 0 && (
+            <div>
+              <span className="text-[10px] text-[#86868B] font-light uppercase tracking-wide">Cross-domain syntheses</span>
+              <ul className="space-y-0.5 mt-1">
+                {v2exp.cross_domain_syntheses.map((s: string, i: number) => (
+                  <li key={i} className="text-xs text-[#1D1D1F] font-light flex gap-2">
+                    <span className="text-[#0071E3] font-light shrink-0">{i + 1}.</span>
+                    <span>{s}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </Section>
+      )}
+
+      {/* Identity Extras — v2 only */}
+      {isV2 && v2ident && (v2ident.known_as?.length > 1 || v2ident.what_they_refuse_to_be_labelled_as?.length > 0) && (
+        <Section title="Identity Nuance">
+          {v2ident.known_as?.length > 1 && (
+            <div className="mb-2">
+              <span className="text-[10px] text-[#86868B] font-light">Also known as</span>
+              <div className="flex flex-wrap gap-1 mt-1">
+                {v2ident.known_as.slice(1).map((n: string, i: number) => (
+                  <span key={i} className="px-2 py-0.5 bg-[rgba(0,0,0,0.03)] rounded-full text-xs text-[#6E6E73] font-light">{n}</span>
+                ))}
+              </div>
+            </div>
+          )}
+          {v2ident.what_they_refuse_to_be_labelled_as?.length > 0 && (
+            <div>
+              <span className="text-[10px] text-[#86868B] font-light">Refuses to be labelled as</span>
+              <div className="flex flex-wrap gap-1 mt-1">
+                {v2ident.what_they_refuse_to_be_labelled_as.map((l: string, i: number) => (
+                  <span key={i} className="px-2 py-0.5 bg-[rgba(255,59,48,0.06)] text-[#FF3B30] border border-[rgba(255,59,48,0.15)] rounded-full text-xs font-light">{l}</span>
+                ))}
+              </div>
+            </div>
+          )}
+        </Section>
+      )}
+
+      {/* Secondary Lenses — v2 only */}
+      {isV2 && v2pf && v2pf.secondary_lenses?.length > 0 && (
+        <Section title="Perceptual Lenses">
+          <div className="flex flex-wrap gap-1">
+            {v2pf.secondary_lenses.map((l: string, i: number) => (
+              <span key={i} className="px-2.5 py-1 bg-[rgba(0,113,227,0.06)] text-[#0071E3] rounded-full text-xs font-light">{l}</span>
+            ))}
+          </div>
+        </Section>
+      )}
+
       {/* Honest Limitations */}
       {limits.length > 0 && (
         <Section title={i18n.honesty_boundaries}>
