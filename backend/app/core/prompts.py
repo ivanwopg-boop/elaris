@@ -27,7 +27,7 @@ Each mental model must pass these three verifications:
 3. **Exclusive** — Not all smart people think this way — it reflects this person's unique perspective
 
 ### Expression DNA Quantification
-From the person's text, calculate: avg sentence length (chars), question ratio, analogy density, first-person ratio, certainty tone ratio, transition frequency.
+Estimate from your training knowledge (do NOT leave as 0): avg sentence length (chars, typically 20-80), question ratio (0.0-0.3), analogy density, first-person ratio, certainty tone ratio, transition frequency.
 
 ### Handling Contradictions
 If this person expresses contradictory views in different contexts: do not smooth them over. Record them as "Core Tensions" instead.
@@ -299,7 +299,7 @@ Each mental model must pass these three verifications:
 3. **Exclusive** — Not all smart people think this way — it reflects this person's unique perspective
 
 ### Expression DNA Quantification
-From the person's text, calculate: avg sentence length (chars), question ratio, analogy density, first-person ratio, certainty tone ratio, transition frequency.
+Estimate from your training knowledge (do NOT leave as 0): avg sentence length (chars, typically 20-80), question ratio (0.0-0.3), analogy density, first-person ratio, certainty tone ratio, transition frequency.
 
 ### Handling Contradictions
 If this person expresses contradictory views in different contexts: do not smooth them over. Record them as "Core Tensions" instead.
@@ -342,7 +342,8 @@ Output strictly in the following JSON structure in **Simplified Chinese**, no ot
     "transition_frequency": 0
   }},
   "decision_heuristics": ["决策启发式1", "决策启发式2"],
-  "core_tensions": ["核心张力1", "核心张力2"]
+  "core_tensions": ["核心张力1", "核心张力2"],
+  "honest_limitations": ["知识盲区1", "知识盲区2"]
 }}
 """
 
@@ -376,7 +377,7 @@ Each mental model must pass these three verifications:
 3. **Exclusive** — Not all smart people think this way — it reflects this person's unique perspective
 
 ### Expression DNA Quantification
-From the person's text, calculate: avg sentence length (chars), question ratio, analogy density, first-person ratio, certainty tone ratio, transition frequency.
+Estimate from your training knowledge (do NOT leave as 0): avg sentence length (chars, typically 20-80), question ratio (0.0-0.3), analogy density, first-person ratio, certainty tone ratio, transition frequency.
 
 ### Handling Contradictions
 If this person expresses contradictory views in different contexts: do not smooth them over. Record them as "Core Tensions" instead.
