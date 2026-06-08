@@ -1,4 +1,4 @@
-"""Distillation service - core logic for soul generation."""
+"""Distillation service - core logic for soul generation (v1 + v2 support)."""
 
 import json
 import uuid
@@ -11,47 +11,77 @@ from app.models.db_models import (
     Persona, PersonaFile, PersonaManualInput,
     WebSearchResult, PersonaSoul, DistillationLog,
 )
-from app.models.schemas import PersonaProfile
-from app.models.schemas import PersonaProfile
+from app.models.schemas import PersonaProfile, CognitiveProfileV2
 from app.core.minimax_client import minimax_client
-from app.core.prompts import (FIRST_DISTILL_PROMPT, FIRST_DISTILL_PROMPT_ZH_CN, FIRST_DISTILL_PROMPT_ZH_TW,
-    UPDATE_DISTILL_PROMPT, SEARCH_ANALYSIS_PROMPT)
+from app.core.prompts import (
+    FIRST_DISTILL_PROMPT, FIRST_DISTILL_PROMPT_ZH_CN, FIRST_DISTILL_PROMPT_ZH_TW,
+    UPDATE_DISTILL_PROMPT, SEARCH_ANALYSIS_PROMPT,
+    FIRST_DISTILL_PROMPT_V2, UPDATE_DISTILL_PROMPT_V2,
+)
 from app.services.web_search import search_web
 
 
-def _get_distill_prompt(lang: str, name: str, title_line: str, company_line: str, all_materials: str, existing_soul, version_from):
-    """Select the right prompt template based on language."""
-    if lang == 'zh-CN':
-        base = FIRST_DISTILL_PROMPT_ZH_CN
+def _detect_version(soul_json: str) -> str:
+    """Detect soul schema version from JSON string."""
+    try:
+        data = json.loads(soul_json)
+        return data.get("schema_version", "1.0")
+    except Exception:
+        return "1.0"
 
-    else:
-        base = FIRST_DISTILL_PROMPT
 
-    if existing_soul:
-        try:
-            old_profile = PersonaProfile(**json.loads(existing_soul.soul_json))
-            normalized_soul = old_profile.model_dump_json(indent=2, ensure_ascii=False)
-        except Exception:
-            normalized_soul = existing_soul.soul_json
-        prompt = UPDATE_DISTILL_PROMPT.format(
-            name=name,
-            soul_json=normalized_soul,
-            new_materials=all_materials,
-            all_materials=all_materials,
-        )
-        version_from = existing_soul.version
+def _get_distill_prompt(lang: str, name: str, title_line: str, company_line: str,
+                       all_materials: str, existing_soul, use_v2: bool):
+    """Select the right prompt template based on version."""
+    if use_v2:
+        base = FIRST_DISTILL_PROMPT_V2
+        update_base = UPDATE_DISTILL_PROMPT_V2
+        version_from = existing_soul.version if existing_soul else None
+        if existing_soul:
+            prompt = update_base.format(
+                name=name,
+                soul_json=existing_soul.soul_json,
+                new_materials=all_materials,
+                all_materials=all_materials,
+            )
+        else:
+            prompt = base.format(
+                name=name,
+                title_line=title_line,
+                company_line=company_line,
+                all_materials=all_materials,
+            )
     else:
-        prompt = base.format(
-            name=name,
-            title_line=title_line,
-            company_line=company_line,
-            all_materials=all_materials,
-        )
-        version_from = None
+        # v1 path
+        if lang == 'zh-CN':
+            base = FIRST_DISTILL_PROMPT_ZH_CN
+        else:
+            base = FIRST_DISTILL_PROMPT
+        version_from = existing_soul.version if existing_soul else None
+        if existing_soul:
+            try:
+                old_profile = PersonaProfile(**json.loads(existing_soul.soul_json))
+                normalized_soul = old_profile.model_dump_json(indent=2, ensure_ascii=False)
+            except Exception:
+                normalized_soul = existing_soul.soul_json
+            prompt = UPDATE_DISTILL_PROMPT.format(
+                name=name,
+                soul_json=normalized_soul,
+                new_materials=all_materials,
+                all_materials=all_materials,
+            )
+        else:
+            prompt = base.format(
+                name=name,
+                title_line=title_line,
+                company_line=company_line,
+                all_materials=all_materials,
+            )
     return prompt, version_from
 
 
-async def distill_persona(persona_id: str, db: AsyncSession, lang: str = "en") -> dict:
+async def distill_persona(persona_id: str, db: AsyncSession, lang: str = "en",
+                        use_v2: bool = False) -> dict:
     """Run distillation for a persona, returns the new soul."""
     # 1. Load persona
     result = await db.execute(select(Persona).where(Persona.id == persona_id))
@@ -62,7 +92,7 @@ async def distill_persona(persona_id: str, db: AsyncSession, lang: str = "en") -
     # 2. Gather all materials
     all_materials = await _gather_materials(persona_id, db)
 
-    # 3. Check if existing soul for this lang
+    # 3. Check if existing soul for this lang (for update prompt)
     soul_result = await db.execute(
         select(PersonaSoul)
         .where(PersonaSoul.persona_id == persona_id, PersonaSoul.lang == lang)
@@ -75,7 +105,6 @@ async def distill_persona(persona_id: str, db: AsyncSession, lang: str = "en") -
     title_line = ""
     company_line = ""
 
-    # Get title/company from manual inputs
     mi_result = await db.execute(
         select(PersonaManualInput).where(PersonaManualInput.persona_id == persona_id)
     )
@@ -86,11 +115,23 @@ async def distill_persona(persona_id: str, db: AsyncSession, lang: str = "en") -
         elif mi.field_key == "company":
             company_line = f"Company: {mi.field_value}\n"
 
-    prompt, version_from = _get_distill_prompt(lang, name, title_line, company_line, all_materials, existing_soul, None)
+    prompt, version_from = _get_distill_prompt(
+        lang, name, title_line, company_line, all_materials, existing_soul, use_v2)
 
     # 5. Call LLM API
+    system_msg = (
+        "You are a professional personality analyst, skilled at distilling "
+        "personality traits from text materials."
+    )
+    if use_v2:
+        system_msg = (
+            "You are a cognitive biographer. Your task is to construct a deep "
+            "cognitive portrait -- not cataloguing facts, but understanding how "
+            "this person actually thinks, what they believe in their bones, "
+            "what makes them react, and how they express themselves."
+        )
     messages = [
-        {"role": "system", "content": "You are a professional personality analyst, skilled at distilling personality traits from text materials."},
+        {"role": "system", "content": system_msg},
         {"role": "user", "content": prompt},
     ]
 
@@ -101,9 +142,8 @@ async def distill_persona(persona_id: str, db: AsyncSession, lang: str = "en") -
         traceback.print_exc()
         raise RuntimeError(f"Distillation failed: {type(e).__name__}: {e}")
 
-    # Validate it's a proper PersonaProfile
+    # 6. Validate and parse
     try:
-        # Fix float values for integer fields (DeepSeek may return 0.6 instead of 60)
         def fix_floats(obj, path=""):
             if isinstance(obj, dict):
                 return {k: fix_floats(v, f"{path}.{k}") for k, v in obj.items()}
@@ -113,13 +153,17 @@ async def distill_persona(persona_id: str, db: AsyncSession, lang: str = "en") -
                 return int(obj * 100)
             return obj
         soul_data = fix_floats(soul_data)
-        profile = PersonaProfile(**soul_data)
+
+        if use_v2:
+            profile = CognitiveProfileV2(**soul_data)
+        else:
+            profile = PersonaProfile(**soul_data)
     except Exception as e:
         raise ValueError(f"AI returned data format error: {e}\nRaw data: {str(soul_data)[:500]}")
 
     soul_json = profile.model_dump_json(indent=2, ensure_ascii=False)
 
-    # 6. Count sources
+    # 7. Count sources
     fc = await db.scalar(
         select(func.count()).select_from(PersonaFile).where(PersonaFile.persona_id == persona_id)
     )
@@ -130,7 +174,7 @@ async def distill_persona(persona_id: str, db: AsyncSession, lang: str = "en") -
     search_count = sc or 0
     total_sources = file_count + search_count
 
-    # 7. Save new soul
+    # 8. Save new soul
     new_version = (existing_soul.version + 1) if existing_soul else 1
     new_soul = PersonaSoul(
         id=str(uuid.uuid4()),
@@ -144,7 +188,29 @@ async def distill_persona(persona_id: str, db: AsyncSession, lang: str = "en") -
     )
     db.add(new_soul)
 
-    # 8. Log
+    # 9. Auto-update persona.description from v2 identity
+    if use_v2:
+        try:
+            v2_data = json.loads(soul_json)
+            identity = v2_data.get("identity", {})
+            title = identity.get("title", "")
+            organization = identity.get("organization", "")
+            life_arc = identity.get("life_arc", "")
+            if title or organization or life_arc:
+                desc_parts = []
+                if title:
+                    desc_parts.append(title)
+                if organization:
+                    desc_parts.append(f"at {organization}")
+                if life_arc and len(life_arc)< 200:
+                    desc_parts.append(f"-- {life_arc}")
+                if desc_parts:
+                    persona.description = " | ".join(desc_parts)
+                    db.add(persona)
+        except Exception:
+            pass  # Non-critical, don't fail distillation over description
+
+    # 10. Log
     log = DistillationLog(
         id=str(uuid.uuid4()),
         persona_id=persona_id,
@@ -182,7 +248,6 @@ async def _gather_materials(persona_id: str, db: AsyncSession) -> str:
     )
     manual_inputs = mi_result.scalars().all()
     if manual_inputs:
-        # Separate regular fields from long text (samples)
         regular = []
         samples = []
         for mi in manual_inputs:
@@ -211,24 +276,20 @@ async def _gather_materials(persona_id: str, db: AsyncSession) -> str:
 async def ensure_web_search_results(persona_id: str, db: AsyncSession) -> None:
     """
     Check if persona has web search results; if not, auto-generate queries
-    from name/title/company and run searches, then use AI to analyze the
-    search results into core cognitive traits before distillation.
+    from name/title/company and run searches via AnySearch.
     """
-    # Check existing searches
     sr = await db.execute(
         select(WebSearchResult).where(WebSearchResult.persona_id == persona_id)
     )
     existing = sr.scalars().all()
     if existing:
-        return  # already have search results
+        return
 
-    # Load persona info for query generation
     result = await db.execute(select(Persona).where(Persona.id == persona_id))
     persona = result.scalar_one_or_none()
     if not persona:
         return
 
-    # Get title/company from manual inputs
     mi_result = await db.execute(
         select(PersonaManualInput).where(PersonaManualInput.persona_id == persona_id)
     )
@@ -238,7 +299,7 @@ async def ensure_web_search_results(persona_id: str, db: AsyncSession) -> None:
     company = manual.get("company", "")
     name = persona.name
 
-    # Build search queries (max 5 queries to avoid rate limits)
+    # Build search queries (max 5)
     queries = []
     if name:
         queries.append(name)
@@ -250,7 +311,6 @@ async def ensure_web_search_results(persona_id: str, db: AsyncSession) -> None:
         queries.append(f"{name} {title} {company}")
     queries = queries[:5]
 
-    # Run searches and collect all results
     batch = str(uuid.uuid4())
     now = datetime.now(timezone.utc)
     all_results = []
@@ -271,44 +331,4 @@ async def ensure_web_search_results(persona_id: str, db: AsyncSession) -> None:
                 all_results.append(r)
 
     await db.flush()
-
-    # If we got real results, use AI to analyze them into cognitive traits
-    # AI analysis step: always run - use search results if available, otherwise use persona info
-    manual_info = ""
-    if manual:
-        manual_info = "\n".join(f"- {k}: {v}" for k, v in manual.items() if v)
-    analysis_context = ""
-    if all_results and any(r.get("title") for r in all_results):
-        formatted = []
-        for r in all_results[:30]:
-            entry = "Title: " + (r.get("title") or "") + "\nSummary: " + (r.get("snippet") or "") + "\nLink: " + (r.get("url") or "")
-            formatted.append(entry)
-        analysis_context = "\n---\n".join(formatted)
-    elif manual_info or name:
-        analysis_context = "[No web search results. Inferring cognitive traits from basic info]\n" + manual_info
-
-    if analysis_context:
-        analysis_prompt = SEARCH_ANALYSIS_PROMPT.format(
-            name=name,
-            search_results=analysis_context,
-        )
-        messages = [
-            {"role": "system", "content": "You are a cognitive analysis expert, skilled at distilling a person's core cognitive traits from search results or basic info."},
-            {"role": "user", "content": analysis_prompt},
-        ]
-        try:
-            analysis = await minimax_client.chat_json(messages, temperature=0.2, max_tokens=1024)
-            analysis_ws = WebSearchResult(
-                id=str(uuid.uuid4()),
-                persona_id=persona_id,
-                query="[AI Cognitive Analysis]",
-                results_json=json.dumps({"type": "search_analysis", "data": analysis}, ensure_ascii=False),
-                search_batch=batch,
-                created_at=now,
-            )
-            db.add(analysis_ws)
-            await db.flush()
-        except Exception:
-            pass
-
     return

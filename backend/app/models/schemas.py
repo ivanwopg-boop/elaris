@@ -339,3 +339,115 @@ class GroupChatSendRequest(BaseModel):
 
 class GroupChatInviteRequest(BaseModel):
     persona_id: str
+
+
+# ── Elaris Cognitive Profile v2 ──────────────────────────────
+class Identity(BaseModel):
+    name: str = ""
+    known_as: list[str] = []
+    title: str = ""
+    organization: str = ""
+    life_arc: str = ""
+    self_description: str = ""
+    how_the_world_sees_them: str = ""
+    what_they_refuse_to_be_labelled_as: list[str] = []
+
+
+class CognitiveArchitecture(BaseModel):
+    core_beliefs: list[str] = []
+    provisional_beliefs: list[str] = []
+    contradictory_beliefs: list[dict] = []
+    axioms: list[str] = []
+    what_they_know_for_certain: list[str] = []
+    what_they_suspect_but_never_state: list[str] = []
+    what_they_publicly_contradicted: list[dict] = []
+
+
+class PerceptualFramework(BaseModel):
+    primary_lens: str = ""
+    secondary_lenses: list[str] = []
+    mental_models: list[dict] = []
+
+
+class EmotionalReactiveSystem(BaseModel):
+    triggers: list[str] = []
+    dormant_points: list[str] = []
+    self_protection_mechanisms: list[str] = []
+    under_stress: str = ""
+    when_agreed_with: str = ""
+    when_challenged: str = ""
+
+
+class Expertise(BaseModel):
+    deep_domains: list[str] = []
+    competent_domains: list[str] = []
+    common_misperceptions: list[str] = []
+    what_they_reject_or_oppose: list[dict] = []
+    cross_domain_syntheses: list[str] = []
+
+
+class KnowledgeBoundaries(BaseModel):
+    explicitly_out_of_scope: list[str] = []
+    will_defer_on: list[str] = []
+    will_decline_to_answer: list[str] = []
+    responds_to_uncertainty_with: str = "admit_not_knowing"
+
+
+class CommunicationProfile(BaseModel):
+    default_register: str = ""
+    written_vs_spoken: dict = {}
+    to_strangers_vs_intimates: dict = {}
+    in_public_forum: str = ""
+    signature_expressions: list[str] = []
+    words_they_hardenly_ever_use: list[str] = []
+    sentence_rhythm: dict = {}
+    punctuation_habits: str = ""
+    how_they_use_silence: str = ""
+    humor_register: str = ""
+
+
+class ContextualModulation(BaseModel):
+    when_purpose_is_clarity_vs_impress: str = ""
+    when_audience_is_hostile: str = ""
+    when_audience_is_skeptical: str = ""
+    when_audience_is_uninformed: str = ""
+    when_being_recorded: str = ""
+    when_speaking_to_detractors: str = ""
+
+
+class RelationshipDynamics(BaseModel):
+    with_mentees: str = ""
+    with_peers: str = ""
+    with_authorities: str = ""
+    with_institutions: str = ""
+    with_fans_public: str = ""
+    with_critics: str = ""
+
+
+class VoiceSamples(BaseModel):
+    on_topic_they_love: str = ""
+    on_topic_they_resist: str = ""
+    on_topic_they_decline: str = ""
+    when_explaining_something_complex: str = ""
+    when_pushed_on_a_contradiction: str = ""
+
+
+class TemporalProfile(BaseModel):
+    how_they_changed_over_time: str = ""
+    what_would_change_if_lived_another_decade: str = ""
+    what_they_regret_not_saying_sooner: str = ""
+
+
+class CognitiveProfileV2(BaseModel):
+    schema_version: str = "2.0"
+    identity: Identity = Identity()
+    cognitive_architecture: CognitiveArchitecture = CognitiveArchitecture()
+    perceptual_frameworks: PerceptualFramework = PerceptualFramework()
+    emotional_reactive_system: EmotionalReactiveSystem = EmotionalReactiveSystem()
+    expertise: Expertise = Expertise()
+    knowledge_boundaries: KnowledgeBoundaries = KnowledgeBoundaries()
+    communication_profile: CommunicationProfile = CommunicationProfile()
+    contextual_modulation: ContextualModulation = ContextualModulation()
+    relationship_dynamics: RelationshipDynamics = RelationshipDynamics()
+    voice_samples: VoiceSamples = VoiceSamples()
+    temporal_profile: TemporalProfile = TemporalProfile()

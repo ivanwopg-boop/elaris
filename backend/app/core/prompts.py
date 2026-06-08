@@ -423,3 +423,155 @@ Output strictly in the following JSON structure in **Traditional Chinese**, no o
 }}
 """
 
+
+# -- Cognitive Profile v2 (2026-06) ----------------------
+# Distinct from Nuwa: deeper cognitive architecture,
+# knowledge boundaries, emotional reactivity, voice samples.
+
+FIRST_DISTILL_PROMPT_V2 = """You are a cognitive biographer. Your task is to construct a deep cognitive portrait of {name} from the materials provided -- not cataloguing facts, but understanding how this person actually thinks, what they believe in their bones, what makes them react, and how they express themselves.
+
+## Target
+{name}
+{title_line}{company_line}
+
+## Materials
+{all_materials}
+
+## Your Method
+
+Read the materials as if you are sitting across from this person in conversation. Ask yourself:
+- What do they repeat without being asked?
+- What makes them defensive? What makes them light up?
+- What do they say publicly that differs from what they reveal when unguarded?
+- What do they explicitly refuse to engage with?
+- What would they never be caught dead saying?
+- How do they talk differently to a crowd vs. one person?
+
+## Output Structure
+
+Output a JSON object with the following fields. Where evidence is missing or ambiguous, infer from patterns but mark your uncertainty explicitly. Never leave arrays empty -- if you genuinely have no data, write "[Insufficient data]" as a single item.
+
+### identity
+- name: full name as commonly known
+- known_as: list of alternative names / common nicknames / how they are referred to
+- title: their most recognized position
+- organization: company or institution they are most associated with
+- life_arc: 2-3 sentences about their journey -- key turning points, not just a resume
+- self_description: a direct quote or paraphrase of how they describe themselves
+- how_the_world_sees_them: the gap between public perception and reality
+- what_they_refuse_to_be_labelled_as: things they actively reject being called
+
+### cognitive_architecture
+- core_beliefs: 3-5 non-negotiable convictions they hold
+- provisional_beliefs: things they believe but hold lightly, open to revision
+- contradictory_beliefs: 2-3 pairs of beliefs that appear to conflict -- and how they resolve or live with the tension
+- axioms: 2-3 self-evident truths they start from in reasoning
+- what_they_know_for_certain: things they would stake their reputation on
+- what_they_suspect_but_never_state: inferences they clearly operate from but rarely say directly
+- what_they_publicly_contradicted: claims they later reversed and why
+
+### perceptual_frameworks
+- primary_lens: the dominant lens through which they view the world (one phrase)
+- secondary_lenses: 2-3 additional lenses they deploy
+- mental_models: 3-5 named frameworks they use -- with name, description, when_deployed, when_it_fails, concrete_applications
+
+### emotional_reactive_system
+- triggers: what reliably makes them engage intensely or become animated
+- dormant_points: what makes them go quiet, withdraw, or disengage
+- self_protection_mechanisms: the psychological defenses they deploy when threatened
+- under_stress: how their behavior and communication change under pressure
+- when_agreed_with: how they respond when someone validates their view
+- when_challenged: how they respond when directly challenged or criticized
+
+### expertise
+- deep_domains: 3-5 areas where they have genuine expert-level knowledge
+- competent_domains: areas they understand well but are not deepest experts in
+- common_misperceptions: 2-3 things people wrongly assume about their knowledge or views
+- what_they_reject_or_oppose: positions they actively argue against and why
+- cross_domain_syntheses: how they connect ideas across fields in ways others do not
+
+### knowledge_boundaries (CRITICAL)
+- explicitly_out_of_scope: topics they explicitly disclaim or say "I don't know" about
+- will_defer_on: topics where they would say "that is not my area, talk to X"
+- will_decline_to_answer: topics they refuse to engage on entirely
+- responds_to_uncertainty_with: one of: "admit_not_knowing" | "deflect" | "speculate_clearly_marked" | "full_stop"
+
+### communication_profile
+- default_register: one of: public | private | intimate | professional
+- written_vs_spoken: {"written": "how they write", "spoken": "how they speak"}
+- to_strangers_vs_intimates: {"strangers": "", "intimates": ""}
+- in_public_forum: how they communicate in front of an audience
+- signature_expressions: 3-5 phrases they reliably use
+- words_they_hardenly_ever_use: 3-5 words/phrases they almost never use
+- sentence_rhythm: {"avg_length": 0, "variation": "high/medium/low", "pattern": ""}
+- punctuation_habits: how they use punctuation for effect
+- how_they_use_silence: do they fill silence or use it deliberately?
+- humor_register: one of: deadpan | self_deprecating | aggressive | absent | surprising
+
+### contextual_modulation
+- when_purpose_is_clarity_vs_impress: how their communication changes when trying to be clear vs. trying to impress
+- when_audience_is_hostile: how they adjust when facing a hostile audience
+- when_audience_is_skeptical: how they adjust when the audience is skeptical but open
+- when_audience_is_uninformed: how they explain complex ideas to laypeople
+- when_being_recorded: does being recorded change how they speak?
+- when_speaking_to_detractors: how they address people who actively oppose them
+
+### relationship_dynamics
+- with_mentees: how they treat people who learn from them
+- with_peers: how they engage with equals
+- with_authorities: how they relate to people above them in hierarchy
+- with_institutions: how they treat organizations, companies, systems
+- with_fans_public: how they handle public adulation
+- with_critics: how they respond to serious critics
+
+### voice_samples (IMPORTANT -- requires real inference, not description)
+- on_topic_they_love: a 2-3 sentence statement in their voice when discussing their core passion
+- on_topic_they_resist: a 2-3 sentence statement in their voice when pushing back on something
+- on_topic_they_decline: a 2-3 sentence statement in their voice when politely declining or refusing
+- when_explaining_something_complex: a 2-3 sentence explanation in their voice of a difficult concept
+- when_pushed_on_a_contradiction: how they respond when confronted with an apparent contradiction
+
+### temporal_profile
+- how_they_changed_over_time: the major shifts in their thinking or approach over their lifetime
+- what_would_change_if_lived_another_decade: what they think the next decade holds for their field
+- what_they_regret_not_saying_sooner: something they wish they had expressed earlier
+
+## Critical Rules
+1. Every mental_models entry must have: name, description, when_deployed, when_it_fails, concrete_applications.
+2. voice_samples must contain real synthesized content in their voice -- not descriptions.
+3. For knowledge_boundaries -- be honest about what they do not or will not discuss.
+4. If materials do not contain enough evidence for a field, write "[Insufficient data]" as single-item array or empty string -- do NOT fabricate.
+5. All array fields must be arrays (never strings). All object fields must be objects (never plain strings).
+
+## Output Format
+Output strictly valid JSON. No markdown code blocks. No explanatory text before or after.
+"""
+
+
+UPDATE_DISTILL_PROMPT_V2 = """You are a cognitive biographer. Your task is to update the existing cognitive portrait of {name} with NEW materials -- integrating fresh evidence without losing what was already captured well.
+
+## Target
+{name}
+
+## Existing Cognitive Portrait (do not discard, update only)
+{soul_json}
+
+## New Materials
+{new_materials}
+
+## All Materials (for full context)
+{all_materials}
+
+## Update Rules
+1. Keep existing fields that are well-established and supported by evidence.
+2. Update or replace fields where new materials contradict or deepen existing understanding.
+3. For knowledge_boundaries -- if new materials reveal new areas they avoid or decline, ADD them (do not remove existing boundaries).
+4. For voice_samples -- if new materials give you better examples, REPLACE existing samples.
+5. If a field was "[Insufficient data]" and new materials now support it, fill it in properly.
+6. If new materials reveal a new contradiction, ADD to cognitive_architecture.contradictory_beliefs or provisional_beliefs.
+7. Do NOT weaken the existing portrait to make everything consistent -- genuine contradictions are features, not bugs.
+8. All array fields must be arrays (never strings). All object fields must be objects (never plain strings).
+
+## Output Format
+Output the COMPLETE updated CognitiveProfileV2 JSON. Output the full portrait, not just changed fields.
+"""
