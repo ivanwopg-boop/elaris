@@ -33,7 +33,7 @@ def _detect_version(soul_json: str) -> str:
 def _get_distill_prompt(lang: str, name: str, title_line: str, company_line: str,
                        all_materials: str, existing_soul, use_v2: bool):
     """Select the right prompt template based on version."""
-    if use_v2:
+    if use_v2 and lang == 'en':
         # v2 always uses fresh first-distillation prompt to avoid v1 structure bias
         prompt = FIRST_DISTILL_PROMPT_V2.format(
             name=name,
@@ -119,7 +119,7 @@ async def distill_persona(persona_id: str, db: AsyncSession, lang: str = "en",
         "You are a professional personality analyst, skilled at distilling "
         "personality traits from text materials. "
     )
-    if use_v2:
+    if use_v2 and lang == 'en':
         system_msg = (
             "You are a cognitive biographer. Your task is to construct a deep "
             "cognitive portrait -- not cataloguing facts, but understanding how "
@@ -151,7 +151,7 @@ async def distill_persona(persona_id: str, db: AsyncSession, lang: str = "en",
             return obj
         soul_data = fix_floats(soul_data)
 
-        if use_v2:
+        if use_v2 and lang == 'en':
             profile = CognitiveProfileV2(**soul_data)
         else:
             profile = PersonaProfile(**soul_data)
@@ -186,8 +186,7 @@ async def distill_persona(persona_id: str, db: AsyncSession, lang: str = "en",
     db.add(new_soul)
 
     # 9. Auto-update persona.description from v2 identity
-        if lang == 'en':
-    if use_v2:
+    if use_v2 and lang == 'en':
         try:
             v2_data = json.loads(soul_json)
             identity = v2_data.get("identity", {})
