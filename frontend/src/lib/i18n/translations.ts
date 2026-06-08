@@ -258,6 +258,8 @@ clarity_vs_impress_label: "Clarity vs. Impress",
     processing: "Processing...",
     try_again: "Try again",
     distill_failed: "Distillation failed",
+    enter_name: "Please enter a name",
+    enter_keywords: "Please enter keywords to help AI search",
   },
   'zh-CN': {
     sign_in: "登录",
@@ -505,6 +507,8 @@ clarity_vs_impress_label: "清晰vs.展示",
     processing: "处理中...",
     try_again: "重试",
     distill_failed: "蒸馏失败",
+    enter_name: "请输入姓名",
+    enter_keywords: "请输入关键词以帮助AI搜索",
   },
 };
 

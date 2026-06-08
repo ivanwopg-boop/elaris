@@ -19,8 +19,8 @@ export default function CreatePersonaPage() {
   const [error, setError] = useState<string>("");
 
   const handleDistill = async () => {
-    if (!name.trim()) { alert("Please enter a name"); return; }
-    if (!keywords.trim()) { alert("Please enter keywords to help AI search"); return; }
+    if (!name.trim()) { alert(t.enter_name || "Please enter a name"); return; }
+    if (!keywords.trim()) { alert(t.enter_keywords || "Please enter keywords to help AI search"); return; }
     setStage("searching");
     setError("");
     try {
