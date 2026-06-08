@@ -46,19 +46,87 @@ export function SoulCard({ soul, version, name, avatar_url }: SoulCardProps) {
     );
   }
 
-  // Support both v1 (basic_info) and v2 (identity) schemas
+  // Normalize v2 soul to v1-compatible structure
   const isV2 = soul.schema_version === '2.0';
+
+  // basic_info
   const bi = isV2 && soul.identity
     ? { name: soul.identity.name, title: soul.identity.title, company: soul.identity.organization, background: soul.identity.life_arc }
     : (soul.basic_info || {});
-  const p = soul.personality || {};
-  const cs = soul.communication_style || {};
-  const dp = soul.decision_patterns || {};
-  const dna = soul.expression_dna || {};
-  const mm = soul.mental_models || [];
-  const heuristics = soul.decision_heuristics || [];
-  const tensions = soul.core_tensions || [];
-  const limits = soul.honest_limitations || [];
+
+  // personality — v2: emotional_reactive_system + identity cues
+  const v2emo = (isV2 && soul.emotional_reactive_system) ? soul.emotional_reactive_system : {};
+  const v2ident = (isV2 && soul.identity) ? soul.identity : {};
+  const v2cog = (isV2 && soul.cognitive_architecture) ? soul.cognitive_architecture : {};
+  const p = isV2 ? {
+    description: [v2ident.self_description, v2ident.how_the_world_sees_them].filter(Boolean).join(" | "),
+  } : (soul.personality || {});
+
+  // communication_style — v2: communication_profile
+  const v2comm = (isV2 && soul.communication_profile) ? soul.communication_profile : {};
+  const cs = isV2 ? {
+    tone: v2comm.in_public_forum || v2comm.punctuation_habits || '',
+    common_phrases: v2comm.signature_expressions || [],
+  } : (soul.communication_style || {});
+
+  // expression_dna — v2: communication_profile details
+  const v2rhythm = (v2comm.sentence_rhythm) || {};
+  const dna = isV2 ? {
+    avg_sentence_length: v2rhythm.avg_length || 0,
+    style_tags: (v2comm.words_they_hardenly_ever_use || []).map((w: string) => 'avoids "' + w + '"'),
+    taboo_words: v2comm.words_they_hardenly_ever_use || [],
+  } : (soul.expression_dna || {});
+
+  // knowledge_areas — v2: expertise deep+competent domains
+  const v2exp = (isV2 && soul.expertise) ? soul.expertise : {};
+  const knowledge_areas = isV2
+    ? [...(v2exp.deep_domains || []), ...(v2exp.competent_domains || [])].slice(0, 12)
+    : (soul.knowledge_areas || []);
+
+  // mental_models — v2: perceptual_frameworks.mental_models
+  const v2pf = (isV2 && soul.perceptual_frameworks) ? soul.perceptual_frameworks : {};
+  const mm_v2 = v2pf.mental_models || [];
+  const mm = isV2
+    ? mm_v2.map((m: any) => ({
+        name: m.name,
+        description: m.description,
+        evidence: m.concrete_applications || [],
+        application: m.when_deployed,
+        limitation: m.when_it_fails,
+      }))
+    : (soul.mental_models || []);
+
+  // decision_patterns — v2: cognitive_architecture.core_beliefs summary
+  const dp = isV2 ? {
+    priority_framework: v2pf.primary_lens || '',
+    risk_approach: v2emo.under_stress || '',
+    decision_speed: v2emo.when_challenged || '',
+  } : (soul.decision_patterns || {});
+
+  // decision_heuristics — v2: cognitive_architecture.axioms
+  const heuristics = isV2
+    ? (v2cog.axioms || [])
+    : (soul.decision_heuristics || []);
+
+  // values — v2: core_beliefs + provisional_beliefs
+  const values = isV2
+    ? [...(v2cog.core_beliefs || []), ...(v2cog.provisional_beliefs || [])].slice(0, 8)
+    : (soul.values || []);
+
+  // core_tensions — v2: contradictory_beliefs
+  const v2contra = v2cog.contradictory_beliefs || [];
+  const tensions = isV2
+    ? v2contra.map((c: any) => ({
+        description: 'Thesis: ' + (c.thesis || '') + ' | Antithesis: ' + (c.antithesis || ''),
+        evidence: [c.synthesis || ''].filter(Boolean),
+      }))
+    : (soul.core_tensions || []);
+
+  // honest_limitations — v2: knowledge_boundaries
+  const v2kb = (isV2 && soul.knowledge_boundaries) ? soul.knowledge_boundaries : {};
+  const limits = isV2
+    ? [...(v2kb.explicitly_out_of_scope || []), ...(v2kb.will_decline_to_answer || [])].slice(0, 10)
+    : (soul.honest_limitations || []);
 
   // Translate section titles
   const i18n = {
@@ -158,10 +226,10 @@ export function SoulCard({ soul, version, name, avatar_url }: SoulCardProps) {
       )}
 
       {/* Knowledge Areas */}
-      {soul.knowledge_areas?.length > 0 && (
+      {knowledge_areas.length > 0 && (
         <Section title={i18n.expertise}>
           <div className="flex flex-wrap gap-1">
-            {soul.knowledge_areas.map((area: string, i: number) => (
+            {knowledge_areas.map((area: string, i: number) => (
               <span key={i} className="px-2.5 py-1 bg-[rgba(0,113,227,0.06)] text-[#0071E3] rounded-full text-xs font-light">{area}</span>
             ))}
           </div>
@@ -217,10 +285,10 @@ export function SoulCard({ soul, version, name, avatar_url }: SoulCardProps) {
       )}
 
       {/* Values */}
-      {soul.values?.length > 0 && (
+      {values.length > 0 && (
         <Section title={i18n.values}>
           <div className="flex flex-wrap gap-1">
-            {soul.values.map((v: string, i: number) => (
+            {values.map((v: string, i: number) => (
               <span key={i} className="px-2.5 py-1 bg-[rgba(0,0,0,0.03)] text-[#6E6E73] rounded-full text-xs font-light">{v}</span>
             ))}
           </div>
