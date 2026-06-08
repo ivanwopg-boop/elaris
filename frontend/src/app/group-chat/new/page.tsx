@@ -47,7 +47,7 @@ export default function NewGroupChatPage() {
         <Card>
           <h3 className="text-xs font-light text-[#86868B] mb-3 tracking-wide">{t.group_chat_name || "Group Chat Name"}</h3>
           <input value={title} onChange={(e) => setTitle(e.target.value)}
-            placeholder="{t.group_chat_placeholder || "E.g.: Product Brain Trust"}"
+            placeholder={t.group_chat_placeholder || "E.g.: Product Brain Trust"}"
             className="w-full bg-white border border-[rgba(0,0,0,0.08)] rounded-[10px] px-4 py-3 text-sm text-[#1D1D1F] placeholder-[#86868B] focus:outline-none focus:border-[#0071E3] font-light" />
         </Card>
 
