@@ -47,6 +47,17 @@ export default function GuestChatPage() {
 
   // Load guest messages from localStorage on mount
   const [showRegisterPrompt, setShowRegisterPrompt] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  useEffect(() => {
+    const t = localStorage.getItem('auth-storage');
+    if (t) {
+      try {
+        const state = JSON.parse(t).state;
+        setIsLoggedIn(!!state?.token);
+      } catch {}
+    }
+  }, []);
 
   useEffect(() => {
     if (!id) return;
@@ -54,12 +65,13 @@ export default function GuestChatPage() {
     if (saved.length > 0) setMsgs(saved);
   }, [id]);
 
-  // After 5 rounds, show registration prompt
+
+  // After 5 rounds, show registration prompt (only for guests)
   useEffect(() => {
-    if (msgs.length >= 10) {  // 5 user msgs (every 2 = 1 round)
+    if (msgs.length >= 10 && !isLoggedIn) {
       setShowRegisterPrompt(true);
     }
-  }, [msgs.length]);
+  }, [msgs.length, isLoggedIn]);
 
   useEffect(() => {
     if (!id) return;
