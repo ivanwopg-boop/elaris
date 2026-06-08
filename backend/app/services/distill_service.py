@@ -210,7 +210,7 @@ async def distill_persona(persona_id: str, db: AsyncSession, lang: str = "en",
         input_summary=f"Files: {file_count}, Searches: {search_count}",
     )
     db.add(log)
-    await db.flush()
+    await db.commit()
 
     return {
         "persona_id": persona_id,
@@ -321,5 +321,5 @@ async def ensure_web_search_results(persona_id: str, db: AsyncSession) -> None:
                 db.add(ws)
                 all_results.append(r)
 
-    await db.flush()
+    await db.commit()
     return
