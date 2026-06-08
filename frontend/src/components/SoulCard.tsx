@@ -173,7 +173,7 @@ export function SoulCard({ soul, version, name, avatar_url }: SoulCardProps) {
 
   return (
     <Card>
-      {version && <div className="text-[11px] text-[#86868B] font-light mb-4">v{version}</div>}
+      {version && <div className="text-[10px] text-[#C7C7CC] font-light mb-3 hidden sm:block">v{version}</div>}
 
       {/* Basic Info */}
       <div className="flex items-center gap-4 mb-6">

@@ -142,9 +142,9 @@ if (loading) {
   }
 
   return (
-    <div className="max-w-5xl mx-auto px-6 py-16">
+    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8 sm:py-16">
       {/* Header */}
-      <div className="flex items-center justify-between mb-10">
+      <div className="flex items-center justify-between mb-6 sm:mb-10">
         <div className="flex items-center gap-5">
           <div className="relative group">
             <Avatar name={persona.name} url={persona.avatar_url} size="lg" className="w-16 h-16 text-2xl" />
@@ -162,17 +162,17 @@ if (loading) {
             </label>
           </div>
           <div>
-            <h1 className="text-3xl font-extralight tracking-tight">{persona.name}</h1>
-            {persona.description && <p className="text-sm text-[#86868B] font-light mt-1">{persona.description}</p>}
+            <h1 className="text-2xl sm:text-3xl font-extralight tracking-tight">{persona.name}</h1>
+            {persona.description && <p className="text-sm text-[#86868B] font-light mt-1 hidden sm:block">{persona.description}</p>}
           </div>
         </div>
         <div className="flex gap-2">
-          <Button variant="secondary" onClick={() => window.location.href = `/guest-chat/${id}`}>{t.chat || "Chat"}</Button>
+          <Button variant="primary" size="sm" className="sm:size-md" onClick={() => window.location.href = `/guest-chat/${id}`}>{t.chat || "Chat"}</Button>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-6 border-b border-[rgba(0,0,0,0.06)] mb-8">
+      <div className="flex gap-4 sm:gap-6 border-b border-[rgba(0,0,0,0.06)] mb-8">
         {[
           { key: "soul" as const, label: t.tab_soul },
           { key: "files" as const, label: `${t.tab_files} (${files.length})` },
@@ -195,7 +195,7 @@ if (loading) {
       {/* Tab: Soul */}
       {activeTab === "soul" && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 space-y-5">
+          <div className="lg:col-span-2 space-y-4 sm:space-y-5">
             <SoulCard soul={soul} version={soulVersion ?? undefined} name={persona?.name} avatar_url={persona?.avatar_url} />
             {persona.user_id && (
               <>
