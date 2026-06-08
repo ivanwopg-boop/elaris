@@ -203,6 +203,18 @@ export function SoulCard({ soul, version, name, avatar_url }: SoulCardProps) {
     spoken_label: t.spoken_label || "Spoken",
     to_strangers_label: t.to_strangers_label || "To strangers",
     to_intimates_label: t.to_intimates_label || "To intimates",
+    clarity_vs_impress_label: t.clarity_vs_impress_label || "Clarity vs. Impress",
+    hostile_audience_label: t.hostile_audience_label || "Hostile audience",
+    skeptical_audience_label: t.skeptical_audience_label || "Skeptical audience",
+    uninformed_audience_label: t.uninformed_audience_label || "Uninformed audience",
+    when_recorded_label: t.when_recorded_label || "When recorded",
+    to_detractors_label: t.to_detractors_label || "To detractors",
+    with_mentees_label: t.with_mentees_label || "With mentees",
+    with_peers_label: t.with_peers_label || "With peers",
+    with_authorities_label: t.with_authorities_label || "With authorities",
+    with_institutions_label: t.with_institutions_label || "With institutions",
+    with_fans_label: t.with_fans_label || "With fans/public",
+    with_critics_label: t.with_critics_label || "With critics",
   };
 
   return (
@@ -588,22 +600,22 @@ export function SoulCard({ soul, version, name, avatar_url }: SoulCardProps) {
         <Section title={i18n.communication_adaptation}>
           <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs font-light">
             {soul.contextual_modulation.when_purpose_is_clarity_vs_impress && (
-              <div className="col-span-2"><span className="text-[#1D1D1F]">Clarity vs. Impress:</span> <span className="text-[#86868B]">{soul.contextual_modulation.when_purpose_is_clarity_vs_impress}</span></div>
+              <div className="col-span-2"><span className="text-[#1D1D1F]">{i18n.clarity_vs_impress_label}:</span> <span className="text-[#86868B]">{soul.contextual_modulation.when_purpose_is_clarity_vs_impress}</span></div>
             )}
             {soul.contextual_modulation.when_audience_is_hostile && (
-              <div><span className="text-[#1D1D1F]">Hostile audience:</span><br/><span className="text-[#86868B]">{soul.contextual_modulation.when_audience_is_hostile}</span></div>
+              <div><span className="text-[#1D1D1F]">{i18n.hostile_audience_label}:</span><br/><span className="text-[#86868B]">{soul.contextual_modulation.when_audience_is_hostile}</span></div>
             )}
             {soul.contextual_modulation.when_audience_is_skeptical && (
-              <div><span className="text-[#1D1D1F]">Skeptical audience:</span><br/><span className="text-[#86868B]">{soul.contextual_modulation.when_audience_is_skeptical}</span></div>
+              <div><span className="text-[#1D1D1F]">{i18n.skeptical_audience_label}:</span><br/><span className="text-[#86868B]">{soul.contextual_modulation.when_audience_is_skeptical}</span></div>
             )}
             {soul.contextual_modulation.when_audience_is_uninformed && (
-              <div><span className="text-[#1D1D1F]">Uninformed audience:</span><br/><span className="text-[#86868B]">{soul.contextual_modulation.when_audience_is_uninformed}</span></div>
+              <div><span className="text-[#1D1D1F]">{i18n.uninformed_audience_label}:</span><br/><span className="text-[#86868B]">{soul.contextual_modulation.when_audience_is_uninformed}</span></div>
             )}
             {soul.contextual_modulation.when_being_recorded && (
-              <div><span className="text-[#1D1D1F]">When recorded:</span><br/><span className="text-[#86868B]">{soul.contextual_modulation.when_being_recorded}</span></div>
+              <div><span className="text-[#1D1D1F]">{i18n.when_recorded_label}:</span><br/><span className="text-[#86868B]">{soul.contextual_modulation.when_being_recorded}</span></div>
             )}
             {soul.contextual_modulation.when_speaking_to_detractors && (
-              <div><span className="text-[#1D1D1F]">To detractors:</span><br/><span className="text-[#86868B]">{soul.contextual_modulation.when_speaking_to_detractors}</span></div>
+              <div><span className="text-[#1D1D1F]">{i18n.to_detractors_label}:</span><br/><span className="text-[#86868B]">{soul.contextual_modulation.when_speaking_to_detractors}</span></div>
             )}
           </div>
         </Section>
@@ -614,22 +626,22 @@ export function SoulCard({ soul, version, name, avatar_url }: SoulCardProps) {
         <Section title={i18n.relationship_dynamics}>
           <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs font-light">
             {soul.relationship_dynamics.with_mentees && (
-              <div><span className="text-[#1D1D1F]">With mentees:</span><br/><span className="text-[#86868B]">{soul.relationship_dynamics.with_mentees}</span></div>
+              <div><span className="text-[#1D1D1F]">{i18n.with_mentees_label}:</span><br/><span className="text-[#86868B]">{soul.relationship_dynamics.with_mentees}</span></div>
             )}
             {soul.relationship_dynamics.with_peers && (
-              <div><span className="text-[#1D1D1F]">With peers:</span><br/><span className="text-[#86868B]">{soul.relationship_dynamics.with_peers}</span></div>
+              <div><span className="text-[#1D1D1F]">{i18n.with_peers_label}:</span><br/><span className="text-[#86868B]">{soul.relationship_dynamics.with_peers}</span></div>
             )}
             {soul.relationship_dynamics.with_authorities && (
-              <div><span className="text-[#1D1D1F]">With authorities:</span><br/><span className="text-[#86868B]">{soul.relationship_dynamics.with_authorities}</span></div>
+              <div><span className="text-[#1D1D1F]">{i18n.with_authorities_label}:</span><br/><span className="text-[#86868B]">{soul.relationship_dynamics.with_authorities}</span></div>
             )}
             {soul.relationship_dynamics.with_institutions && (
-              <div><span className="text-[#1D1D1F]">With institutions:</span><br/><span className="text-[#86868B]">{soul.relationship_dynamics.with_institutions}</span></div>
+              <div><span className="text-[#1D1D1F]">{i18n.with_institutions_label}:</span><br/><span className="text-[#86868B]">{soul.relationship_dynamics.with_institutions}</span></div>
             )}
             {soul.relationship_dynamics.with_fans_public && (
-              <div><span className="text-[#1D1D1F]">With fans/public:</span><br/><span className="text-[#86868B]">{soul.relationship_dynamics.with_fans_public}</span></div>
+              <div><span className="text-[#1D1D1F]">{i18n.with_fans_label}:</span><br/><span className="text-[#86868B]">{soul.relationship_dynamics.with_fans_public}</span></div>
             )}
             {soul.relationship_dynamics.with_critics && (
-              <div><span className="text-[#1D1D1F]">With critics:</span><br/><span className="text-[#86868B]">{soul.relationship_dynamics.with_critics}</span></div>
+              <div><span className="text-[#1D1D1F]">{i18n.with_critics_label}:</span><br/><span className="text-[#86868B]">{soul.relationship_dynamics.with_critics}</span></div>
             )}
           </div>
         </Section>
