@@ -33,7 +33,7 @@ def _detect_version(soul_json: str) -> str:
 def _get_distill_prompt(lang: str, name: str, title_line: str, company_line: str,
                        all_materials: str, existing_soul, use_v2: bool):
     """Select the right prompt template based on version."""
-    if use_v2 and lang == 'en':
+    if use_v2:
         # v2 always uses fresh first-distillation prompt to avoid v1 structure bias
         prompt = FIRST_DISTILL_PROMPT_V2.format(
             name=name,
