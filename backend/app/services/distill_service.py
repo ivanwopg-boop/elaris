@@ -34,23 +34,14 @@ def _get_distill_prompt(lang: str, name: str, title_line: str, company_line: str
                        all_materials: str, existing_soul, use_v2: bool):
     """Select the right prompt template based on version."""
     if use_v2:
-        base = FIRST_DISTILL_PROMPT_V2
-        update_base = UPDATE_DISTILL_PROMPT_V2
+        # v2 always uses fresh first-distillation prompt to avoid v1 structure bias
+        prompt = FIRST_DISTILL_PROMPT_V2.format(
+            name=name,
+            title_line=title_line,
+            company_line=company_line,
+            all_materials=all_materials,
+        )
         version_from = existing_soul.version if existing_soul else None
-        if existing_soul:
-            prompt = update_base.format(
-                name=name,
-                soul_json=existing_soul.soul_json,
-                new_materials=all_materials,
-                all_materials=all_materials,
-            )
-        else:
-            prompt = base.format(
-                name=name,
-                title_line=title_line,
-                company_line=company_line,
-                all_materials=all_materials,
-            )
     else:
         # v1 path
         if lang == 'zh-CN':

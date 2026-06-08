@@ -503,12 +503,12 @@ Output a JSON object with the following fields. Where evidence is missing or amb
 
 ### communication_profile
 - default_register: one of: public | private | intimate | professional
-- written_vs_spoken: {"written": "how they write", "spoken": "how they speak"}
-- to_strangers_vs_intimates: {"strangers": "", "intimates": ""}
+- written_vs_spoken: {{"written": "how they write", "spoken": "how they speak"}}
+- to_strangers_vs_intimates: {{"strangers": "", "intimates": ""}}
 - in_public_forum: how they communicate in front of an audience
 - signature_expressions: 3-5 phrases they reliably use
 - words_they_hardenly_ever_use: 3-5 words/phrases they almost never use
-- sentence_rhythm: {"avg_length": 0, "variation": "high/medium/low", "pattern": ""}
+- sentence_rhythm: {{"avg_length": 0, "variation": "high|medium|low", "pattern": ""}}
 - punctuation_habits: how they use punctuation for effect
 - how_they_use_silence: do they fill silence or use it deliberately?
 - humor_register: one of: deadpan | self_deprecating | aggressive | absent | surprising
@@ -552,98 +552,98 @@ Output a JSON object with the following fields. Where evidence is missing or amb
 Output strictly valid JSON. No markdown code blocks. No explanatory text before or after.
 
 ## Example Output
-Below is a valid CognitiveProfileV2 JSON. Replace every field with content specific to the real target person. Output ONLY the JSON, nothing else.
+Below is a valid CognitiveProfileV2 JSON for a real person. Replace every field with content specific to the target person. CRITICAL: identity.name MUST be filled with the person's real full name from your training knowledge and the web search results. identity.title and identity.organization must also be real. Output ONLY the JSON, nothing else.
 ```json
-{
+{{
   "schema_version": "2.0",
-  "identity": {
-    "name": "Target Person's Full Name",
-    "known_as": ["common nickname", "how they're referred to"],
-    "title": "Most Recognized Title",
-    "organization": "Primary Institution",
-    "life_arc": "2-3 sentence journey: key turning points, not resume bullets",
-    "self_description": "Direct quote or paraphrase of how they describe themselves",
-    "how_the_world_sees_them": "The gap between public perception and self-perception",
-    "what_they_refuse_to_be_labelled_as": ["label they reject", "label they reject"]
-  },
-  "cognitive_architecture": {
+   "identity": {{
+    "name": "Jane Smith",
+    "known_as": ["Jane", "Smith"],
+    "title": "AI Research Scientist",
+    "organization": "DeepMind",
+    "life_arc": "Pioneer in machine learning who transitioned from academic research to leading industrial AI labs, most known for her work on large language models and AI safety.",
+    "self_description": "I think about what happens when intelligence becomes too powerful to understand.",
+    "how_the_world_sees_them": "A rigorous scientist who bridges theory and practice, but occasionally criticized for being too cautious about deployment.",
+    "what_they_refuse_to_be_labelled_as": ["AI skeptic", "safetyist"]
+  }},
+  "cognitive_architecture": {{
     "core_beliefs": ["non-negotiable conviction 1", "non-negotiable conviction 2"],
     "provisional_beliefs": ["belief they hold lightly", "belief open to revision"],
-    "contradictory_beliefs": [{"thesis": "", "antithesis": "", "synthesis": ""}],
+    "contradictory_beliefs": [{{"thesis": "", "antithesis": "", "synthesis": ""}}],
     "axioms": ["self-evident truth they start from"],
     "what_they_know_for_certain": ["what they'd stake their reputation on"],
     "what_they_suspect_but_never_state": ["inference they operate from but rarely say directly"],
-    "what_they_publicly_contradicted": [{"claim": "", "context": ""}]
-  },
-  "perceptual_frameworks": {
+    "what_they_publicly_contradicted": [{{"claim": "", "context": ""}}]
+  }},
+  "perceptual_frameworks": {{
     "primary_lens": "dominant lens (one phrase)",
     "secondary_lenses": ["additional lens 1", "additional lens 2"],
     "mental_models": [
-      {"name": "Model Name", "description": "one-line description", "when_deployed": "when they use it", "when_it_fails": "when it misleads", "concrete_applications": ["where they've applied it"]}
+      {{"name": "Model Name", "description": "one-line description", "when_deployed": "when they use it", "when_it_fails": "when it misleads", "concrete_applications": ["where they've applied it"]}}
     ]
-  },
-  "emotional_reactive_system": {
+  }},
+  "emotional_reactive_system": {{
     "triggers": ["what reliably makes them ignite"],
     "dormant_points": ["what makes them withdraw"],
     "self_protection_mechanisms": ["psychological defense when threatened"],
     "under_stress": "how behavior changes under pressure",
     "when_agreed_with": "how they respond to validation",
     "when_challenged": "how they respond to direct challenge"
-  },
-  "expertise": {
+  }},
+  "expertise": {{
     "deep_domains": ["expert-level area 1", "expert-level area 2"],
     "competent_domains": ["working understanding area 1"],
     "common_misperceptions": ["what people wrongly assume about them"],
-    "what_they_reject_or_oppose": [{"position": "", "reason": ""}],
+    "what_they_reject_or_oppose": [{{"position": "", "reason": ""}}],
     "cross_domain_syntheses": ["how they connect fields others don't"]
-  },
-  "knowledge_boundaries": {
+  }},
+  "knowledge_boundaries": {{
     "explicitly_out_of_scope": ["topic they explicitly disclaim"],
     "will_defer_on": ["topic where they'd defer to others"],
     "will_decline_to_answer": ["topic they refuse to engage on"],
     "responds_to_uncertainty_with": "admit_not_knowing"
-  },
-  "communication_profile": {
+  }},
+  "communication_profile": {{
     "default_register": "public | private | intimate | professional",
-    "written_vs_spoken": {"written": "how they write", "spoken": "how they speak"},
-    "to_strangers_vs_intimates": {"strangers": "", "intimates": ""},
+    "written_vs_spoken": {{"written": "how they write", "spoken": "how they speak"}},
+    "to_strangers_vs_intimates": {{"strangers": "", "intimates": ""}},
     "in_public_forum": "how they communicate to an audience",
     "signature_expressions": ["phrase they reliably use", "phrase 2"],
     "words_they_hardenly_ever_use": ["word they'd never use", "phrase 2"],
-    "sentence_rhythm": {"avg_length": 0, "variation": "high|medium|low", "pattern": ""},
+    "sentence_rhythm": {{"avg_length": 0, "variation": "high|medium|low", "pattern": ""}},
     "punctuation_habits": "how they use punctuation for effect",
     "how_they_use_silence": "fill silence or use it deliberately",
     "humor_register": "deadpan | self_deprecating | aggressive | absent | surprising"
-  },
-  "contextual_modulation": {
+  }},
+  "contextual_modulation": {{
     "when_purpose_is_clarity_vs_impress": "how communication changes",
     "when_audience_is_hostile": "how they adjust",
     "when_audience_is_skeptical": "how they adjust",
     "when_audience_is_uninformed": "how they explain to laypeople",
     "when_being_recorded": "does being recorded change how they speak",
     "when_speaking_to_detractors": "how they address opponents"
-  },
-  "relationship_dynamics": {
+  }},
+  "relationship_dynamics": {{
     "with_mentees": "how they treat learners",
     "with_peers": "how they engage with equals",
     "with_authorities": "how they relate to hierarchy",
     "with_institutions": "how they treat organizations",
     "with_fans_public": "how they handle adulation",
     "with_critics": "how they respond to critics"
-  },
-  "voice_samples": {
+  }},
+  "voice_samples": {{
     "on_topic_they_love": "2-3 sentence statement in their voice when discussing their passion",
     "on_topic_they_resist": "2-3 sentence statement in their voice when pushing back",
     "on_topic_they_decline": "2-3 sentence statement in their voice when declining",
     "when_explaining_something_complex": "2-3 sentence explanation in their voice",
     "when_pushed_on_a_contradiction": "how they respond when confronted with contradiction"
-  },
-  "temporal_profile": {
+  }},
+  "temporal_profile": {{
     "how_they_changed_over_time": "major shifts in thinking over their lifetime",
     "what_would_change_if_lived_another_decade": "their prediction for the next decade",
     "what_they_regret_not_saying_sooner": "something they wish they'd expressed earlier"
-  }
-}
+  }}
+}}
 ```
 """
 
