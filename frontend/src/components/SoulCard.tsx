@@ -477,40 +477,6 @@ export function SoulCard({ soul, version, name, avatar_url }: SoulCardProps) {
         </Section>
       )}
 
-      {isV2 && v2emo && (v2emo.triggers?.length > 0 || v2emo.self_protection_mechanisms?.length > 0) && (
-        <Section title={i18n.personality}>
-          {v2emo.triggers?.length > 0 && (
-            <div className="mb-2">
-              <span className="text-[10px] text-[#86868B] font-light">{i18n.triggers_label}</span>
-              <div className="flex flex-wrap gap-1 mt-1">
-                {v2emo.triggers.map((t: string, i: number) => (
-                  <span key={i} className="px-2 py-0.5 bg-[rgba(255,149,0,0.06)] text-[#FF9500] border border-[rgba(255,149,0,0.15)] rounded-full text-xs font-light">{t}</span>
-                ))}
-              </div>
-            </div>
-          )}
-          {v2emo.self_protection_mechanisms?.length > 0 && (
-            <div className="mb-2">
-              <span className="text-[10px] text-[#86868B] font-light">{i18n.defense_mechanisms}</span>
-              <div className="flex flex-wrap gap-1 mt-1">
-                {v2emo.self_protection_mechanisms.map((m: string, i: number) => (
-                  <span key={i} className="px-2 py-0.5 bg-[rgba(175,82,222,0.06)] text-[#AF52DE] border border-[rgba(175,82,222,0.15)] rounded-full text-xs font-light">{m}</span>
-                ))}
-              </div>
-            </div>
-          )}
-          {v2emo.dormant_points?.length > 0 && (
-            <div>
-              <span className="text-[10px] text-[#86868B] font-light">{i18n.dormant_withdrawal}</span>
-              <div className="flex flex-wrap gap-1 mt-1">
-                {v2emo.dormant_points.map((d: string, i: number) => (
-                  <span key={i} className="px-2 py-0.5 bg-[rgba(0,0,0,0.03)] text-[#6E6E73] rounded-full text-xs font-light">{d}</span>
-                ))}
-              </div>
-            </div>
-          )}
-        </Section>
-      )}
 
       {/* Deep Convictions */}
       {isV2 && v2cog && (v2cog.what_they_know_for_certain?.length > 0 || v2cog.what_they_suspect_but_never_state?.length > 0) && (
