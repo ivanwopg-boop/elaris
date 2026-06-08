@@ -126,29 +126,11 @@ async def chat_stream(persona_id: str, message: str, request: Request, db: Async
         if not persona or persona.user_id is not None:
             raise HTTPException(status_code=403, detail="Login required for this persona")
     info = await _get_soul(persona_id, db)
-    # Quick web search for recent info
-    web_context = ""
-    try:
-        from app.services.web_search import search_web
-        results = await search_web([message[:200]])
-        if results:
-            snippets = []
-            for r in results[:3]:
-                for item in (r.get("results") or [])[:2]:
-                    t = item.get("title", "")
-                    s = item.get("snippet", "") or item.get("content", "")[:300]
-                    if s:
-                        snippets.append(f"- {t}: {s}")
-            if snippets:
-                web_context = "\n\n## Recent Web Information\n" + "\n".join(snippets)
-    except Exception:
-        pass
     system_prompt = CHAT_SYSTEM_PROMPT.format(
         name=info["name"],
         soul_json=json.dumps(info["soul"], indent=2, ensure_ascii=False),
     )
-    if web_context:
-        system_prompt += web_context
+
     msgs = [
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": message},
