@@ -169,6 +169,40 @@ export function SoulCard({ soul, version, name, avatar_url }: SoulCardProps) {
     limitation: t.limitation,
     description_label: t.description_label || "Description",
     evidence_label: t.evidence_label || "Evidence",
+    voice_samples: t.voice_samples || "Voice Samples",
+    deep_convictions: t.deep_convictions || "Deep Convictions",
+    communication_adaptation: t.communication_adaptation || "Communication Adaptation",
+    relationship_dynamics: t.relationship_dynamics || "Relationship Dynamics",
+    expertise_nuance: t.expertise_nuance || "Expertise Nuance",
+    identity_nuance: t.identity_nuance || "Identity Nuance",
+    perceptual_lenses: t.perceptual_lenses || "Perceptual Lenses",
+    temporal_profile: t.temporal_profile || "Evolution Over Time",
+    triggers_label: t.triggers_label || "{i18n.triggers_label}",
+    defense_mechanisms: t.defense_mechanisms || "{i18n.defense_mechanisms}",
+    dormant_withdrawal: t.dormant_withdrawal || "{i18n.dormant_withdrawal}",
+    know_for_certain: t.know_for_certain || "{i18n.know_for_certain}",
+    suspect_never_state: t.suspect_never_state || "{i18n.suspect_never_state}",
+    positions_reversed: t.positions_reversed || "{i18n.positions_reversed}",
+    on_love: t.on_love || "{i18n.on_love}",
+    on_resist: t.on_resist || "{i18n.on_resist}",
+    on_decline: t.on_decline || "{i18n.on_decline}",
+    on_explain: t.on_explain || "{i18n.on_explain}",
+    on_contradiction: t.on_contradiction || "{i18n.on_contradiction}",
+    under_stress_label: t.under_stress_label || "Under stress",
+    when_agreed_label: t.when_agreed_label || "When agreed with",
+    when_challenged_label: t.when_challenged_label || "When challenged",
+    common_misperceptions_label: t.common_misperceptions_label || "{i18n.common_misperceptions_label}",
+    what_they_reject_label: t.what_they_reject_label || "{i18n.what_they_reject_label}",
+    cross_domain_label: t.cross_domain_label || "{i18n.cross_domain_label}",
+    how_changed_label: t.how_changed_label || "How they changed",
+    next_decade_label: t.next_decade_label || "Next decade outlook",
+    regret_label: t.regret_label || "Regret not saying sooner",
+    known_as_label: t.known_as_label || "{i18n.known_as_label}",
+    refuse_label: t.refuse_label || "{i18n.refuse_label}",
+    written_label: t.written_label || "Written",
+    spoken_label: t.spoken_label || "Spoken",
+    to_strangers_label: t.to_strangers_label || "To strangers",
+    to_intimates_label: t.to_intimates_label || "To intimates",
   };
 
   return (
@@ -205,7 +239,7 @@ export function SoulCard({ soul, version, name, avatar_url }: SoulCardProps) {
           {v2ident.how_the_world_sees_them && <p className="text-xs text-[#86868B] font-light mt-1">{v2ident.how_the_world_sees_them}</p>}
           {v2emo.triggers?.length > 0 && (
             <div className="mt-3 pt-3 border-t border-[rgba(0,0,0,0.05)]">
-              <span className="text-[10px] text-[#86868B] font-light uppercase tracking-wide">Triggers</span>
+              <span className="text-[10px] text-[#86868B] font-light uppercase tracking-wide">{i18n.triggers_label}</span>
               <div className="flex flex-wrap gap-1 mt-1">
                 {v2emo.triggers.map((t: string, i: number) => (
                   <span key={i} className="px-2 py-0.5 bg-[rgba(255,149,0,0.06)] text-[#FF9500] border border-[rgba(255,149,0,0.15)] rounded-full text-xs font-light">{t}</span>
@@ -215,7 +249,7 @@ export function SoulCard({ soul, version, name, avatar_url }: SoulCardProps) {
           )}
           {v2emo.self_protection_mechanisms?.length > 0 && (
             <div className="mt-2">
-              <span className="text-[10px] text-[#86868B] font-light uppercase tracking-wide">Defense mechanisms</span>
+              <span className="text-[10px] text-[#86868B] font-light uppercase tracking-wide">{i18n.defense_mechanisms}</span>
               <div className="flex flex-wrap gap-1 mt-1">
                 {v2emo.self_protection_mechanisms.map((m: string, i: number) => (
                   <span key={i} className="px-2 py-0.5 bg-[rgba(175,82,222,0.06)] text-[#AF52DE] border border-[rgba(175,82,222,0.15)] rounded-full text-xs font-light">{m}</span>
@@ -225,7 +259,7 @@ export function SoulCard({ soul, version, name, avatar_url }: SoulCardProps) {
           )}
           {v2emo.dormant_points?.length > 0 && (
             <div className="mt-2">
-              <span className="text-[10px] text-[#86868B] font-light uppercase tracking-wide">Dormant / withdrawal</span>
+              <span className="text-[10px] text-[#86868B] font-light uppercase tracking-wide">{i18n.dormant_withdrawal}</span>
               <div className="flex flex-wrap gap-1 mt-1">
                 {v2emo.dormant_points.map((d: string, i: number) => (
                   <span key={i} className="px-2 py-0.5 bg-[rgba(0,0,0,0.03)] text-[#6E6E73] rounded-full text-xs font-light">{d}</span>
@@ -233,9 +267,9 @@ export function SoulCard({ soul, version, name, avatar_url }: SoulCardProps) {
               </div>
             </div>
           )}
-          {v2emo.under_stress && <p className="text-xs text-[#86868B] font-light mt-2"><span className="text-[#1D1D1F]">Under stress:</span> {v2emo.under_stress}</p>}
-          {v2emo.when_agreed_with && <p className="text-xs text-[#86868B] font-light mt-1"><span className="text-[#1D1D1F]">When agreed with:</span> {v2emo.when_agreed_with}</p>}
-          {v2emo.when_challenged && <p className="text-xs text-[#86868B] font-light mt-1"><span className="text-[#1D1D1F]">When challenged:</span> {v2emo.when_challenged}</p>}
+          {v2emo.under_stress && <p className="text-xs text-[#86868B] font-light mt-2"><span className="text-[#1D1D1F]">{i18n.under_stress_label}:</span> {v2emo.under_stress}</p>}
+          {v2emo.when_agreed_with && <p className="text-xs text-[#86868B] font-light mt-1"><span className="text-[#1D1D1F]">{i18n.when_agreed_label}:</span> {v2emo.when_agreed_with}</p>}
+          {v2emo.when_challenged && <p className="text-xs text-[#86868B] font-light mt-1"><span className="text-[#1D1D1F]">{i18n.when_challenged_label}:</span> {v2emo.when_challenged}</p>}
         </Section>
       )}
 
@@ -268,10 +302,10 @@ export function SoulCard({ soul, version, name, avatar_url }: SoulCardProps) {
           {cs.extra && (cs.extra.written || cs.extra.spoken || cs.extra.to_strangers || cs.extra.to_intimates) && (
             <div className="mt-3 pt-3 border-t border-[rgba(0,0,0,0.05)]">
               <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs text-[#86868B] font-light">
-                {cs.extra.written && <div><span className="text-[#1D1D1F]">Written:</span><br/>{cs.extra.written}</div>}
-                {cs.extra.spoken && <div><span className="text-[#1D1D1F]">Spoken:</span><br/>{cs.extra.spoken}</div>}
-                {cs.extra.to_strangers && <div><span className="text-[#1D1D1F]">To strangers:</span><br/>{cs.extra.to_strangers}</div>}
-                {cs.extra.to_intimates && <div><span className="text-[#1D1D1F]">To intimates:</span><br/>{cs.extra.to_intimates}</div>}
+                {cs.extra.written && <div><span className="text-[#1D1D1F]">{i18n.written_label}:</span><br/>{cs.extra.written}</div>}
+                {cs.extra.spoken && <div><span className="text-[#1D1D1F]">{i18n.spoken_label}:</span><br/>{cs.extra.spoken}</div>}
+                {cs.extra.to_strangers && <div><span className="text-[#1D1D1F]">{i18n.to_strangers_label}:</span><br/>{cs.extra.to_strangers}</div>}
+                {cs.extra.to_intimates && <div><span className="text-[#1D1D1F]">{i18n.to_intimates_label}:</span><br/>{cs.extra.to_intimates}</div>}
               </div>
             </div>
           )}
@@ -395,35 +429,35 @@ export function SoulCard({ soul, version, name, avatar_url }: SoulCardProps) {
 
       {/* Voice Samples */}
       {isV2 && (soul.voice_samples) && (soul.voice_samples.on_topic_they_love || soul.voice_samples.on_topic_they_resist) && (
-        <Section title="Voice Samples">
+        <Section title={i18n.voice_samples}>
           <div className="space-y-2">
             {soul.voice_samples.on_topic_they_love && (
               <div className="p-2.5 rounded-[6px] bg-[rgba(0,0,0,0.02)] border-l-2 border-l-[#0071E3]">
-                <span className="text-[10px] text-[#86868B] font-light uppercase tracking-wide">On what they love</span>
+                <span className="text-[10px] text-[#86868B] font-light uppercase tracking-wide">{i18n.on_love}</span>
                 <p className="text-xs text-[#1D1D1F] font-light mt-0.5 italic">&ldquo;{soul.voice_samples.on_topic_they_love}&rdquo;</p>
               </div>
             )}
             {soul.voice_samples.on_topic_they_resist && (
               <div className="p-2.5 rounded-[6px] bg-[rgba(0,0,0,0.02)] border-l-2 border-l-[#FF9500]">
-                <span className="text-[10px] text-[#86868B] font-light uppercase tracking-wide">On what they resist</span>
+                <span className="text-[10px] text-[#86868B] font-light uppercase tracking-wide">{i18n.on_resist}</span>
                 <p className="text-xs text-[#1D1D1F] font-light mt-0.5 italic">&ldquo;{soul.voice_samples.on_topic_they_resist}&rdquo;</p>
               </div>
             )}
             {soul.voice_samples.on_topic_they_decline && (
               <div className="p-2.5 rounded-[6px] bg-[rgba(0,0,0,0.02)] border-l-2 border-l-[#86868B]">
-                <span className="text-[10px] text-[#86868B] font-light uppercase tracking-wide">On declining</span>
+                <span className="text-[10px] text-[#86868B] font-light uppercase tracking-wide">{i18n.on_decline}</span>
                 <p className="text-xs text-[#1D1D1F] font-light mt-0.5 italic">&ldquo;{soul.voice_samples.on_topic_they_decline}&rdquo;</p>
               </div>
             )}
             {soul.voice_samples.when_explaining_something_complex && (
               <div className="p-2.5 rounded-[6px] bg-[rgba(0,0,0,0.02)] border-l-2 border-l-[#34C759]">
-                <span className="text-[10px] text-[#86868B] font-light uppercase tracking-wide">Explaining complexity</span>
+                <span className="text-[10px] text-[#86868B] font-light uppercase tracking-wide">{i18n.on_explain}</span>
                 <p className="text-xs text-[#1D1D1F] font-light mt-0.5 italic">&ldquo;{soul.voice_samples.when_explaining_something_complex}&rdquo;</p>
               </div>
             )}
             {soul.voice_samples.when_pushed_on_a_contradiction && (
               <div className="p-2.5 rounded-[6px] bg-[rgba(0,0,0,0.02)] border-l-2 border-l-[#AF52DE]">
-                <span className="text-[10px] text-[#86868B] font-light uppercase tracking-wide">On contradiction</span>
+                <span className="text-[10px] text-[#86868B] font-light uppercase tracking-wide">{i18n.on_contradiction}</span>
                 <p className="text-xs text-[#1D1D1F] font-light mt-0.5 italic">&ldquo;{soul.voice_samples.when_pushed_on_a_contradiction}&rdquo;</p>
               </div>
             )}
@@ -432,10 +466,10 @@ export function SoulCard({ soul, version, name, avatar_url }: SoulCardProps) {
       )}
 
       {isV2 && v2emo && (v2emo.triggers?.length > 0 || v2emo.self_protection_mechanisms?.length > 0) && (
-        <Section title="Emotional System">
+        <Section title={i18n.personality}>
           {v2emo.triggers?.length > 0 && (
             <div className="mb-2">
-              <span className="text-[10px] text-[#86868B] font-light">Triggers</span>
+              <span className="text-[10px] text-[#86868B] font-light">{i18n.triggers_label}</span>
               <div className="flex flex-wrap gap-1 mt-1">
                 {v2emo.triggers.map((t: string, i: number) => (
                   <span key={i} className="px-2 py-0.5 bg-[rgba(255,149,0,0.06)] text-[#FF9500] border border-[rgba(255,149,0,0.15)] rounded-full text-xs font-light">{t}</span>
@@ -445,7 +479,7 @@ export function SoulCard({ soul, version, name, avatar_url }: SoulCardProps) {
           )}
           {v2emo.self_protection_mechanisms?.length > 0 && (
             <div className="mb-2">
-              <span className="text-[10px] text-[#86868B] font-light">Defense mechanisms</span>
+              <span className="text-[10px] text-[#86868B] font-light">{i18n.defense_mechanisms}</span>
               <div className="flex flex-wrap gap-1 mt-1">
                 {v2emo.self_protection_mechanisms.map((m: string, i: number) => (
                   <span key={i} className="px-2 py-0.5 bg-[rgba(175,82,222,0.06)] text-[#AF52DE] border border-[rgba(175,82,222,0.15)] rounded-full text-xs font-light">{m}</span>
@@ -455,7 +489,7 @@ export function SoulCard({ soul, version, name, avatar_url }: SoulCardProps) {
           )}
           {v2emo.dormant_points?.length > 0 && (
             <div>
-              <span className="text-[10px] text-[#86868B] font-light">Dormant / withdrawal</span>
+              <span className="text-[10px] text-[#86868B] font-light">{i18n.dormant_withdrawal}</span>
               <div className="flex flex-wrap gap-1 mt-1">
                 {v2emo.dormant_points.map((d: string, i: number) => (
                   <span key={i} className="px-2 py-0.5 bg-[rgba(0,0,0,0.03)] text-[#6E6E73] rounded-full text-xs font-light">{d}</span>
@@ -468,10 +502,10 @@ export function SoulCard({ soul, version, name, avatar_url }: SoulCardProps) {
 
       {/* Deep Convictions */}
       {isV2 && v2cog && (v2cog.what_they_know_for_certain?.length > 0 || v2cog.what_they_suspect_but_never_state?.length > 0) && (
-        <Section title="Deep Convictions">
+        <Section title={i18n.deep_convictions}>
           {v2cog.what_they_know_for_certain?.length > 0 && (
             <div className="mb-2">
-              <span className="text-[10px] text-[#86868B] font-light">They know for certain</span>
+              <span className="text-[10px] text-[#86868B] font-light">{i18n.know_for_certain}</span>
               <ul className="space-y-1 mt-1">
                 {v2cog.what_they_know_for_certain.map((k: string, i: number) => (
                   <li key={i} className="text-xs text-[#1D1D1F] font-light flex gap-2">
@@ -484,7 +518,7 @@ export function SoulCard({ soul, version, name, avatar_url }: SoulCardProps) {
           )}
           {v2cog.what_they_suspect_but_never_state?.length > 0 && (
             <div className="mb-2">
-              <span className="text-[10px] text-[#86868B] font-light">They suspect but never say</span>
+              <span className="text-[10px] text-[#86868B] font-light">{i18n.suspect_never_state}</span>
               <ul className="space-y-1 mt-1">
                 {v2cog.what_they_suspect_but_never_state.map((k: string, i: number) => (
                   <li key={i} className="text-xs text-[#86868B] font-light flex gap-2">
@@ -497,7 +531,7 @@ export function SoulCard({ soul, version, name, avatar_url }: SoulCardProps) {
           )}
           {v2cog.what_they_publicly_contradicted?.length > 0 && (
             <div>
-              <span className="text-[10px] text-[#86868B] font-light">Positions they reversed</span>
+              <span className="text-[10px] text-[#86868B] font-light">{i18n.positions_reversed}</span>
               <div className="space-y-1.5 mt-1">
                 {v2cog.what_they_publicly_contradicted.map((c: any, i: number) => (
                   <div key={i} className="p-2 rounded-[6px] bg-[rgba(0,0,0,0.02)]">
@@ -515,33 +549,33 @@ export function SoulCard({ soul, version, name, avatar_url }: SoulCardProps) {
       {isV2 && cs.extra && Object.values(cs.extra).some(Boolean) && (
         <Section title="Communication Nuance">
           <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs text-[#86868B] font-light">
-            {cs.extra.written && <div><span className="text-[#1D1D1F]">Written:</span><br/>{cs.extra.written}</div>}
-            {cs.extra.spoken && <div><span className="text-[#1D1D1F]">Spoken:</span><br/>{cs.extra.spoken}</div>}
-            {cs.extra.to_strangers && <div><span className="text-[#1D1D1F]">To strangers:</span><br/>{cs.extra.to_strangers}</div>}
-            {cs.extra.to_intimates && <div><span className="text-[#1D1D1F]">To intimates:</span><br/>{cs.extra.to_intimates}</div>}
+            {cs.extra.written && <div><span className="text-[#1D1D1F]">{i18n.written_label}:</span><br/>{cs.extra.written}</div>}
+            {cs.extra.spoken && <div><span className="text-[#1D1D1F]">{i18n.spoken_label}:</span><br/>{cs.extra.spoken}</div>}
+            {cs.extra.to_strangers && <div><span className="text-[#1D1D1F]">{i18n.to_strangers_label}:</span><br/>{cs.extra.to_strangers}</div>}
+            {cs.extra.to_intimates && <div><span className="text-[#1D1D1F]">{i18n.to_intimates_label}:</span><br/>{cs.extra.to_intimates}</div>}
           </div>
         </Section>
       )}
 
       {/* Temporal Profile */}
       {isV2 && (soul.temporal_profile) && (
-        <Section title="Evolution Over Time">
+        <Section title={i18n.temporal_profile}>
           <div className="space-y-2 text-xs text-[#86868B] font-light">
             {soul.temporal_profile.how_they_changed_over_time && (
               <div>
-                <span className="text-[10px] text-[#1D1D1F]">How they changed:</span>
+                <span className="text-[10px] text-[#1D1D1F]">{i18n.how_changed_label}:</span>
                 <p className="mt-0.5">{soul.temporal_profile.how_they_changed_over_time}</p>
               </div>
             )}
             {soul.temporal_profile.what_would_change_if_lived_another_decade && (
               <div>
-                <span className="text-[10px] text-[#1D1D1F]">Next decade outlook:</span>
+                <span className="text-[10px] text-[#1D1D1F]">{i18n.next_decade_label}:</span>
                 <p className="mt-0.5">{soul.temporal_profile.what_would_change_if_lived_another_decade}</p>
               </div>
             )}
             {soul.temporal_profile.what_they_regret_not_saying_sooner && (
               <div>
-                <span className="text-[10px] text-[#1D1D1F]">Regret not saying sooner:</span>
+                <span className="text-[10px] text-[#1D1D1F]">{i18n.regret_label}:</span>
                 <p className="mt-0.5 italic">&ldquo;{soul.temporal_profile.what_they_regret_not_saying_sooner}&rdquo;</p>
               </div>
             )}
@@ -551,7 +585,7 @@ export function SoulCard({ soul, version, name, avatar_url }: SoulCardProps) {
 
       {/* Contextual Modulation — v2 only */}
       {isV2 && (soul.contextual_modulation) && (
-        <Section title="Communication Adaptation">
+        <Section title={i18n.communication_adaptation}>
           <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs font-light">
             {soul.contextual_modulation.when_purpose_is_clarity_vs_impress && (
               <div className="col-span-2"><span className="text-[#1D1D1F]">Clarity vs. Impress:</span> <span className="text-[#86868B]">{soul.contextual_modulation.when_purpose_is_clarity_vs_impress}</span></div>
@@ -577,7 +611,7 @@ export function SoulCard({ soul, version, name, avatar_url }: SoulCardProps) {
 
       {/* Relationship Dynamics — v2 only */}
       {isV2 && (soul.relationship_dynamics) && (
-        <Section title="Relationship Dynamics">
+        <Section title={i18n.relationship_dynamics}>
           <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs font-light">
             {soul.relationship_dynamics.with_mentees && (
               <div><span className="text-[#1D1D1F]">With mentees:</span><br/><span className="text-[#86868B]">{soul.relationship_dynamics.with_mentees}</span></div>
@@ -603,10 +637,10 @@ export function SoulCard({ soul, version, name, avatar_url }: SoulCardProps) {
 
       {/* Expertise Details — v2 only */}
       {isV2 && v2exp && (v2exp.common_misperceptions?.length > 0 || v2exp.what_they_reject_or_oppose?.length > 0) && (
-        <Section title="Expertise Nuance">
+        <Section title={i18n.expertise_nuance}>
           {v2exp.common_misperceptions?.length > 0 && (
             <div className="mb-2">
-              <span className="text-[10px] text-[#86868B] font-light uppercase tracking-wide">Common misperceptions</span>
+              <span className="text-[10px] text-[#86868B] font-light uppercase tracking-wide">{i18n.common_misperceptions_label}</span>
               <ul className="space-y-0.5 mt-1">
                 {v2exp.common_misperceptions.map((m: string, i: number) => (
                   <li key={i} className="text-xs text-[#86868B] font-light flex gap-2">
@@ -619,7 +653,7 @@ export function SoulCard({ soul, version, name, avatar_url }: SoulCardProps) {
           )}
           {v2exp.what_they_reject_or_oppose?.length > 0 && (
             <div className="mb-2">
-              <span className="text-[10px] text-[#86868B] font-light uppercase tracking-wide">What they reject or oppose</span>
+              <span className="text-[10px] text-[#86868B] font-light uppercase tracking-wide">{i18n.what_they_reject_label}</span>
               <div className="space-y-1 mt-1">
                 {v2exp.what_they_reject_or_oppose.map((r: any, i: number) => (
                   <div key={i} className="p-2 rounded-[6px] bg-[rgba(255,59,48,0.03)]">
@@ -632,7 +666,7 @@ export function SoulCard({ soul, version, name, avatar_url }: SoulCardProps) {
           )}
           {v2exp.cross_domain_syntheses?.length > 0 && (
             <div>
-              <span className="text-[10px] text-[#86868B] font-light uppercase tracking-wide">Cross-domain syntheses</span>
+              <span className="text-[10px] text-[#86868B] font-light uppercase tracking-wide">{i18n.cross_domain_label}</span>
               <ul className="space-y-0.5 mt-1">
                 {v2exp.cross_domain_syntheses.map((s: string, i: number) => (
                   <li key={i} className="text-xs text-[#1D1D1F] font-light flex gap-2">
@@ -648,10 +682,10 @@ export function SoulCard({ soul, version, name, avatar_url }: SoulCardProps) {
 
       {/* Identity Extras — v2 only */}
       {isV2 && v2ident && (v2ident.known_as?.length > 1 || v2ident.what_they_refuse_to_be_labelled_as?.length > 0) && (
-        <Section title="Identity Nuance">
+        <Section title={i18n.identity_nuance}>
           {v2ident.known_as?.length > 1 && (
             <div className="mb-2">
-              <span className="text-[10px] text-[#86868B] font-light">Also known as</span>
+              <span className="text-[10px] text-[#86868B] font-light">{i18n.known_as_label}</span>
               <div className="flex flex-wrap gap-1 mt-1">
                 {v2ident.known_as.slice(1).map((n: string, i: number) => (
                   <span key={i} className="px-2 py-0.5 bg-[rgba(0,0,0,0.03)] rounded-full text-xs text-[#6E6E73] font-light">{n}</span>
@@ -661,7 +695,7 @@ export function SoulCard({ soul, version, name, avatar_url }: SoulCardProps) {
           )}
           {v2ident.what_they_refuse_to_be_labelled_as?.length > 0 && (
             <div>
-              <span className="text-[10px] text-[#86868B] font-light">Refuses to be labelled as</span>
+              <span className="text-[10px] text-[#86868B] font-light">{i18n.refuse_label}</span>
               <div className="flex flex-wrap gap-1 mt-1">
                 {v2ident.what_they_refuse_to_be_labelled_as.map((l: string, i: number) => (
                   <span key={i} className="px-2 py-0.5 bg-[rgba(255,59,48,0.06)] text-[#FF3B30] border border-[rgba(255,59,48,0.15)] rounded-full text-xs font-light">{l}</span>
@@ -674,7 +708,7 @@ export function SoulCard({ soul, version, name, avatar_url }: SoulCardProps) {
 
       {/* Secondary Lenses — v2 only */}
       {isV2 && v2pf && v2pf.secondary_lenses?.length > 0 && (
-        <Section title="Perceptual Lenses">
+        <Section title={i18n.perceptual_lenses}>
           <div className="flex flex-wrap gap-1">
             {v2pf.secondary_lenses.map((l: string, i: number) => (
               <span key={i} className="px-2.5 py-1 bg-[rgba(0,113,227,0.06)] text-[#0071E3] rounded-full text-xs font-light">{l}</span>
