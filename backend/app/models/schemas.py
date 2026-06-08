@@ -198,7 +198,8 @@ class WebSearchResultOut(BaseModel):
 class DistillResponse(BaseModel):
     persona_id: str
     version: int
-    soul: dict
+    soul: dict = {}
+    souls: dict = {}
     sources_used: int
 
 

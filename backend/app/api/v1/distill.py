@@ -144,13 +144,25 @@ async def run_distillation(
     user: User = Depends(require_auth),
     db: AsyncSession = Depends(get_db),
 ):
-    """Run distillation synchronously (DeepSeek responds in <1s)."""
+    """Run distillation for both en and zh-CN synchronously."""
     await _check_persona(persona_id, user.id, db)
     try:
         await ensure_web_search_results(persona_id, db)
-        result = await distill_persona(persona_id, db, lang=lang, use_v2=use_v2)
-        result["soul"] = result["soul"].model_dump()
-        return DistillResponse(**result)
+        souls = {}
+        version = 0
+        sources_used = 0
+        for target_lang in ["en", "zh-CN"]:
+            result = await distill_persona(persona_id, db, lang=target_lang, use_v2=use_v2)
+            souls[target_lang] = result["soul"].model_dump()
+            version = max(version, result["version"])
+            sources_used = result["sources_used"]
+        return DistillResponse(
+            persona_id=persona_id,
+            soul=souls.get("en", {}),
+            souls=souls,
+            version=version,
+            sources_used=sources_used,
+        )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
