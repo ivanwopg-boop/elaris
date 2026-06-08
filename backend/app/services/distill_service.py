@@ -198,7 +198,7 @@ async def distill_persona(persona_id: str, db: AsyncSession, lang: str = "en",
                 if title:
                     desc_parts.append(title)
                 if organization:
-                    desc_parts.append(f"at {organization}")
+                    desc_parts.append(organization)
                 if life_arc and len(life_arc)< 200:
                     desc_parts.append(f"-- {life_arc}")
                 if desc_parts:
