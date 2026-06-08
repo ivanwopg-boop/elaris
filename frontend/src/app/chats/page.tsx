@@ -391,7 +391,7 @@ function DiscoverTab({ tabStrings, onContactAdded }: { tabStrings: Record<string
   const [activeCat, setActiveCat] = useState("all");
 
   useEffect(() => {
-    api.listPresets()
+    api.listPresets(lang)
       .then((all) => {
         // Guests (no token): only show 5 featured. Logged-in: show all.
         const list = !token ? all.filter((p: any) => FEATURED_IDS.includes(p.id)) : all;

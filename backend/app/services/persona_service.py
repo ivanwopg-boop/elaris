@@ -86,7 +86,7 @@ async def get_persona(persona_id: str, db: AsyncSession, user_id: str | None = N
     }
 
 
-async def list_personas(db: AsyncSession, user_id: str | None = None, include_presets: bool = False) -> list[dict]:
+async def list_personas(db: AsyncSession, user_id: str | None = None, include_presets: bool = False, lang: str = "en") -> list[dict]:
     query = select(Persona)
     if user_id:
         if include_presets:
@@ -105,14 +105,33 @@ async def list_personas(db: AsyncSession, user_id: str | None = None, include_pr
     for p in personas:
         soul_result = await db.execute(
             select(PersonaSoul)
-            .where(PersonaSoul.persona_id == p.id)
+            .where(PersonaSoul.persona_id == p.id, PersonaSoul.lang == lang)
             .order_by(PersonaSoul.version.desc())
         )
         soul = soul_result.scalars().first()
+        # Compute lang-specific description from soul
+        lang_desc = p.description
+        if soul:
+            try:
+                import json
+                d = json.loads(soul.soul_json)
+                ident = d.get("identity", {}) or d.get("basic_info", {})
+                title = ident.get("title", "") or ""
+                org = ident.get("organization", "") or ident.get("company", "") or ""
+                parts = []
+                if title:
+                    parts.append(title)
+                if org:
+                    parts.append(org)
+                if parts:
+                    lang_desc = " | ".join(parts)
+            except:
+                pass
+
         out.append({
             "id": p.id,
             "name": p.name,
-            "description": p.description,
+            "description": lang_desc,
             "avatar_url": p.avatar_url,
             "created_at": p.created_at,
             "updated_at": p.updated_at,

@@ -2,7 +2,7 @@
 
 import os, uuid
 from pathlib import Path
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -76,9 +76,9 @@ async def list_personas(user: User = Depends(require_auth_optional), db: AsyncSe
 
 
 @router.get("/presets", response_model=list[PersonaOut])
-async def list_presets(db: AsyncSession = Depends(get_db)):
+async def list_presets(lang: str = Query("en"), db: AsyncSession = Depends(get_db)):
     """List preset personas (user_id=NULL) for the Discover tab."""
-    return await persona_service.list_personas(db, user_id=None, include_presets=True)
+    return await persona_service.list_personas(db, user_id=None, include_presets=True, lang=lang)
 
 
 @router.post("/contacts/{persona_id}")
