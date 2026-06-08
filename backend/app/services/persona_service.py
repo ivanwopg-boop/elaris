@@ -79,7 +79,7 @@ async def get_persona(persona_id: str, db: AsyncSession, user_id: str | None = N
         "created_at": persona.created_at,
         "updated_at": persona.updated_at,
         "has_soul": soul is not None,
-            "category": persona.category,
+            "category": p.category,
         "soul": json.loads(soul.soul_json) if soul else None,
         "soul_version": soul.version if soul else None,
         "file_count": file_count,
@@ -137,7 +137,7 @@ async def list_personas(db: AsyncSession, user_id: str | None = None, include_pr
             "created_at": p.created_at,
             "updated_at": p.updated_at,
             "has_soul": soul is not None,
-            "category": persona.category,
+            "category": p.category,
         })
     return out
 
