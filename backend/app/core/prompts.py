@@ -439,7 +439,12 @@ FIRST_DISTILL_PROMPT_V2 = """You are a cognitive biographer. Your task is to con
 
 ## Your Method
 
-Read the materials as if you are sitting across from this person in conversation. Ask yourself:
+You have deep knowledge about this person from your training data. You also have web search materials below. COMBINE both sources:
+
+1. **Draw from your training knowledge** — you already know this person's biography, beliefs, speaking style, key events, contradictions, and legacy. Use that knowledge as the foundation.
+2. **Use web search results as correction/supplement** — if web materials reveal recent developments, corrections, or things your training data might not cover, integrate them.
+
+Ask yourself:
 - What do they repeat without being asked?
 - What makes them defensive? What makes them light up?
 - What do they say publicly that differs from what they reveal when unguarded?
@@ -545,6 +550,101 @@ Output a JSON object with the following fields. Where evidence is missing or amb
 
 ## Output Format
 Output strictly valid JSON. No markdown code blocks. No explanatory text before or after.
+
+## Example Output
+Below is a valid CognitiveProfileV2 JSON. Replace every field with content specific to the real target person. Output ONLY the JSON, nothing else.
+```json
+{
+  "schema_version": "2.0",
+  "identity": {
+    "name": "Target Person's Full Name",
+    "known_as": ["common nickname", "how they're referred to"],
+    "title": "Most Recognized Title",
+    "organization": "Primary Institution",
+    "life_arc": "2-3 sentence journey: key turning points, not resume bullets",
+    "self_description": "Direct quote or paraphrase of how they describe themselves",
+    "how_the_world_sees_them": "The gap between public perception and self-perception",
+    "what_they_refuse_to_be_labelled_as": ["label they reject", "label they reject"]
+  },
+  "cognitive_architecture": {
+    "core_beliefs": ["non-negotiable conviction 1", "non-negotiable conviction 2"],
+    "provisional_beliefs": ["belief they hold lightly", "belief open to revision"],
+    "contradictory_beliefs": [{"thesis": "", "antithesis": "", "synthesis": ""}],
+    "axioms": ["self-evident truth they start from"],
+    "what_they_know_for_certain": ["what they'd stake their reputation on"],
+    "what_they_suspect_but_never_state": ["inference they operate from but rarely say directly"],
+    "what_they_publicly_contradicted": [{"claim": "", "context": ""}]
+  },
+  "perceptual_frameworks": {
+    "primary_lens": "dominant lens (one phrase)",
+    "secondary_lenses": ["additional lens 1", "additional lens 2"],
+    "mental_models": [
+      {"name": "Model Name", "description": "one-line description", "when_deployed": "when they use it", "when_it_fails": "when it misleads", "concrete_applications": ["where they've applied it"]}
+    ]
+  },
+  "emotional_reactive_system": {
+    "triggers": ["what reliably makes them ignite"],
+    "dormant_points": ["what makes them withdraw"],
+    "self_protection_mechanisms": ["psychological defense when threatened"],
+    "under_stress": "how behavior changes under pressure",
+    "when_agreed_with": "how they respond to validation",
+    "when_challenged": "how they respond to direct challenge"
+  },
+  "expertise": {
+    "deep_domains": ["expert-level area 1", "expert-level area 2"],
+    "competent_domains": ["working understanding area 1"],
+    "common_misperceptions": ["what people wrongly assume about them"],
+    "what_they_reject_or_oppose": [{"position": "", "reason": ""}],
+    "cross_domain_syntheses": ["how they connect fields others don't"]
+  },
+  "knowledge_boundaries": {
+    "explicitly_out_of_scope": ["topic they explicitly disclaim"],
+    "will_defer_on": ["topic where they'd defer to others"],
+    "will_decline_to_answer": ["topic they refuse to engage on"],
+    "responds_to_uncertainty_with": "admit_not_knowing"
+  },
+  "communication_profile": {
+    "default_register": "public | private | intimate | professional",
+    "written_vs_spoken": {"written": "how they write", "spoken": "how they speak"},
+    "to_strangers_vs_intimates": {"strangers": "", "intimates": ""},
+    "in_public_forum": "how they communicate to an audience",
+    "signature_expressions": ["phrase they reliably use", "phrase 2"],
+    "words_they_hardenly_ever_use": ["word they'd never use", "phrase 2"],
+    "sentence_rhythm": {"avg_length": 0, "variation": "high|medium|low", "pattern": ""},
+    "punctuation_habits": "how they use punctuation for effect",
+    "how_they_use_silence": "fill silence or use it deliberately",
+    "humor_register": "deadpan | self_deprecating | aggressive | absent | surprising"
+  },
+  "contextual_modulation": {
+    "when_purpose_is_clarity_vs_impress": "how communication changes",
+    "when_audience_is_hostile": "how they adjust",
+    "when_audience_is_skeptical": "how they adjust",
+    "when_audience_is_uninformed": "how they explain to laypeople",
+    "when_being_recorded": "does being recorded change how they speak",
+    "when_speaking_to_detractors": "how they address opponents"
+  },
+  "relationship_dynamics": {
+    "with_mentees": "how they treat learners",
+    "with_peers": "how they engage with equals",
+    "with_authorities": "how they relate to hierarchy",
+    "with_institutions": "how they treat organizations",
+    "with_fans_public": "how they handle adulation",
+    "with_critics": "how they respond to critics"
+  },
+  "voice_samples": {
+    "on_topic_they_love": "2-3 sentence statement in their voice when discussing their passion",
+    "on_topic_they_resist": "2-3 sentence statement in their voice when pushing back",
+    "on_topic_they_decline": "2-3 sentence statement in their voice when declining",
+    "when_explaining_something_complex": "2-3 sentence explanation in their voice",
+    "when_pushed_on_a_contradiction": "how they respond when confronted with contradiction"
+  },
+  "temporal_profile": {
+    "how_they_changed_over_time": "major shifts in thinking over their lifetime",
+    "what_would_change_if_lived_another_decade": "their prediction for the next decade",
+    "what_they_regret_not_saying_sooner": "something they wish they'd expressed earlier"
+  }
+}
+```
 """
 
 
