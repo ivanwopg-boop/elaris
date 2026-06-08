@@ -136,7 +136,7 @@ export default function ChatPage() {
 
   return (
     <div className="flex flex-col bg-white" style={{ height: '100dvh' }}>
-      <header className="shrink-0 border-b border-[rgba(0,0,0,0.06)] bg-white/95 z-10">
+      <header className="sticky top-0 shrink-0 border-b border-[rgba(0,0,0,0.06)] bg-white/95 z-10">
         <div className="max-w-3xl mx-auto px-4 h-14 flex items-center gap-3">
           <button onClick={() => router.push("/chats")} className="text-[#86868B] hover:text-[#1D1D1F] p-1.5 -ml-1.5 rounded-full hover:bg-[rgba(0,0,0,0.04)] active:bg-[rgba(0,0,0,0.08)] transition-colors">
             <ChevronLeft size={20} strokeWidth={1.5} />
