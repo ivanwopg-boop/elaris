@@ -195,6 +195,44 @@ export function SoulCard({ soul, version, name, avatar_url }: SoulCardProps) {
             <Bar label={i18n.risk_tolerance} value={p.risk_tolerance || 0} />
           </div>
           {p.description && <p className="text-xs text-[#86868B] font-light mt-2">{p.description}</p>}
+          {/* v2 emotional system merged into personality */}
+          {isV2 && v2emo && (
+            <>
+              {v2emo.triggers?.length > 0 && (
+                <div className="mt-3 pt-3 border-t border-[rgba(0,0,0,0.05)]">
+                  <span className="text-[10px] text-[#86868B] font-light uppercase tracking-wide">Triggers</span>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {v2emo.triggers.map((t: string, i: number) => (
+                      <span key={i} className="px-2 py-0.5 bg-[rgba(255,149,0,0.06)] text-[#FF9500] border border-[rgba(255,149,0,0.15)] rounded-full text-xs font-light">{t}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {v2emo.self_protection_mechanisms?.length > 0 && (
+                <div className="mt-2">
+                  <span className="text-[10px] text-[#86868B] font-light uppercase tracking-wide">Defense mechanisms</span>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {v2emo.self_protection_mechanisms.map((m: string, i: number) => (
+                      <span key={i} className="px-2 py-0.5 bg-[rgba(175,82,222,0.06)] text-[#AF52DE] border border-[rgba(175,82,222,0.15)] rounded-full text-xs font-light">{m}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {v2emo.dormant_points?.length > 0 && (
+                <div className="mt-2">
+                  <span className="text-[10px] text-[#86868B] font-light uppercase tracking-wide">Dormant / withdrawal</span>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {v2emo.dormant_points.map((d: string, i: number) => (
+                      <span key={i} className="px-2 py-0.5 bg-[rgba(0,0,0,0.03)] text-[#6E6E73] rounded-full text-xs font-light">{d}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {v2emo.under_stress && <p className="text-xs text-[#86868B] font-light mt-2"><span className="text-[#1D1D1F]">Under stress:</span> {v2emo.under_stress}</p>}
+              {v2emo.when_agreed_with && <p className="text-xs text-[#86868B] font-light mt-1"><span className="text-[#1D1D1F]">When agreed with:</span> {v2emo.when_agreed_with}</p>}
+              {v2emo.when_challenged && <p className="text-xs text-[#86868B] font-light mt-1"><span className="text-[#1D1D1F]">When challenged:</span> {v2emo.when_challenged}</p>}
+            </>
+          )}
         </Section>
       )}
 
@@ -208,6 +246,17 @@ export function SoulCard({ soul, version, name, avatar_url }: SoulCardProps) {
               {cs.common_phrases.map((phrase: string, i: number) => (
                 <span key={i} className="px-2 py-0.5 bg-[rgba(0,0,0,0.03)] rounded-full text-xs text-[#86868B] font-light">"{phrase}"</span>
               ))}
+            </div>
+          )}
+          {/* v2 communication nuance merged */}
+          {isV2 && cs.extra && (cs.extra.written || cs.extra.spoken || cs.extra.to_strangers || cs.extra.to_intimates) && (
+            <div className="mt-3 pt-3 border-t border-[rgba(0,0,0,0.05)]">
+              <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs text-[#86868B] font-light">
+                {cs.extra.written && <div><span className="text-[#1D1D1F]">Written:</span><br/>{cs.extra.written}</div>}
+                {cs.extra.spoken && <div><span className="text-[#1D1D1F]">Spoken:</span><br/>{cs.extra.spoken}</div>}
+                {cs.extra.to_strangers && <div><span className="text-[#1D1D1F]">To strangers:</span><br/>{cs.extra.to_strangers}</div>}
+                {cs.extra.to_intimates && <div><span className="text-[#1D1D1F]">To intimates:</span><br/>{cs.extra.to_intimates}</div>}
+              </div>
             </div>
           )}
         </Section>
@@ -366,7 +415,6 @@ export function SoulCard({ soul, version, name, avatar_url }: SoulCardProps) {
         </Section>
       )}
 
-      {/* Emotional Reactive System */}
       {isV2 && v2emo && (v2emo.triggers?.length > 0 || v2emo.self_protection_mechanisms?.length > 0) && (
         <Section title="Emotional System">
           {v2emo.triggers?.length > 0 && (
