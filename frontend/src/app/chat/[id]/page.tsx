@@ -72,7 +72,7 @@ export default function ChatPage() {
     if (!el) return;
     // Use setTimeout to ensure DOM has been fully rendered
     setTimeout(() => {
-      el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+      el.scrollTop = el.scrollHeight;
     }, 0);
   };
 
@@ -135,7 +135,7 @@ export default function ChatPage() {
   const n = persona?.name || "person";
 
   return (
-    <div className="flex flex-col bg-white overflow-hidden" style={{ height: '100dvh' }}>
+    <div className="flex flex-col bg-white overflow-hidden" style={{ height: .100dvh., maxHeight: .100dvh. }}>
       <header className="shrink-0 border-b border-[rgba(0,0,0,0.06)] bg-white/95 z-10">
         <div className="max-w-3xl mx-auto px-4 h-14 flex items-center gap-3">
           <button onClick={() => router.push("/chats")} className="text-[#86868B] hover:text-[#1D1D1F] p-1.5 -ml-1.5 rounded-full hover:bg-[rgba(0,0,0,0.04)] active:bg-[rgba(0,0,0,0.08)] transition-colors">
@@ -146,7 +146,7 @@ export default function ChatPage() {
         </div>
       </header>
 
-      <div ref={msgContainerRef} className="flex-1 overflow-y-auto px-4 py-4" style={{ overscrollBehavior: 'contain', paddingBottom: 'calc(env(safe-area-inset-bottom) + 120px)', WebkitOverflowScrolling: 'touch' }}>
+      <div ref={msgContainerRef} className="flex-1 overflow-y-auto px-4 py-4" style={{ overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch' }}>
         <div className="max-w-3xl mx-auto">
           {msgs.length === 0 && !liveContent && (
             <div className="text-center pt-24">
@@ -188,7 +188,7 @@ export default function ChatPage() {
         </div>
       </div>
 
-      <footer className="fixed bottom-0 left-0 right-0 z-40 border-t border-[rgba(0,0,0,0.06)] bg-white/95" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+      <footer className="shrink-0 border-t border-[rgba(0,0,0,0.06)] bg-white/95" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
         <div className="max-w-3xl mx-auto px-4 py-4 flex gap-2">
           <input value={input} onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && send()}
