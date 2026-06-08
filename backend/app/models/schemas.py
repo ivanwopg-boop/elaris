@@ -137,7 +137,7 @@ class PersonaOut(BaseModel):
 
 
 class PersonaDetail(PersonaOut):
-    soul: PersonaProfile | None = None  # current language soul
+    soul: dict | None = None  # current language soul
     file_count: int = 0
     soul_version: int | None = None
     souls_by_lang: dict[str, dict] = {}  # {"en": {version, has_soul}, "zh-CN": {...}}
@@ -198,7 +198,7 @@ class WebSearchResultOut(BaseModel):
 class DistillResponse(BaseModel):
     persona_id: str
     version: int
-    soul: PersonaProfile
+    soul: dict
     sources_used: int
 
 

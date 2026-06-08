@@ -147,7 +147,8 @@ async def run_distillation(
     await _check_persona(persona_id, user.id, db)
     try:
         await ensure_web_search_results(persona_id, db)
-        result = await distill_persona(persona_id, db, lang=lang)
+        result = await distill_persona(persona_id, db, lang=lang, use_v2=use_v2)
+        result["soul"] = result["soul"].model_dump()
         return DistillResponse(**result)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
