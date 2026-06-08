@@ -187,7 +187,8 @@ export function SoulCard({ soul, version, name, avatar_url }: SoulCardProps) {
       </div>
 
       {/* Personality */}
-      {p && (p.extrovert_level > 0 || p.rational_level > 0 || p.risk_tolerance > 0) && (
+      {/* v1: bars + description */}
+      {!isV2 && p && (p.extrovert_level > 0 || p.rational_level > 0 || p.risk_tolerance > 0) && (
         <Section title={i18n.personality}>
           <div className="space-y-2">
             <Bar label={i18n.extroversion} value={p.extrovert_level || 0} />
@@ -195,61 +196,76 @@ export function SoulCard({ soul, version, name, avatar_url }: SoulCardProps) {
             <Bar label={i18n.risk_tolerance} value={p.risk_tolerance || 0} />
           </div>
           {p.description && <p className="text-xs text-[#86868B] font-light mt-2">{p.description}</p>}
-          {/* v2 emotional system merged into personality */}
-          {isV2 && v2emo && (
-            <>
-              {v2emo.triggers?.length > 0 && (
-                <div className="mt-3 pt-3 border-t border-[rgba(0,0,0,0.05)]">
-                  <span className="text-[10px] text-[#86868B] font-light uppercase tracking-wide">Triggers</span>
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {v2emo.triggers.map((t: string, i: number) => (
-                      <span key={i} className="px-2 py-0.5 bg-[rgba(255,149,0,0.06)] text-[#FF9500] border border-[rgba(255,149,0,0.15)] rounded-full text-xs font-light">{t}</span>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {v2emo.self_protection_mechanisms?.length > 0 && (
-                <div className="mt-2">
-                  <span className="text-[10px] text-[#86868B] font-light uppercase tracking-wide">Defense mechanisms</span>
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {v2emo.self_protection_mechanisms.map((m: string, i: number) => (
-                      <span key={i} className="px-2 py-0.5 bg-[rgba(175,82,222,0.06)] text-[#AF52DE] border border-[rgba(175,82,222,0.15)] rounded-full text-xs font-light">{m}</span>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {v2emo.dormant_points?.length > 0 && (
-                <div className="mt-2">
-                  <span className="text-[10px] text-[#86868B] font-light uppercase tracking-wide">Dormant / withdrawal</span>
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {v2emo.dormant_points.map((d: string, i: number) => (
-                      <span key={i} className="px-2 py-0.5 bg-[rgba(0,0,0,0.03)] text-[#6E6E73] rounded-full text-xs font-light">{d}</span>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {v2emo.under_stress && <p className="text-xs text-[#86868B] font-light mt-2"><span className="text-[#1D1D1F]">Under stress:</span> {v2emo.under_stress}</p>}
-              {v2emo.when_agreed_with && <p className="text-xs text-[#86868B] font-light mt-1"><span className="text-[#1D1D1F]">When agreed with:</span> {v2emo.when_agreed_with}</p>}
-              {v2emo.when_challenged && <p className="text-xs text-[#86868B] font-light mt-1"><span className="text-[#1D1D1F]">When challenged:</span> {v2emo.when_challenged}</p>}
-            </>
+        </Section>
+      )}
+      {/* v2: emotional system + self description */}
+      {isV2 && v2ident && (
+        <Section title={i18n.personality}>
+          {v2ident.self_description && <p className="text-xs text-[#1D1D1F] font-light italic">“{v2ident.self_description}”</p>}
+          {v2ident.how_the_world_sees_them && <p className="text-xs text-[#86868B] font-light mt-1">{v2ident.how_the_world_sees_them}</p>}
+          {v2emo.triggers?.length > 0 && (
+            <div className="mt-3 pt-3 border-t border-[rgba(0,0,0,0.05)]">
+              <span className="text-[10px] text-[#86868B] font-light uppercase tracking-wide">Triggers</span>
+              <div className="flex flex-wrap gap-1 mt-1">
+                {v2emo.triggers.map((t: string, i: number) => (
+                  <span key={i} className="px-2 py-0.5 bg-[rgba(255,149,0,0.06)] text-[#FF9500] border border-[rgba(255,149,0,0.15)] rounded-full text-xs font-light">{t}</span>
+                ))}
+              </div>
+            </div>
           )}
+          {v2emo.self_protection_mechanisms?.length > 0 && (
+            <div className="mt-2">
+              <span className="text-[10px] text-[#86868B] font-light uppercase tracking-wide">Defense mechanisms</span>
+              <div className="flex flex-wrap gap-1 mt-1">
+                {v2emo.self_protection_mechanisms.map((m: string, i: number) => (
+                  <span key={i} className="px-2 py-0.5 bg-[rgba(175,82,222,0.06)] text-[#AF52DE] border border-[rgba(175,82,222,0.15)] rounded-full text-xs font-light">{m}</span>
+                ))}
+              </div>
+            </div>
+          )}
+          {v2emo.dormant_points?.length > 0 && (
+            <div className="mt-2">
+              <span className="text-[10px] text-[#86868B] font-light uppercase tracking-wide">Dormant / withdrawal</span>
+              <div className="flex flex-wrap gap-1 mt-1">
+                {v2emo.dormant_points.map((d: string, i: number) => (
+                  <span key={i} className="px-2 py-0.5 bg-[rgba(0,0,0,0.03)] text-[#6E6E73] rounded-full text-xs font-light">{d}</span>
+                ))}
+              </div>
+            </div>
+          )}
+          {v2emo.under_stress && <p className="text-xs text-[#86868B] font-light mt-2"><span className="text-[#1D1D1F]">Under stress:</span> {v2emo.under_stress}</p>}
+          {v2emo.when_agreed_with && <p className="text-xs text-[#86868B] font-light mt-1"><span className="text-[#1D1D1F]">When agreed with:</span> {v2emo.when_agreed_with}</p>}
+          {v2emo.when_challenged && <p className="text-xs text-[#86868B] font-light mt-1"><span className="text-[#1D1D1F]">When challenged:</span> {v2emo.when_challenged}</p>}
         </Section>
       )}
 
       {/* Communication Style */}
-      {cs && (cs.formal_level > 0 || cs.tone || cs.common_phrases?.length > 0) && (
+      {/* v1: formality bar + tone + phrases */}
+      {!isV2 && cs && (cs.formal_level > 0 || cs.tone || cs.common_phrases?.length > 0) && (
         <Section title={i18n.communication_style}>
           <Bar label={i18n.formality} value={cs.formal_level || 0} />
           {cs.tone && <p className="text-xs text-[#86868B] font-light mt-1">{i18n.tone}：{cs.tone}</p>}
           {cs.common_phrases?.length > 0 && (
             <div className="mt-2 flex flex-wrap gap-1">
               {cs.common_phrases.map((phrase: string, i: number) => (
-                <span key={i} className="px-2 py-0.5 bg-[rgba(0,0,0,0.03)] rounded-full text-xs text-[#86868B] font-light">"{phrase}"</span>
+                <span key={i} className="px-2 py-0.5 bg-[rgba(0,0,0,0.03)] rounded-full text-xs text-[#86868B] font-light">“{phrase}”</span>
               ))}
             </div>
           )}
-          {/* v2 communication nuance merged */}
-          {isV2 && cs.extra && (cs.extra.written || cs.extra.spoken || cs.extra.to_strangers || cs.extra.to_intimates) && (
+        </Section>
+      )}
+      {/* v2: tone + phrases + written/spoken/strangers/intimates */}
+      {isV2 && cs && (cs.tone || cs.common_phrases?.length > 0) && (
+        <Section title={i18n.communication_style}>
+          {cs.tone && <p className="text-xs text-[#1D1D1F] font-light italic">{cs.tone}</p>}
+          {cs.common_phrases?.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1">
+              {cs.common_phrases.map((phrase: string, i: number) => (
+                <span key={i} className="px-2 py-0.5 bg-[rgba(0,113,227,0.06)] rounded-full text-xs text-[#0071E3] font-light">{phrase}</span>
+              ))}
+            </div>
+          )}
+          {cs.extra && (cs.extra.written || cs.extra.spoken || cs.extra.to_strangers || cs.extra.to_intimates) && (
             <div className="mt-3 pt-3 border-t border-[rgba(0,0,0,0.05)]">
               <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs text-[#86868B] font-light">
                 {cs.extra.written && <div><span className="text-[#1D1D1F]">Written:</span><br/>{cs.extra.written}</div>}
