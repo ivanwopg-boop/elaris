@@ -17,6 +17,7 @@ interface PersonaSummary {
   created_at: string;
   updated_at: string;
   has_soul: boolean;
+  category?: string | null;
 }
 
 type TabKey = 'chat' | 'contacts' | 'discover' | 'me';
@@ -33,24 +34,7 @@ const PRESET_CATEGORIES = [
   { key: "thinker", label: "Thinkers" },
 ];
 
-const CATEGORY_KEYWORDS: Record<string, string[]> = {
-  "tech": ["Elon Musk", "Steve Jobs", "Sam Altman", "Steve Wozniak", "Larry Page", "Sergey Brin", "Bill Gates", "Tim Cook", "Jony Ive", "Geoffrey Hinton", "Yann LeCun", "Andrew Ng", "MrBeast", "Nassim Taleb"],
-  "chinese": ["Mo Yan", "Li Ao", "Han Han", "Wang Shuo", "Mu Xin", "Lu Xun", "Dangnianmingyue", "Murong Xuecun", "当年明月", "Zhang Yiming", "Jack Ma", "Wu Jun", "Li Yongle"],
-  "world": ["Lee Hsien Loong", "Hun Sen", "Srettha Thavisin", "Narendra Modi", "Joko Widodo", "Benjamin Netanyahu", "Angela Merkel", "Volodymyr Zelenskyy", "Vladimir Putin", "Emmanuel Macron", "Justin Trudeau", "Joe Biden", "Barack Obama", "Donald Trump", "Mao Zedong"],
-  "sports": ["Cristiano Ronaldo", "Lionel Messi", "LeBron James", "Michael Jordan", "Novak Djokovic", "Tiger Woods", "Chris Paul"],
-  "entertainment": ["Lady Gaga", "James Cameron", "Christopher Nolan", "Hayao Miyazaki", "Joe Rogan"],
-  "business": ["Warren Buffett", "Charlie Munger", "Jeff Bezos", "Larry Ellison"],
-  "thinker": ["Li Bai", "Su Shi", "Wang Yangming", "Zeng Guofan"],
-};
 
-function getCategory(name: string): string {
-  for (const [cat, names] of Object.entries(CATEGORY_KEYWORDS)) {
-    for (const n of names) {
-      if (name.toLowerCase().includes(n.toLowerCase())) return cat;
-    }
-  }
-  return "other";
-}
 
 // ── Helpers ───────────────────────────────────────────────────
 
@@ -377,12 +361,12 @@ function DiscoverTab({ tabStrings, onContactAdded }: { tabStrings: Record<string
   const CATEGORIES = [
     { key: "all", label: lang === "zh-CN" ? "全部" : "All" },
     { key: "tech", label: lang === "zh-CN" ? "科技" : "Tech" },
-    { key: "chinese", label: lang === "zh-CN" ? "中文人物" : "Chinese" },
-    { key: "world", label: lang === "zh-CN" ? "世界领袖" : "World Leaders" },
-    { key: "sports", label: lang === "zh-CN" ? "体育" : "Sports" },
-    { key: "entertainment", label: lang === "zh-CN" ? "娱乐" : "Entertainment" },
     { key: "business", label: lang === "zh-CN" ? "商业" : "Business" },
-    { key: "thinker", label: lang === "zh-CN" ? "思想家" : "Thinkers" },
+    { key: "entertainment", label: lang === "zh-CN" ? "文艺" : "Arts" },
+    { key: "sports", label: lang === "zh-CN" ? "体育" : "Sports" },
+    { key: "politics", label: lang === "zh-CN" ? "政界" : "Politics" },
+    { key: "science", label: lang === "zh-CN" ? "科学" : "Science" },
+    { key: "other", label: lang === "zh-CN" ? "其他" : "Other" },
   ];
   const router = useRouter();
   const token = useAuthStore((s) => s.token);
@@ -441,7 +425,7 @@ function DiscoverTab({ tabStrings, onContactAdded }: { tabStrings: Record<string
     }
   };
 
-  const filtered = activeCat === "all" ? presets : presets.filter((p) => getCategory(p.name) === activeCat);
+  const filtered = activeCat === "all" ? presets : presets.filter((p) => (p.category || "other") === activeCat);
 
   return (
     <div>
