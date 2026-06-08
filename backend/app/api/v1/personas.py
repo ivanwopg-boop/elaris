@@ -197,7 +197,7 @@ async def upload_avatar(
     return {"avatar_url": persona.avatar_url}
 
 
-DEFAULT_AVATAR_URL = "https://api.dicebear.com/9.x/shapes/svg?seed="
+DEFAULT_AVATAR_URL = "https://api.dicebear.com/9.x/shapes/svg?seed="shapes/svg?seed="backgroundColor=1D1D1F,2D2D2F,0071E3,86868B,4A4A4D"
 
 
 def generate_avatar_url(name: str) -> str:

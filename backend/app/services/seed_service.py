@@ -10,7 +10,7 @@ from app.presets import PRESET_PERSONAS
 
 
 def _avatar(name: str) -> str:
-    return f"https://api.dicebear.com/9.x/shapes/svg?seed={name}"
+    return f"https://api.dicebear.com/9.x/shapes/svg?seed={name}shapes/svg?seed={name}backgroundColor=1D1D1F,2D2D2F,0071E3,86868B,4A4A4D"
 
 
 async def seed_presets(db: AsyncSession) -> int:
