@@ -689,7 +689,7 @@ function ChatsContent() {
           >
             <div className="h-1 w-10 rounded-full bg-[#D1D1D6] absolute top-2 left-1/2 -translate-x-1/2" />
             <div className="pt-6 pb-8 px-4">
-              <p className="text-center text-sm font-light text-[#86868B] mb-4">Choose an action</p>
+              <p className="text-center text-sm font-light text-[#86868B] mb-4">{t.choose_action || "Choose an action"}</p>
               <div className="space-y-2">
                 <button
                   onClick={() => { setShowActionSheet(false); router.push('/group-chat/new'); }}
@@ -699,8 +699,8 @@ function ChatsContent() {
                     <Users size={20} strokeWidth={1.5} className="text-white" />
                   </div>
                   <div className="text-left flex-1">
-                    <p className="text-sm font-normal text-[#1D1D1F]">Create Group Chat</p>
-                    <p className="text-xs text-[#86868B] font-light">Chat with multiple personas</p>
+                    <p className="text-sm font-normal text-[#1D1D1F]">{t.create_group_chat || "Create Group Chat"}</p>
+                    <p className="text-xs text-[#86868B] font-light">{t.chat_with_multi || "Chat with multiple personas"}</p>
                   </div>
                 </button>
                 <button
@@ -711,8 +711,8 @@ function ChatsContent() {
                     <Sparkles size={20} strokeWidth={1.5} className="text-white" />
                   </div>
                   <div className="text-left flex-1">
-                    <p className="text-sm font-normal text-[#1D1D1F]">Create Persona</p>
-                    <p className="text-xs text-[#86868B] font-light">Distill your own AI twin</p>
+                    <p className="text-sm font-normal text-[#1D1D1F]">{t.create_persona || "Create Persona"}</p>
+                    <p className="text-xs text-[#86868B] font-light">{t.distill_twin || "Distill your own AI twin"}</p>
                   </div>
                 </button>
               </div>

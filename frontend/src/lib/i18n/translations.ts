@@ -242,6 +242,9 @@ clarity_vs_impress_label: "Clarity vs. Impress",
     // Brainstorm/[id]
     delete_discussion: "Delete this discussion?",
     analyzing: "Analyzing...",
+    choose_action: "Choose an action",
+    chat_with_multi: "Chat with multiple personas",
+    distill_twin: "Distill your own AI twin",
   },
   'zh-CN': {
     sign_in: "登录",
@@ -473,6 +476,9 @@ clarity_vs_impress_label: "清晰vs.展示",
     guest_prompt_title: "注册账号保存对话，解锁全部 100+ 人物",
     sign_up_free: "免费注册",
     delete_failed: "删除失败",
+    choose_action: "选择一个操作",
+    chat_with_multi: "与多位分身同时对话",
+    distill_twin: "蒸馏你自己的AI分身",
   },
 };
 

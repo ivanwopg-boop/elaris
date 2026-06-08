@@ -242,7 +242,7 @@ if (loading) {
           )}
 
           {files.length === 0 ? (
-            <p className="text-center text-[#86868B] text-xs font-light py-12">No files</p>
+            <p className="text-center text-[#86868B] text-xs font-light py-12">{t.no_files || "No files"}</p>
           ) : (
             <div className="space-y-2">
               {files.map((f) => (
