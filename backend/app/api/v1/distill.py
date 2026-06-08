@@ -140,6 +140,7 @@ async def list_web_searches(persona_id: str, user: User = Depends(require_auth),
 async def run_distillation(
     persona_id: str,
     lang: str = Query("en", description="Language: en | zh-CN"),
+    use_v2: bool = Query(True, description="Use v2 cognitive profile schema"),
     user: User = Depends(require_auth),
     db: AsyncSession = Depends(get_db),
 ):
