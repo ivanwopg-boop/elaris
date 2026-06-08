@@ -65,8 +65,19 @@ export function SoulCard({ soul, version, name, avatar_url }: SoulCardProps) {
   // communication_style — v2: communication_profile
   const v2comm = (isV2 && soul.communication_profile) ? soul.communication_profile : {};
   const cs = isV2 ? {
-    tone: v2comm.in_public_forum || v2comm.punctuation_habits || '',
+    tone: [
+      v2comm.default_register ? 'Register: ' + v2comm.default_register : '',
+      v2comm.humor_register ? 'Humor: ' + v2comm.humor_register : '',
+      v2comm.punctuation_habits || '',
+      v2comm.how_they_use_silence || '',
+    ].filter(Boolean).join(' | ') || '',
     common_phrases: v2comm.signature_expressions || [],
+    extra: {
+      written: (v2comm.written_vs_spoken || {}).written || '',
+      spoken: (v2comm.written_vs_spoken || {}).spoken || '',
+      to_strangers: (v2comm.to_strangers_vs_intimates || {}).strangers || '',
+      to_intimates: (v2comm.to_strangers_vs_intimates || {}).intimates || '',
+    },
   } : (soul.communication_style || {});
 
   // expression_dna — v2: communication_profile details
@@ -309,6 +320,167 @@ export function SoulCard({ soul, version, name, avatar_url }: SoulCardProps) {
                 )}
               </div>
             ))}
+          </div>
+        </Section>
+      )}
+
+      {/* ═══════════════════════════════════ */}
+      {/* V2-ONLY SECTIONS                    */}
+      {/* ═══════════════════════════════════ */}
+
+      {/* Voice Samples */}
+      {isV2 && (soul.voice_samples) && (soul.voice_samples.on_topic_they_love || soul.voice_samples.on_topic_they_resist) && (
+        <Section title="Voice Samples">
+          <div className="space-y-2">
+            {soul.voice_samples.on_topic_they_love && (
+              <div className="p-2.5 rounded-[6px] bg-[rgba(0,0,0,0.02)] border-l-2 border-l-[#0071E3]">
+                <span className="text-[10px] text-[#86868B] font-light uppercase tracking-wide">On what they love</span>
+                <p className="text-xs text-[#1D1D1F] font-light mt-0.5 italic">&ldquo;{soul.voice_samples.on_topic_they_love}&rdquo;</p>
+              </div>
+            )}
+            {soul.voice_samples.on_topic_they_resist && (
+              <div className="p-2.5 rounded-[6px] bg-[rgba(0,0,0,0.02)] border-l-2 border-l-[#FF9500]">
+                <span className="text-[10px] text-[#86868B] font-light uppercase tracking-wide">On what they resist</span>
+                <p className="text-xs text-[#1D1D1F] font-light mt-0.5 italic">&ldquo;{soul.voice_samples.on_topic_they_resist}&rdquo;</p>
+              </div>
+            )}
+            {soul.voice_samples.on_topic_they_decline && (
+              <div className="p-2.5 rounded-[6px] bg-[rgba(0,0,0,0.02)] border-l-2 border-l-[#86868B]">
+                <span className="text-[10px] text-[#86868B] font-light uppercase tracking-wide">On declining</span>
+                <p className="text-xs text-[#1D1D1F] font-light mt-0.5 italic">&ldquo;{soul.voice_samples.on_topic_they_decline}&rdquo;</p>
+              </div>
+            )}
+            {soul.voice_samples.when_explaining_something_complex && (
+              <div className="p-2.5 rounded-[6px] bg-[rgba(0,0,0,0.02)] border-l-2 border-l-[#34C759]">
+                <span className="text-[10px] text-[#86868B] font-light uppercase tracking-wide">Explaining complexity</span>
+                <p className="text-xs text-[#1D1D1F] font-light mt-0.5 italic">&ldquo;{soul.voice_samples.when_explaining_something_complex}&rdquo;</p>
+              </div>
+            )}
+            {soul.voice_samples.when_pushed_on_a_contradiction && (
+              <div className="p-2.5 rounded-[6px] bg-[rgba(0,0,0,0.02)] border-l-2 border-l-[#AF52DE]">
+                <span className="text-[10px] text-[#86868B] font-light uppercase tracking-wide">On contradiction</span>
+                <p className="text-xs text-[#1D1D1F] font-light mt-0.5 italic">&ldquo;{soul.voice_samples.when_pushed_on_a_contradiction}&rdquo;</p>
+              </div>
+            )}
+          </div>
+        </Section>
+      )}
+
+      {/* Emotional Reactive System */}
+      {isV2 && v2emo && (v2emo.triggers?.length > 0 || v2emo.self_protection_mechanisms?.length > 0) && (
+        <Section title="Emotional System">
+          {v2emo.triggers?.length > 0 && (
+            <div className="mb-2">
+              <span className="text-[10px] text-[#86868B] font-light">Triggers</span>
+              <div className="flex flex-wrap gap-1 mt-1">
+                {v2emo.triggers.map((t: string, i: number) => (
+                  <span key={i} className="px-2 py-0.5 bg-[rgba(255,149,0,0.06)] text-[#FF9500] border border-[rgba(255,149,0,0.15)] rounded-full text-xs font-light">{t}</span>
+                ))}
+              </div>
+            </div>
+          )}
+          {v2emo.self_protection_mechanisms?.length > 0 && (
+            <div className="mb-2">
+              <span className="text-[10px] text-[#86868B] font-light">Defense mechanisms</span>
+              <div className="flex flex-wrap gap-1 mt-1">
+                {v2emo.self_protection_mechanisms.map((m: string, i: number) => (
+                  <span key={i} className="px-2 py-0.5 bg-[rgba(175,82,222,0.06)] text-[#AF52DE] border border-[rgba(175,82,222,0.15)] rounded-full text-xs font-light">{m}</span>
+                ))}
+              </div>
+            </div>
+          )}
+          {v2emo.dormant_points?.length > 0 && (
+            <div>
+              <span className="text-[10px] text-[#86868B] font-light">Dormant / withdrawal</span>
+              <div className="flex flex-wrap gap-1 mt-1">
+                {v2emo.dormant_points.map((d: string, i: number) => (
+                  <span key={i} className="px-2 py-0.5 bg-[rgba(0,0,0,0.03)] text-[#6E6E73] rounded-full text-xs font-light">{d}</span>
+                ))}
+              </div>
+            </div>
+          )}
+        </Section>
+      )}
+
+      {/* Deep Convictions */}
+      {isV2 && v2cog && (v2cog.what_they_know_for_certain?.length > 0 || v2cog.what_they_suspect_but_never_state?.length > 0) && (
+        <Section title="Deep Convictions">
+          {v2cog.what_they_know_for_certain?.length > 0 && (
+            <div className="mb-2">
+              <span className="text-[10px] text-[#86868B] font-light">They know for certain</span>
+              <ul className="space-y-1 mt-1">
+                {v2cog.what_they_know_for_certain.map((k: string, i: number) => (
+                  <li key={i} className="text-xs text-[#1D1D1F] font-light flex gap-2">
+                    <span className="text-[#0071E3] font-light shrink-0">{i + 1}.</span>
+                    <span>{k}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {v2cog.what_they_suspect_but_never_state?.length > 0 && (
+            <div className="mb-2">
+              <span className="text-[10px] text-[#86868B] font-light">They suspect but never say</span>
+              <ul className="space-y-1 mt-1">
+                {v2cog.what_they_suspect_but_never_state.map((k: string, i: number) => (
+                  <li key={i} className="text-xs text-[#86868B] font-light flex gap-2">
+                    <span className="text-[#86868B] font-light shrink-0">&bull;</span>
+                    <span className="italic">&ldquo;{k}&rdquo;</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {v2cog.what_they_publicly_contradicted?.length > 0 && (
+            <div>
+              <span className="text-[10px] text-[#86868B] font-light">Positions they reversed</span>
+              <div className="space-y-1.5 mt-1">
+                {v2cog.what_they_publicly_contradicted.map((c: any, i: number) => (
+                  <div key={i} className="p-2 rounded-[6px] bg-[rgba(0,0,0,0.02)]">
+                    <p className="text-xs text-[#1D1D1F] font-light">{c.claim}</p>
+                    {c.context && <p className="text-[10px] text-[#86868B] font-light mt-0.5">{c.context}</p>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </Section>
+      )}
+
+      {/* Communication Nuance */}
+      {isV2 && cs.extra && Object.values(cs.extra).some(Boolean) && (
+        <Section title="Communication Nuance">
+          <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs text-[#86868B] font-light">
+            {cs.extra.written && <div><span className="text-[#1D1D1F]">Written:</span><br/>{cs.extra.written}</div>}
+            {cs.extra.spoken && <div><span className="text-[#1D1D1F]">Spoken:</span><br/>{cs.extra.spoken}</div>}
+            {cs.extra.to_strangers && <div><span className="text-[#1D1D1F]">To strangers:</span><br/>{cs.extra.to_strangers}</div>}
+            {cs.extra.to_intimates && <div><span className="text-[#1D1D1F]">To intimates:</span><br/>{cs.extra.to_intimates}</div>}
+          </div>
+        </Section>
+      )}
+
+      {/* Temporal Profile */}
+      {isV2 && (soul.temporal_profile) && (
+        <Section title="Evolution Over Time">
+          <div className="space-y-2 text-xs text-[#86868B] font-light">
+            {soul.temporal_profile.how_they_changed_over_time && (
+              <div>
+                <span className="text-[10px] text-[#1D1D1F]">How they changed:</span>
+                <p className="mt-0.5">{soul.temporal_profile.how_they_changed_over_time}</p>
+              </div>
+            )}
+            {soul.temporal_profile.what_would_change_if_lived_another_decade && (
+              <div>
+                <span className="text-[10px] text-[#1D1D1F]">Next decade outlook:</span>
+                <p className="mt-0.5">{soul.temporal_profile.what_would_change_if_lived_another_decade}</p>
+              </div>
+            )}
+            {soul.temporal_profile.what_they_regret_not_saying_sooner && (
+              <div>
+                <span className="text-[10px] text-[#1D1D1F]">Regret not saying sooner:</span>
+                <p className="mt-0.5 italic">&ldquo;{soul.temporal_profile.what_they_regret_not_saying_sooner}&rdquo;</p>
+              </div>
+            )}
           </div>
         </Section>
       )}
