@@ -186,6 +186,7 @@ async def distill_persona(persona_id: str, db: AsyncSession, lang: str = "en",
     db.add(new_soul)
 
     # 9. Auto-update persona.description from v2 identity
+        if lang == 'en':
     if use_v2:
         try:
             v2_data = json.loads(soul_json)
