@@ -151,8 +151,10 @@ async def run_distillation(
         souls = {}
         version = 0
         sources_used = 0
-        for target_lang in ["en", "zh-CN"]:
-            result = await distill_persona(persona_id, db, lang=target_lang, use_v2=use_v2)
+        # en: v2 cognitive profile | zh-CN: v1 traditional profile
+        lang_configs = [("en", True), ("zh-CN", False)]
+        for target_lang, target_v2 in lang_configs:
+            result = await distill_persona(persona_id, db, lang=target_lang, use_v2=target_v2)
             souls[target_lang] = result["soul"].model_dump()
             version = max(version, result["version"])
             sources_used = result["sources_used"]
