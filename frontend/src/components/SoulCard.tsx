@@ -557,17 +557,6 @@ export function SoulCard({ soul, version, name, avatar_url }: SoulCardProps) {
         </Section>
       )}
 
-      {/* Communication Nuance */}
-      {isV2 && cs.extra && Object.values(cs.extra).some(Boolean) && (
-        <Section title="Communication Nuance">
-          <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs text-[#86868B] font-light">
-            {cs.extra.written && <div><span className="text-[#1D1D1F]">{i18n.written_label}:</span><br/>{cs.extra.written}</div>}
-            {cs.extra.spoken && <div><span className="text-[#1D1D1F]">{i18n.spoken_label}:</span><br/>{cs.extra.spoken}</div>}
-            {cs.extra.to_strangers && <div><span className="text-[#1D1D1F]">{i18n.to_strangers_label}:</span><br/>{cs.extra.to_strangers}</div>}
-            {cs.extra.to_intimates && <div><span className="text-[#1D1D1F]">{i18n.to_intimates_label}:</span><br/>{cs.extra.to_intimates}</div>}
-          </div>
-        </Section>
-      )}
 
       {/* Temporal Profile */}
       {isV2 && (soul.temporal_profile) && (
