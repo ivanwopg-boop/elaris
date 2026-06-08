@@ -46,7 +46,11 @@ export function SoulCard({ soul, version, name, avatar_url }: SoulCardProps) {
     );
   }
 
-  const bi = soul.basic_info || {};
+  // Support both v1 (basic_info) and v2 (identity) schemas
+  const isV2 = soul.schema_version === '2.0';
+  const bi = isV2 && soul.identity
+    ? { name: soul.identity.name, title: soul.identity.title, company: soul.identity.organization, background: soul.identity.life_arc }
+    : (soul.basic_info || {});
   const p = soul.personality || {};
   const cs = soul.communication_style || {};
   const dp = soul.decision_patterns || {};
