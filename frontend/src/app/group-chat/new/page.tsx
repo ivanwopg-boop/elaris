@@ -73,7 +73,7 @@ export default function NewGroupChatPage() {
                   </div>
                   {selected.includes(p.id) && (
                     <input value={roles[p.id] || ""} onChange={(e) => setRoles((r) => ({ ...r, [p.id]: e.target.value }))}
-                      placeholder="{t.role_placeholder || "Role (e.g.: Technical Advisor)"}"
+                      placeholder={{t.role_placeholder || "Role (e.g.: Technical Advisor)"}
                       className="w-full mt-2 bg-white border border-[rgba(0,0,0,0.08)] rounded-[8px] px-3 py-1.5 text-xs text-[#1D1D1F] placeholder-[#86868B] focus:outline-none focus:border-[#0071E3] font-light"
                       onClick={(e) => e.stopPropagation()} />
                   )}
