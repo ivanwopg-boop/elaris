@@ -145,7 +145,7 @@ return (
         </div>
       </header>
 
-      <div ref={msgContainerRef} className="flex-1 overflow-y-auto px-4 py-4" style={{ overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch' }}>
+      <div ref={msgContainerRef} className="flex-1 overflow-y-auto px-4 pt-4 pb-32" style={{ overscrollBehavior: 'contain' }}>
         <div className="max-w-3xl mx-auto">
           {msgs.length === 0 && !liveContent && (
             <div className="text-center pt-24">
@@ -191,7 +191,6 @@ return (
         <div className="max-w-3xl mx-auto px-4 py-4 flex gap-2">
           <input value={input} onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && send()}
-            onFocus={() => { setTimeout(() => { if (msgContainerRef.current) msgContainerRef.current.scrollTop = msgContainerRef.current.scrollHeight; }, 350); }}
             placeholder={t.type_message || "Type a message..."}
             className="flex-1 bg-white border border-[rgba(0,0,0,0.08)] rounded-[10px] px-4 py-3 text-base text-[#1D1D1F] placeholder-[#86868B] focus:outline-none focus:border-[#0071E3] font-light" style={{ fontSize: "16px" }}
             disabled={sending} />
