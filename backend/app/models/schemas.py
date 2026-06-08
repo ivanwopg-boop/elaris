@@ -126,6 +126,7 @@ class PersonaUpdate(BaseModel):
 class PersonaOut(BaseModel):
     id: str
     name: str
+    category: str | None = None
     description: str | None
     avatar_url: str | None
     created_at: datetime

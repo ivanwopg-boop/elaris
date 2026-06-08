@@ -329,3 +329,23 @@ async def ensure_web_search_results(persona_id: str, db: AsyncSession) -> None:
 
     await db.commit()
     return
+
+def infer_category(title: str, org: str, domains: list) -> str:
+    """Infer persona category from v2 identity/expertise data."""
+    text = f"{title} {org} {' '.join(domains)}".lower()
+    tech_kw = ["ai", "machine learning", "computer", "software", "tech", "engineer", "programming", "algorithm", "data scientist", "startup", "internet", "robotics", "crypto", "bitcoin"]
+    sports_kw = ["basketball", "football", "soccer", "golf", "tennis", "athlete", "sport", "nba", "nfl", "fifa", "championship", "boxing", "mma", "ufc"]
+    ent_kw = ["music", "film", "movie", "director", "actor", "singer", "rapper", "comedian", "entertainment", "hollywood", "performance", "podcast", "art"]
+    biz_kw = ["business", "entrepreneur", "ceo", "founder", "executive", "venture capital", "investing", "investment", "management", "strategy", "marketing", "finance"]
+    thinker_kw = ["philosophy", "psychology", "neuroscience", "cognitive", "consciousness", "philosopher", "writer", "author", "novelist", "historian", "sociology"]
+    world_kw = ["politician", "president", "government", "leader", "diplomat", "minister", "congress", "parliament", "policy", "governance"]
+    cn_kw = ["china", "chinese", "beijing", "shanghai", "asia", "taiwan", "mandarin", "sichuan"]
+    if any(w in text for w in cn_kw): return "chinese"
+    if any(w in text for w in tech_kw): return "tech"
+    if any(w in text for w in sports_kw): return "sports"
+    if any(w in text for w in ent_kw): return "entertainment"
+    if any(w in text for w in biz_kw): return "business"
+    if any(w in text for w in thinker_kw): return "thinker"
+    if any(w in text for w in world_kw): return "world"
+    return "other"
+

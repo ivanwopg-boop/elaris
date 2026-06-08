@@ -158,6 +158,31 @@ async def run_distillation(
             souls[target_lang] = result["soul"].model_dump()
             version = max(version, result["version"])
             sources_used = result["sources_used"]
+        # Auto-categorize based on v2 soul expertise data
+        en_soul = souls.get("en", {})
+        if en_soul:
+            try:
+                from app.services.distill_service import infer_category
+                identity = en_soul.get("identity", {})
+                expertise = en_soul.get("expertise", {})
+                domains = (expertise.get("deep_domains") or []) + (expertise.get("competent_domains") or [])
+                cat = infer_category(
+                    identity.get("title", ""),
+                    identity.get("organization", ""),
+                    domains,
+                )
+                # Update persona record
+                from sqlalchemy import update
+                from app.models.db_models import Persona
+                await db.execute(
+                    update(Persona).where(Persona.id == persona_id).values(
+                        category=cat, is_public=True
+                    )
+                )
+                await db.commit()
+            except Exception:
+                pass  # Non-critical, don't fail distillation
+
         return DistillResponse(
             persona_id=persona_id,
             soul=souls.get("en", {}),
