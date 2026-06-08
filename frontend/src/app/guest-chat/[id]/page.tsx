@@ -210,7 +210,6 @@ const t2 = translations[lang];
               onChange={(e) => setInput(e.target.value)}
               rows={1}
               onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && send()}
-            onFocus={() => { setTimeout(() => { if (msgContainerRef.current) msgContainerRef.current.scrollTop = msgContainerRef.current.scrollHeight; }, 350); }}
               disabled={sending}
             />
             <Button onClick={send} loading={sending} disabled={!input.trim()}>{t2.send || "Send"}</Button>
