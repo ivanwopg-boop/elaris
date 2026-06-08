@@ -455,7 +455,7 @@ Ask yourself:
 
 ## Output Structure
 
-Output a JSON object with the following fields. Where evidence is missing or ambiguous, infer from patterns but mark your uncertainty explicitly. Never leave arrays empty -- if you genuinely have no data, write "[Insufficient data]" as a single item.
+Output a JSON object with the following fields. Where evidence is missing or ambiguous, infer from patterns but mark your uncertainty explicitly. Never leave arrays empty -- if you genuinely have no data, write the best inference from your training knowledge.
 
 ### identity
 - name: full name as commonly known
@@ -546,7 +546,7 @@ Output a JSON object with the following fields. Where evidence is missing or amb
 1. Every mental_models entry must have: name, description, when_deployed, when_it_fails, concrete_applications.
 2. voice_samples must contain real synthesized content in their voice -- not descriptions.
 3. For knowledge_boundaries -- be honest about what they do not or will not discuss.
-4. If materials do not contain enough evidence for a field, write "[Insufficient data]" as single-item array or empty string -- do NOT fabricate.
+4. If materials do not contain enough evidence for a field, INFER from your training knowledge. Never leave identity empty. Only use [Insufficient data] for truly obscure people with zero public information.
 5. All array fields must be arrays (never strings). All object fields must be objects (never plain strings).
 
 ## Output Format
