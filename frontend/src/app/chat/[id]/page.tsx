@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/Avatar";
 import { api, PersonaDetail } from "@/lib/api";
 
-function TypeText({ text, speed = 35 }: { text: string; speed?: number }) {
+function TypeText({ text, speed = 15 }: { text: string; speed?: number }) {
   const [d, setD] = useState("");
   useEffect(() => {
     setD(""); let i = 0;
@@ -72,7 +72,7 @@ export default function ChatPage() {
     if (!el) return;
     // Use setTimeout to ensure DOM has been fully rendered
     setTimeout(() => {
-      el.scrollTop = el.scrollHeight + 200;
+      el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
     }, 0);
   };
 
@@ -150,7 +150,7 @@ export default function ChatPage() {
         <div className="max-w-3xl mx-auto">
           {msgs.length === 0 && !liveContent && (
             <div className="text-center pt-24">
-              <p className="text-sm text-[#86868B] font-light">Start a conversation with {getLocalizedPresetName(n, lang)}</p>
+              <p className="text-sm text-[#86868B] font-light">{t.start_convo || "Start a conversation with"} {getLocalizedPresetName(n, lang)}</p>
             </div>
           )}
           {msgs.map((m) => (
@@ -181,7 +181,7 @@ export default function ChatPage() {
                   <span className="w-1.5 h-1.5 rounded-full bg-[#6E6E73] animate-bounce [animation-delay:200ms]" />
                   <span className="w-1.5 h-1.5 rounded-full bg-[#6E6E73] animate-bounce [animation-delay:400ms]" />
                 </span>
-                {n} Thinking...
+                {n} {t.thinking || "Thinking..."}
               </div>
             </div>
           )}
@@ -192,10 +192,10 @@ export default function ChatPage() {
         <div className="max-w-3xl mx-auto px-4 py-4 flex gap-2">
           <input value={input} onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && send()}
-            placeholder="Type a message..."
+            placeholder={t.type_message || "Type a message..."}
             className="flex-1 bg-white border border-[rgba(0,0,0,0.08)] rounded-[10px] px-4 py-3 text-sm text-[#1D1D1F] placeholder-[#86868B] focus:outline-none focus:border-[#0071E3] font-light"
             disabled={sending} />
-          <Button onClick={send} loading={sending} disabled={!input.trim()}>Send</Button>
+          <Button onClick={send} loading={sending} disabled={!input.trim()}>{t.send || "Send"}</Button>
         </div>
       </footer>
     </div>

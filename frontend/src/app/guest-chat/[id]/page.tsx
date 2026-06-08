@@ -19,7 +19,7 @@ function saveGuestMessages(personaId: string, msgs: { role: string; content: str
   localStorage.setItem(`guest_msgs_${personaId}`, JSON.stringify(msgs));
 }
 
-function TypeText({ text, speed = 35 }: { text: string; speed?: number }) {
+function TypeText({ text, speed = 15 }: { text: string; speed?: number }) {
   const [d, setD] = useState("");
   useEffect(() => {
     setD(""); let i = 0;
