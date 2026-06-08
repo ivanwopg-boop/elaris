@@ -151,7 +151,7 @@ async def distill_persona(persona_id: str, db: AsyncSession, lang: str = "en",
             return obj
         soul_data = fix_floats(soul_data)
 
-        if use_v2 and lang == 'en':
+        if use_v2:
             profile = CognitiveProfileV2(**soul_data)
         else:
             profile = PersonaProfile(**soul_data)
