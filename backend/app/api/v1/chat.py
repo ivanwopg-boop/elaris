@@ -129,7 +129,7 @@ async def chat_stream(persona_id: str, message: str, conv: str = None, request: 
     # Real-time web search for current information
     search_context = ""
     try:
-        sr = await search_web([message])  # always search (self-hosted, unlimited)
+        sr = await search_web([f"{name} {message} 2026"])  # always search (self-hosted, unlimited)
         if sr and sr[0].get("results"):
             sc_parts = ["\n## Web Search (Real-time " + datetime.now().strftime("%Y-%m-%d") + ")"]
             for r in sr[0]["results"][:4]:
@@ -150,7 +150,7 @@ async def chat_stream(persona_id: str, message: str, conv: str = None, request: 
     history_msgs = []
     if conv:
         from app.models.db_models import ConversationMessage
-        from sqlalchemy import select
+        # select already imported at module level
         hres = await db.execute(
             select(ConversationMessage).where(ConversationMessage.conversation_id == conv)
             .order_by(ConversationMessage.created_at.desc()).limit(10)
@@ -268,7 +268,7 @@ async def _handle_mode(request: ChatRequest, user_id: str, db: AsyncSession) -> 
     if request.mode == "chat":
         search_context = ""
         try:
-            sr = await search_web([request.message])  # always search (self-hosted, unlimited)
+            sr = await search_web([f"{info[chr(39)+chr(39).join([])]} {request.message} 2026"])  # always search (self-hosted, unlimited)
             if sr and sr[0].get("results"):
                 sc_parts = ["\n## Web Search (Real-time " + datetime.now().strftime("%Y-%m-%d") + ")"]
                 for r in sr[0]["results"][:4]:
