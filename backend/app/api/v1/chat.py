@@ -127,6 +127,7 @@ async def chat_stream(persona_id: str, message: str, request: Request, db: Async
             raise HTTPException(status_code=403, detail="Login required for this persona")
     info = await _get_soul(persona_id, db)
     system_prompt = CHAT_SYSTEM_PROMPT.format(
+            current_date=datetime.now().strftime("%Y-%m-%d"),
         name=info["name"],
         soul_json=json.dumps(info["soul"], indent=2, ensure_ascii=False),
     )
@@ -239,6 +240,7 @@ async def _handle_mode(request: ChatRequest, user_id: str, db: AsyncSession) -> 
     info = await _get_soul(request.persona_id, db)
     if request.mode == "chat":
         system_prompt = CHAT_SYSTEM_PROMPT.format(
+            current_date=datetime.now().strftime("%Y-%m-%d"),
             name=info["name"], soul_json=json.dumps(info["soul"], indent=2, ensure_ascii=False),
         )
         messages = [{"role": "system", "content": system_prompt}, {"role": "user", "content": request.message}]
