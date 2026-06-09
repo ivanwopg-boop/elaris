@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/Avatar";
 import { api, PersonaDetail } from "@/lib/api";
-import { ChevronLeft, Copy, Trash2, X, Check } from "lucide-react";
+import { ChevronLeft, Copy, Trash2, X, Check, ClipboardCheck } from "lucide-react";
 
 function ft(t: number) {
   if (!t) return "";
@@ -44,6 +44,7 @@ export default function ChatPage() {
   // Selection mode
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (convId) {
@@ -128,6 +129,7 @@ export default function ChatPage() {
       .map(m => `[${m.role === "user" ? "You" : persona?.name || "AI"}]: ${m.content}`)
       .join("\n\n");
     await navigator.clipboard.writeText(texts);
+    setCopied(true); setTimeout(() => setCopied(false), 2000);
     exitSelectMode();
   };
 
@@ -244,7 +246,7 @@ export default function ChatPage() {
         <div className="shrink-0 border-t border-[rgba(0,0,0,0.06)] bg-white/95">
           <div className="max-w-3xl mx-auto px-4 py-3 flex gap-3 justify-center">
             <Button onClick={copySelected} className="flex-1 max-w-[160px] bg-[#0071E3] hover:bg-[#005BB5] text-white rounded-xl h-11 text-sm font-light">
-              <Copy size={16} strokeWidth={1.5} className="mr-2" /> Copy
+              {copied ? <><ClipboardCheck size={16} strokeWidth={1.5} className="mr-2" /> Copied!</> : <><Copy size={16} strokeWidth={1.5} className="mr-2" /> Copy</>}
             </Button>
             <Button onClick={deleteSelected} className="flex-1 max-w-[160px] bg-white border border-[#FF3B30] text-[#FF3B30] hover:bg-[#FFF5F5] rounded-xl h-11 text-sm font-light">
               <Trash2 size={16} strokeWidth={1.5} className="mr-2" /> Delete

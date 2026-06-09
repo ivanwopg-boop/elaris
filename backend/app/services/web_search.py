@@ -97,11 +97,11 @@ async def search_web(queries: list[str]) -> list[dict]:
             bing_results = bing_fut.result()
 
         # Merge and deduplicate
-        merged = _deduplicate(ddg_results + google_results + bing_results)
+        merged = _deduplicate(google_results + ddg_results + bing_results)
         merged = merged[:8]  # Keep top 8 total
 
         # Enrich top results with page content
-        for r in merged[:3]:
+        for r in merged[:5]:
             if r.get("url") and not r.get("content"):
                 content = await _fetch_page_content(r["url"])
                 if content:
