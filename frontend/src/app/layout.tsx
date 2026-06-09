@@ -28,7 +28,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col bg-[#FAFAFA] text-[#1D1D1F] font-sans">
         <HideOnChat><Navbar /></HideOnChat>
         <main className="flex-1">
-          {<ToastProvider>{children}</ToastProvider>}
+          <ToastProvider>{children}</ToastProvider>
         </main>
         <HideOnChat><footer className="border-t border-[rgba(0,0,0,0.06)] py-8 mt-16">
           <div className="max-w-7xl mx-auto px-6 text-center text-xs text-[#86868B] font-light tracking-wide">
