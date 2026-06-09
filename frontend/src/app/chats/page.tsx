@@ -50,26 +50,6 @@ function LoadingSpinner({ message }: { message?: string }) {
   );
 }
 
-// Delete Confirm Dialog (Apple-style)
-function DeleteConfirmDialog({ open, title, message, onConfirm, onCancel }: {
-  open: boolean; title: string; message: string; onConfirm: () => void; onCancel: () => void;
-}) {
-  if (!open) return null;
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-6" onClick={onCancel}>
-      <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
-      <div className="relative bg-white rounded-2xl shadow-2xl max-w-[320px] w-full p-6" onClick={e => e.stopPropagation()}>
-        <h3 className="text-base font-medium text-[#1D1D1F] mb-2">{title}</h3>
-        <p className="text-sm text-[#86868B] font-light mb-6">{message}</p>
-        <div className="flex gap-3">
-          <button onClick={onCancel} className="flex-1 py-2.5 rounded-xl bg-[#F5F5F7] text-[#1D1D1F] text-sm font-light hover:bg-[#E8E8ED] active:bg-[#DCDCE0] transition-colors">Cancel</button>
-          <button onClick={onConfirm} className="flex-1 py-2.5 rounded-xl bg-[#0071E3] text-white text-sm font-light hover:bg-[#005BB5] active:bg-[#004A94] transition-colors">Delete</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ── App Bar ────────────────────────────────────────────────────
 
 function AppBar({ title, action }: { title: string; action?: React.ReactNode }) {
@@ -109,7 +89,6 @@ function ChatTab({ tabStrings, conversations, setConversations, onNavigate }: { 
   const [revealedId, setRevealedId] = useState<string | null>(null);
   const [longPressTimer, setLongPressTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
   const [touchStartX, setTouchStartX] = useState<number>(0);
-  const [confirmDelete, setConfirmDelete] = useState<{ convId: string } | null>(null);
 
   const loadConversations = async () => {
     try {
@@ -141,23 +120,11 @@ function ChatTab({ tabStrings, conversations, setConversations, onNavigate }: { 
     }
   };
 
-  useEffect(() => {
-    loadConversations();
-    // Refresh when user returns to this tab (like TG/WeChat)
-    const onVisible = () => {
-      if (document.visibilityState === 'visible') loadConversations();
-    };
-    document.addEventListener('visibilitychange', onVisible);
-    return () => document.removeEventListener('visibilitychange', onVisible);
-  }, []);
+  useEffect(() => { loadConversations(); }, []);
 
-  const handleDelete = (e: React.MouseEvent, convId: string) => {
+  const handleDelete = async (e: React.MouseEvent, convId: string) => {
     e.stopPropagation();
-    setConfirmDelete({ convId });
-  };
-
-  const doDeleteConv = async (convId: string) => {
-    setConfirmDelete(null);
+    if (!confirm(tabStrings.delete_confirm_conv || "Delete this conversation?")) return;
     setDeletingId(convId);
     try {
       await api.deleteConversation(convId);
@@ -207,7 +174,6 @@ function ChatTab({ tabStrings, conversations, setConversations, onNavigate }: { 
 
   return (
     <div className="bg-white">
-      <DeleteConfirmDialog open={confirmDelete !== null} title="Delete conversation?" message="This will remove all messages. This cannot be undone." onConfirm={() => doDeleteConv(confirmDelete!.convId)} onCancel={() => setConfirmDelete(null)} />
       {conversations.map((conv) => (
         <div
           key={conv.id}
@@ -261,16 +227,11 @@ function ChatTab({ tabStrings, conversations, setConversations, onNavigate }: { 
 function ContactsTab({ isActive, onNavigate, tabStrings, contacts, setContacts, token }: { isActive?: boolean; onNavigate: () => void; tabStrings: Record<string, string>; contacts?: any[]; setContacts?: any; token?: string | null }) {
   const { lang } = useLangStore();
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [confirmDeleteContact, setConfirmDeleteContact] = useState<{ personaId: string } | null>(null);
   const loading = false; // ChatsContent handles fetching
 
-  const handleDelete = (e: React.MouseEvent, personaId: string) => {
+  const handleDelete = async (e: React.MouseEvent, personaId: string) => {
     e.stopPropagation();
-    setConfirmDeleteContact({ personaId });
-  };
-
-  const doDeleteContact = async (personaId: string) => {
-    setConfirmDeleteContact(null);
+    if (!confirm(tabStrings.delete_confirm_contact || "Delete this contact?")) return;
     setDeletingId(personaId);
     try {
       const res = await fetch(`/api/v1/personas/contacts/${personaId}`, { method: 'DELETE' });
@@ -352,7 +313,6 @@ function ContactsTab({ isActive, onNavigate, tabStrings, contacts, setContacts, 
 
   return (
     <div className="bg-white">
-      <DeleteConfirmDialog open={confirmDeleteContact !== null} title="Delete contact?" message="This will remove this contact from your list." onConfirm={() => doDeleteContact(confirmDeleteContact!.personaId)} onCancel={() => setConfirmDeleteContact(null)} />
       {displayContacts.map((p: any) => (
         <div
           key={p.id}
@@ -451,22 +411,18 @@ function DiscoverTab({ tabStrings, onContactAdded }: { tabStrings: Record<string
     }
   };
 
-  const [confirmDeletePreset, setConfirmDeletePreset] = useState<PersonaSummary | null>(null);
-
-  const handleDeletePreset = (e: React.MouseEvent, p: PersonaSummary) => {
+  const handleDeletePreset = async (e: React.MouseEvent, p: PersonaSummary) => {
     e.stopPropagation();
-    setConfirmDeletePreset(p);
-  };
-
-  const doDeletePreset = async (p: PersonaSummary) => {
-    setConfirmDeletePreset(null);
+    if (!confirm(`Delete this preset from Discover?`)) return;
     try {
       const res = await fetch(`/api/v1/personas/presets/${p.id}`, { method: 'DELETE' });
       if (res.ok) {
         setPresets(prev => prev.filter(x => x.id !== p.id));
+      } else {
+        alert(tabStrings.delete_failed || 'Delete failed');
       }
     } catch {
-      // silently fail
+      alert(tabStrings.delete_failed || 'Delete failed');
     }
   };
 
@@ -474,15 +430,6 @@ function DiscoverTab({ tabStrings, onContactAdded }: { tabStrings: Record<string
 
   return (
     <div>
-      {confirmDeletePreset && (
-        <DeleteConfirmDialog
-          open={confirmDeletePreset !== null}
-          title="Delete preset?"
-          message="This will remove this preset from Discover for all users."
-          onConfirm={() => doDeletePreset(confirmDeletePreset!)}
-          onCancel={() => setConfirmDeletePreset(null)}
-        />
-      )}
       <div className="flex gap-2 px-4 py-3 overflow-x-auto border-b border-[rgba(0,0,0,0.04)]">
         {CATEGORIES.map((cat) => (
           <button
@@ -530,7 +477,7 @@ function DiscoverTab({ tabStrings, onContactAdded }: { tabStrings: Record<string
                 </button>
               )}
               <button
-                onClick={() => token ? router.push(`/chat/${p.id}`) : router.push(`/guest-chat/${p.id}`)}
+                onClick={() => window.location.href = `/guest-chat/${p.id}`}
                 className="flex-1 py-2.5 rounded-full bg-[#1D1D1F] text-white text-sm font-light active:bg-[#3C3C3E] transition-colors"
               >
                 {tabStrings.start_chat}
