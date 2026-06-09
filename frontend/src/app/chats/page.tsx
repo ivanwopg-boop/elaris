@@ -70,16 +70,6 @@ function DeleteConfirmDialog({ open, title, message, onConfirm, onCancel }: {
   );
 }
 
-
-function Toast({ message, visible }: { message: string | null; visible: boolean }) {
-  if (!visible || !message) return null;
-  return (
-    <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-5 py-2.5 rounded-full bg-[#1D1D1F]/90 text-white text-sm font-light shadow-lg">
-      {message}
-    </div>
-  );
-}
-
 // ── App Bar ────────────────────────────────────────────────────
 
 function AppBar({ title, action }: { title: string; action?: React.ReactNode }) {
@@ -173,7 +163,7 @@ function ChatTab({ tabStrings, conversations, setConversations, onNavigate }: { 
       await api.deleteConversation(convId);
       setConversations((prev: ConversationItem[]) => prev.filter((c: ConversationItem) => c.id !== convId));
     } catch (err: any) {
-      // silently fail
+      alert((tabStrings.delete_failed || "Delete failed: ") + (err?.message || err));
     } finally {
       setDeletingId(null);
     }
@@ -287,9 +277,9 @@ function ContactsTab({ isActive, onNavigate, tabStrings, contacts, setContacts, 
       if (res.ok) {
         setContacts((prev: any[]) => prev.filter((p: any) => p.id !== personaId));
         setLocalContacts((prev: any[]) => prev.filter((p: any) => p.id !== personaId));
-      }
+      } else alert(tabStrings.delete_failed || 'Delete failed');
     } catch {
-            // removed
+      alert(tabStrings.delete_failed || 'Delete failed');
     } finally {
       setDeletingId(null);
     }
@@ -424,9 +414,6 @@ function DiscoverTab({ tabStrings, onContactAdded }: { tabStrings: Record<string
   const [presets, setPresets] = useState<PersonaSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeCat, setActiveCat] = useState("all");
-  const [addedContact, setAddedContact] = useState<string | null>(null);
-
-  useEffect(() => { if (addedContact) { const t = setTimeout(() => setAddedContact(null), 2000); return () => clearTimeout(t); } }, [addedContact]);
 
   useEffect(() => {
     api.listPresets(lang)
@@ -457,12 +444,11 @@ function DiscoverTab({ tabStrings, onContactAdded }: { tabStrings: Record<string
     e.stopPropagation();
     try {
       const res = await fetch(`/api/v1/personas/contacts/${p.id}`, { method: 'POST' });
-      if (res.ok) {
-        if (onContactAdded) onContactAdded(p);
-        setAddedContact(p.name);
-      }
-    } catch { }
-
+      if (res.ok && onContactAdded) onContactAdded(p);
+      alert(`${p.name} ` + tabStrings.added_to_contacts);
+    } catch {
+      alert(tabStrings.add_failed);
+    }
   };
 
   const [confirmDeletePreset, setConfirmDeletePreset] = useState<PersonaSummary | null>(null);
@@ -488,7 +474,6 @@ function DiscoverTab({ tabStrings, onContactAdded }: { tabStrings: Record<string
 
   return (
     <div>
-      {addedContact && <Toast message={addedContact + " added to contacts"} visible={true} />}
       {confirmDeletePreset && (
         <DeleteConfirmDialog
           open={confirmDeletePreset !== null}
