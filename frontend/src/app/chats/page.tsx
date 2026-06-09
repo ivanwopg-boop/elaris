@@ -474,6 +474,15 @@ function DiscoverTab({ tabStrings, onContactAdded }: { tabStrings: Record<string
 
   return (
     <div>
+      {confirmDeletePreset && (
+        <DeleteConfirmDialog
+          open={confirmDeletePreset !== null}
+          title="Delete preset?"
+          message="This will remove this preset from Discover for all users."
+          onConfirm={() => doDeletePreset(confirmDeletePreset!)}
+          onCancel={() => setConfirmDeletePreset(null)}
+        />
+      )}
       <div className="flex gap-2 px-4 py-3 overflow-x-auto border-b border-[rgba(0,0,0,0.04)]">
         {CATEGORIES.map((cat) => (
           <button
