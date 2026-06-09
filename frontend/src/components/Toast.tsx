@@ -24,7 +24,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3000);
   }, []);
 
-  const colors = { success: 'bg-[#34C759]', error: 'bg-[#FF3B30]', info: 'bg-[#1D1D1F]' };
+  const colors = { success: 'bg-[#1D1D1F]', error: 'bg-[#FF3B30]', info: 'bg-[#1D1D1F]' };
 
   return (
     <ToastContext.Provider value={{ toast }}>
