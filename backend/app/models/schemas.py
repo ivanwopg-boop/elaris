@@ -115,6 +115,7 @@ class PersonaCreate(BaseModel):
     description: str | None = None
     avatar_url: str | None = None
     source_id: str | None = None  # If set, copy soul from this preset persona
+    category: str | None = None  # tech, politics, entertainment, science, sports, business, other
 
 
 class PersonaUpdate(BaseModel):
@@ -384,6 +385,17 @@ class Expertise(BaseModel):
     deep_domains: list[str] = []
     competent_domains: list[str] = []
     common_misperceptions: list[str] = []
+
+    @field_validator("common_misperceptions", mode="before")
+    @classmethod
+    def flatten_misperceptions(cls, v):
+        result = []
+        for item in v:
+            if isinstance(item, list):
+                result.append("; ".join(str(x) for x in item))
+            elif isinstance(item, str):
+                result.append(item)
+        return result
     what_they_reject_or_oppose: list[dict] = []
     cross_domain_syntheses: list[str] = []
 

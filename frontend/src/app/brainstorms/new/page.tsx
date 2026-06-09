@@ -128,8 +128,8 @@ export default function NewBrainstormPage() {
             <h3 className="text-xs font-light text-[#86868B] mb-3 tracking-wide">Select Personas <span className="font-light">(at least 2)</span></h3>
             {readyPersonas.length === 0 ? (
               <div className="text-center py-6">
-                <p className="text-sm text-[#86868B] font-light">No distilled personas</p>
-                <Button variant="secondary" size="sm" className="mt-3" onClick={() => router.push("/personas/new")}>Create Persona</Button>
+                <p className="text-sm text-[#86868B] font-light">{t.no_distilled || "No distilled personas"}</p>
+                <Button variant="secondary" size="sm" className="mt-3" onClick={() => router.push("/personas/new")}>{t.create_persona || "Create Persona"}</Button>
               </div>
             ) : (
               <div className="space-y-2">

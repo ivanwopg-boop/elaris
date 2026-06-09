@@ -12,6 +12,7 @@ type DistillStage = "idle" | "searching" | "analyzing" | "distilling" | "done" |
 export default function CreatePersonaPage() {
   const { lang } = useLangStore();
   const t = translations[lang];
+  const [category, setCategory] = useState("other");
   const router = useRouter();
   const [name, setName] = useState("");
   const [keywords, setKeywords] = useState("");
@@ -25,7 +26,7 @@ export default function CreatePersonaPage() {
     setError("");
     try {
       // 1. Create persona with name
-      const persona = await api.createPersona({ name: name.trim() });
+      const persona = await api.createPersona({ name: name.trim(), category });
 
       // 2. Add keywords as background for web search query generation
       await api.addManualInput(persona.id, {
@@ -35,7 +36,10 @@ export default function CreatePersonaPage() {
 
       // 3. Trigger distillation — AI will auto-search using name+keywords
       setStage("analyzing");
-      const result = await api.distill(persona.id, lang);
+      // Distill in both languages for bilingual support
+      const otherLang = lang === "zh-CN" ? "en" : "zh-CN";
+      await api.distill(persona.id, lang);
+      await api.distill(persona.id, otherLang);
 
       setStage("done");
       // Add to contacts & notify tabs BEFORE navigation
@@ -57,7 +61,7 @@ export default function CreatePersonaPage() {
     idle: "",
     searching: t.stage_searching || "Searching the web for information...",
     analyzing: t.stage_analyzing || "Analyzing search results and extracting cognitive traits...",
-    distilling: t.stage_distilling || "Generating persona soul...",
+    distilling: t.stage_distilling || "Generating bilingual souls...",
     done: t.stage_done || "Persona created! Redirecting...",
     error: "",
   };
@@ -76,6 +80,20 @@ export default function CreatePersonaPage() {
           <input value={name} onChange={(e) => setName(e.target.value)}
             placeholder={t.name_placeholder || "E.g., Elon Musk, 张一鸣, 稻盛和夫"}
             className="w-full bg-white border border-[rgba(0,0,0,0.08)] rounded-[10px] px-4 py-3 text-sm text-[#1D1D1F] placeholder-[#86868B] focus:outline-none focus:border-[#0071E3] font-light" />
+        </Card>
+
+        <Card>
+          <h3 className="text-xs font-light text-[#86868B] mb-3 tracking-wide">{t.category_label || "Category"}</h3>
+          <select value={category} onChange={(e) => setCategory(e.target.value)}
+            className="w-full bg-white border border-[rgba(0,0,0,0.08)] rounded-[10px] px-4 py-3 text-sm text-[#1D1D1F] focus:outline-none focus:border-[#0071E3] font-light appearance-none">
+            <option value="tech">{t.cat_tech || "Tech"}</option>
+            <option value="politics">{t.cat_politics || "Politics"}</option>
+            <option value="business">{t.cat_business || "Business"}</option>
+            <option value="entertainment">{t.cat_entertainment || "Entertainment"}</option>
+            <option value="science">{t.cat_science || "Science"}</option>
+            <option value="sports">{t.cat_sports || "Sports"}</option>
+            <option value="other">{t.cat_other || "Other"}</option>
+          </select>
         </Card>
 
         <Card>

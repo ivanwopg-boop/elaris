@@ -8,7 +8,7 @@ interface AppState {
   error: string | null;
 
   // Actions
-  loadPersonas: () => Promise<void>;
+  loadPersonas: (lang?: string) => Promise<void>;
   clearError: () => void;
 }
 
@@ -17,10 +17,10 @@ export const useAppStore = create<AppState>((set) => ({
   loading: false,
   error: null,
 
-  loadPersonas: async () => {
+  loadPersonas: async (lang?: string) => {
     set({ loading: true, error: null });
     try {
-      const personas = await api.listPersonas();
+      const personas = await api.listPersonas(lang);
       set({ personas, loading: false });
     } catch (e: any) {
       set({ error: e.message, loading: false });

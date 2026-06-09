@@ -71,29 +71,21 @@ export const api = {
 
   getMe: () =>
     api.request<any>("/auth/me"),
-  updateProfile: (data: { name: string }) =>
-    api.request<{ ok: boolean }>("/auth/me", { method: "PATCH", body: JSON.stringify(data) }),
-  changePassword: (data: { old_password: string; new_password: string }) =>
-    api.request<{ ok: boolean }>("/auth/password", { method: "PUT", body: JSON.stringify(data) }),
+  updateProfile: (data: { name?: string; avatar_url?: string }) => api.request<any>("/auth/profile", { method: "PUT", body: JSON.stringify(data) }),
+  changePassword: (data: { old_password: string; new_password: string }) => api.request<any>("/auth/change-password", { method: "POST", body: JSON.stringify(data) }),
 
 
   // Personas
-  listConversations: () =>
-      api.request<ConversationOut[]>('/conversations'),
-    createConversation: (data: { type: string; name?: string; persona_id?: string; participant_ids?: string[] }) =>
-      api.request<ConversationOut>('/conversations', { method: 'POST', body: JSON.stringify(data) }),
-    deleteConversation: (id: string) =>
-      api.request<void>('/conversations/' + id, { method: 'DELETE' }),
-    listPersonas: () =>
-    api.request<PersonaOut[]>("/personas"),
+  listPersonas: (lang?: string) =>
+    api.request<PersonaOut[]>("/personas" + (lang ? "?lang=" + encodeURIComponent(lang) : "")),
 
-  listPresets: (lang: string = "en") =>
-    api.request<PersonaOut[]>("/personas/presets?lang=" + encodeURIComponent(lang)),
+  listPresets: (lang?: string) =>
+    api.request<PersonaOut[]>("/personas/presets" + (lang ? "?lang=" + encodeURIComponent(lang) : "")),
 
   getPersona: (id: string) =>
     api.request<PersonaDetail>(`/personas/${id}`),
 
-  createPersona: (data: { name: string; description?: string; source_id?: string }) =>
+  createPersona: (data: { name: string; description?: string; category?: string }) =>
     api.request<PersonaOut>("/personas", {
       method: "POST",
       body: JSON.stringify(data),
@@ -158,11 +150,11 @@ export const api = {
     }),
 
   // Distill
-  distill: (personaId: string, lang: string = "en") =>
-    api.request<DistillResponse>(`/personas/${personaId}/distill?lang=${encodeURIComponent(lang)}`, { method: "POST" }),
+  distill: (personaId: string, lang?: string) =>
+    api.request<DistillResponse>(`/personas/${personaId}/distill` + (lang ? "?lang=" + encodeURIComponent(lang) : ""), { method: "POST" }),
 
-  getSoul: (personaId: string, lang: string = "en") =>
-    api.request<any>(`/personas/${personaId}/soul?lang=${encodeURIComponent(lang)}`),
+  getSoul: (personaId: string) =>
+    api.request<any>(`/personas/${personaId}/soul`),
 
   // Chat / Write / Advise
   chat: (personaId: string, message: string, mode: "chat" | "write" | "advise" = "chat", context?: string) =>
@@ -226,11 +218,13 @@ export const api = {
   createGroupChat: (data: { title: string; persona_ids: string[]; persona_roles?: Record<string, string> }) =>
     api.request<GroupChatOut>("/group-chat", { method: "POST", body: JSON.stringify(data) }),
 
+  listConversations: () => api.request<any[]>("/conversations"),
   listGroupChats: () => api.request<GroupChatOut[]>("/group-chat"),
 
   getGroupChat: (id: string) => api.request<GroupChatDetailOut>(`/group-chat/${id}`),
 
   deleteGroupChat: (id: string) => api.request<void>(`/group-chat/${id}`, { method: "DELETE" }),
+  deleteConversation: (id: string) => api.request<void>("/conversations/" + id, { method: "DELETE" }),
 
   invitePersona: (chatId: string, personaId: string) =>
     api.request<{ ok: boolean; persona_name: string }>(`/group-chat/${chatId}/invite`, {
@@ -266,23 +260,12 @@ export interface PersonaOut {
   user_id: string | null;
 }
 
-export interface ConversationOut {
-  id: string;
-  persona_id: string;
-  persona_name: string;
-  persona_avatar: string | null;
-  last_message: string | null;
-  updated_at: string;
-  type?: string;
-  name?: string | null;
-  participant_ids?: string[];
-}
-
 export interface PersonaDetail extends PersonaOut {
   soul: any | null;
   file_count: number;
   soul_version: number | null;
-  souls_by_lang: Record<string, { version: number; has_soul: boolean; soul: any | null }>;
+  souls_by_lang?: Record<string, { version: number; has_soul: boolean;
+  user_id: string | null; soul: any | null }>;
 }
 
 export interface FileOut {

@@ -110,6 +110,15 @@ async def distill_persona(persona_id: str, db: AsyncSession, lang: str = "en",
         elif mi.field_key == "company":
             company_line = f"Company: {mi.field_value}\n"
 
+    # Fallback: use persona.description (format: Title | Company)
+    if not title_line and not company_line and persona.description:
+        parts = persona.description.split("|")
+        if len(parts) >= 2:
+            title_line = f"Title: {parts[0].strip()}\n"
+            company_line = f"Company: {parts[1].strip()}\n"
+        elif len(parts) == 1 and parts[0].strip():
+            title_line = f"Title: {parts[0].strip()}\n"
+
     prompt, version_from = _get_distill_prompt(
         lang, name, title_line, company_line, all_materials, existing_soul, use_v2)
 

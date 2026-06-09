@@ -16,6 +16,7 @@ async def create_persona(data: PersonaCreate, db: AsyncSession, user_id: str | N
         name=data.name,
         description=data.description,
         avatar_url=data.avatar_url,
+        category=data.category or "other",
     )
     db.add(persona)
     await db.flush()
@@ -98,7 +99,7 @@ async def list_personas(db: AsyncSession, user_id: str | None = None, include_pr
         query = query.where(Persona.user_id == None)  # noqa: E711
     else:
         pass  # no filter, return all (for admin/public listing)
-    query = query.order_by(Persona.updated_at.desc())
+    query = query.order_by(Persona.created_at.desc())
     result = await db.execute(query)
     personas = result.scalars().all()
 

@@ -43,7 +43,7 @@ export default function BrainstormsPage() {
 
       {!loading && sessions.length === 0 && (
         <div className="text-center py-24">
-          <p className="text-[#86868B] text-sm font-light mb-4">No discussions yet</p>
+          <p className="text-[#86868B] text-sm font-light mb-4">{t.no_discussions || "No discussions yet"}</p>
           <Button onClick={() => router.push("/brainstorms/new")}>Start Your First Brainstorm</Button>
         </div>
       )}

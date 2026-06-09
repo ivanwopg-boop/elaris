@@ -39,4 +39,4 @@ build/
 
 # Misc
 *.bak
-*.tmp
+*.tmpbackups/

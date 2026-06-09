@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useRouter } from 'next/navigation';
 import { MessageSquare, Compass, User, LogOut, ChevronRight, Plus, Users, Sparkles, Settings, HelpCircle, Info } from 'lucide-react';
 import TabBar from '@/components/TabBar';
@@ -560,10 +561,12 @@ function MeTab({ tabStrings }: { tabStrings: Record<string, string> }) {
 
 function ChatsContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const token = useAuthStore((s) => s.token);
   const { lang } = useLangStore() as { lang: Lang };
   const t = translations[lang];
-  const [activeTab, setActiveTab] = useState<TabKey>('chat');
+  const initialTab = (searchParams.get('tab') as TabKey) || 'chat';
+  const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
   // contactsRefresh removed
   // Pre-compute all tab-specific strings
   const TAB_STRINGS = {
