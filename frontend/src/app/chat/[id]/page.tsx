@@ -185,14 +185,15 @@ export default function ChatPage() {
     exitSelectMode();
   };
 
-  const deleteSelected = async () => {
+  const deleteSelected = () => {
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDeleteSelected = async () => {
+    setShowDeleteConfirm(false);
     const ids = Array.from(selectedIds);
-    const toDelete = msgs.filter(m => selectedIds.has(m.id));
-    if (!confirm(`Delete ${toDelete.length} message(s)?`)) return;
-    // Remove from local state
     setMsgs(prev => prev.filter(m => !selectedIds.has(m.id)));
     exitSelectMode();
-    // Try to delete from backend (best effort)
     try {
       for (const mid of ids) {
         await fetch(`/api/v1/conversations/${convId}/messages/${mid}`, { method: "DELETE" }).catch(() => {});
@@ -300,13 +301,25 @@ export default function ChatPage() {
       {/* Footer: Selection actions or input */}
       {selectMode ? (
         <div className="shrink-0 border-t border-[rgba(0,0,0,0.06)] bg-white/95">
-          <div className="max-w-3xl mx-auto px-4 py-3 flex gap-3 justify-center">
-            <Button onClick={copySelected} className="flex-1 max-w-[160px] bg-[#0071E3] hover:bg-[#005BB5] text-white rounded-xl h-11 text-sm font-light">
-              {copied ? <><ClipboardCheck size={16} strokeWidth={1.5} className="mr-2" /> Copied ✓</> : <><Copy size={16} strokeWidth={1.5} className="mr-2" /> Copy ({selectedIds.size})</>}
-            </Button>
-            <Button onClick={deleteSelected} className="flex-1 max-w-[160px] bg-white border border-[#FF3B30] text-[#FF3B30] hover:bg-[#FFF5F5] rounded-xl h-11 text-sm font-light">
-              <Trash2 size={16} strokeWidth={1.5} className="mr-2" /> Delete
-            </Button>
+          <div className="max-w-3xl mx-auto px-4 py-3">
+            {showDeleteConfirm ? (
+              <div className="flex flex-col items-center gap-3">
+                <p className="text-sm text-[#1D1D1F] font-light">Delete {selectedIds.size} message{selectedIds.size > 1 ? 's' : ''}?</p>
+                <div className="flex gap-3 w-full max-w-[280px]">
+                  <button onClick={confirmDeleteSelected} className="flex-1 py-2.5 rounded-xl bg-[#0071E3] text-white text-sm font-light hover:bg-[#005BB5] transition-colors">Delete</button>
+                  <button onClick={() => setShowDeleteConfirm(false)} className="flex-1 py-2.5 rounded-xl bg-[#F5F5F7] text-[#1D1D1F] text-sm font-light hover:bg-[#E8E8ED] transition-colors">Cancel</button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex gap-3 justify-center">
+                <Button onClick={copySelected} className="flex-1 max-w-[160px] bg-[#0071E3] hover:bg-[#005BB5] text-white rounded-xl h-11 text-sm font-light">
+                  {copied ? <><ClipboardCheck size={16} strokeWidth={1.5} className="mr-2" /> Copied ✓</> : <><Copy size={16} strokeWidth={1.5} className="mr-2" /> Copy ({selectedIds.size})</>}
+                </Button>
+                <Button onClick={deleteSelected} className="flex-1 max-w-[160px] bg-white border border-[#0071E3] text-[#0071E3] hover:bg-[rgba(0,113,227,0.05)] rounded-xl h-11 text-sm font-light">
+                  <Trash2 size={16} strokeWidth={1.5} className="mr-2" /> Delete ({selectedIds.size})
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       ) : (
