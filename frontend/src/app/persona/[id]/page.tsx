@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useToast } from "@/components/Toast";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { FileUploader } from "@/components/FileUploader";
@@ -30,6 +31,7 @@ export default function PersonaDetailPage() {
   const [uploadMsg, setUploadMsg] = useState<string>("");
   const [activeTab, setActiveTab] = useState<"soul" | "files" | "search">("soul");
   const { lang } = useLangStore();
+    const { toast } = useToast();
   const t = translations[lang];
 
   const loadData = useCallback(async () => {
@@ -49,7 +51,7 @@ export default function PersonaDetailPage() {
       const f = await api.listFiles(id);
       setFiles(f);
     } catch (e: any) {
-      alert(t.load_failed || "Load failed: " + e.message);
+      toast((t.load_failed || "Load failed: ") + e.message, "error");
     } finally {
       setLoading(false);
     }
@@ -117,9 +119,9 @@ export default function PersonaDetailPage() {
   const handleManualInput = async (fields: Record<string, string>) => {
     try {
       await api.addManualInput(id, fields);
-      alert(t.saved);
+      toast(t.saved, "success");
     } catch (e: any) {
-      alert((t.save_failed || "Save failed: ") + e.message);
+      toast((t.save_failed || "Save failed: ") + e.message, "error");
     }
   };
 
@@ -129,7 +131,7 @@ export default function PersonaDetailPage() {
       await api.deleteFile(id, fileId);
       loadData();
     } catch (e: any) {
-      alert((t.delete || "Delete") + " failed: " + e.message);
+      toast((t.delete || "Delete") + " failed: " + e.message, "error");
     }
   };
 
@@ -157,7 +159,7 @@ if (loading) {
                   try {
                     const res = await api.uploadAvatar(id, file);
                     setPersona((p) => p ? { ...p, avatar_url: res.avatar_url } : p);
-                  } catch (err: any) { alert("Upload failed: " + (err?.detail || err?.message || err)); }
+                  } catch (err: any) { toast((t.upload_failed || "Upload failed") + ": " + (err?.detail || err?.message || err), "error"); }
                 }} />
             </label>
           </div>

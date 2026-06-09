@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useLangStore, translations } from '@/lib/i18n';
-import { useRouter } from "next/navigation";
+import { useRouter } from "next/navigation"
+import { useToast } from "@/components/Toast";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { FileUploader } from "@/components/FileUploader";
@@ -10,6 +11,7 @@ import { api, PersonaOut } from "@/lib/api";
 
 export default function NewBrainstormPage() {
   const { lang } = useLangStore();
+  const { toast } = useToast();
   const t = translations[lang];
   const router = useRouter();
   const [personas, setPersonas] = useState<PersonaOut[]>([]);
@@ -39,9 +41,9 @@ export default function NewBrainstormPage() {
   };
 
   const handleCreate = async () => {
-    if (!title.trim()) { alert("Please enterDiscussion Title"); return; }
-    if (!topic.trim()) { alert("Please enterDiscussion Topic"); return; }
-    if (selectedPersonas.length < 2) { alert("Select at least 2 personas"); return; }
+    if (!title.trim()) { toast(t.enter_title || "Please enter a title", "error"); return; }
+    if (!topic.trim()) { toast(t.enter_topic || "Please enter a topic", "error"); return; }
+    if (selectedPersonas.length < 2) { toast(t.select_at_least_2 || "Select at least 2 personas", "error"); return; }
 
     setCreating(true);
     try {
@@ -59,7 +61,7 @@ export default function NewBrainstormPage() {
 
       router.push(`/brainstorm/${session.id}`);
     } catch (e: any) {
-      alert("Creation failed: " + e.message);
+      toast((t.creation_failed || "Creation failed") + ": " + e.message, "error");
     } finally {
       setCreating(false);
     }

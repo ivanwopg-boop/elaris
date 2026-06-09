@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useLangStore, translations } from '@/lib/i18n';
 import { useParams, useRouter } from "next/navigation";
+import { useToast } from "@/components/Toast";
 import { Avatar } from "@/components/Avatar";
 import { api, BrainstormMessageOut } from "@/lib/api";
 
@@ -57,6 +58,7 @@ function Bubble({ name, content, ci, avatarUrl }: { name: string; content: strin
 
 export default function BrainstormPage() {
   const { lang } = useLangStore();
+    const { toast } = useToast();
   const t = translations[lang];
   const params = useParams();
   const router = useRouter();
@@ -207,7 +209,7 @@ export default function BrainstormPage() {
   const handleExport = async (fmt: "docx") => {
     try {
       const res = await fetch(`/api/v1/brainstorm/${id}/export`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ format: fmt }) });
-      if (!res.ok) { alert("Export failed"); return; }
+      if (!res.ok) { toast(t.export_failed || "Export failed", "error"); return; }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -215,7 +217,7 @@ export default function BrainstormPage() {
       document.body.appendChild(a);
       a.click();
       setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 10000);
-    } catch (e: any) { alert("Export failed: " + e.message); }
+    } catch (e: any) { toast((t.export_failed || "Export failed") + ": " + e.message, "error"); }
   };
 
   // ── Render ──────────────────────────────────────────────────────────────────
