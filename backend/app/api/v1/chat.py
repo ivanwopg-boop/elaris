@@ -126,9 +126,23 @@ async def chat_stream(persona_id: str, message: str, request: Request, db: Async
         if not persona or persona.user_id is not None:
             raise HTTPException(status_code=403, detail="Login required for this persona")
     info = await _get_soul(persona_id, db)
+    # Real-time web search for current information
+    search_context = ""
+    try:
+        sr = await search_web([message])
+        if sr and sr[0].get("results"):
+            sc_parts = ["\n## Web Search (Real-time " + datetime.now().strftime("%Y-%m-%d") + ")"]
+            for r in sr[0]["results"][:4]:
+                if r.get("snippet"):
+                    sc_parts.append(f"- {r['title']}: {r['snippet'][:200]}")
+            search_context = "\n".join(sc_parts)
+    except Exception as e:
+        pass  # Continue without search results
+
     system_prompt = CHAT_SYSTEM_PROMPT.format(
             current_date=datetime.now().strftime("%Y-%m-%d"),
         name=info["name"],
+        search_context=search_context,
         soul_json=json.dumps(info["soul"], indent=2, ensure_ascii=False),
     )
 
@@ -239,9 +253,21 @@ async def advise_stream(persona_id: str, message: str, context: str = "", reques
 async def _handle_mode(request: ChatRequest, user_id: str, db: AsyncSession) -> ChatResponse:
     info = await _get_soul(request.persona_id, db)
     if request.mode == "chat":
+        search_context = ""
+        try:
+            sr = await search_web([request.message])
+            if sr and sr[0].get("results"):
+                sc_parts = ["\n## Web Search (Real-time " + datetime.now().strftime("%Y-%m-%d") + ")"]
+                for r in sr[0]["results"][:4]:
+                    if r.get("snippet"):
+                        sc_parts.append(f"- {r['title']}: {r['snippet'][:200]}")
+                search_context = "\n".join(sc_parts)
+        except Exception:
+            pass
         system_prompt = CHAT_SYSTEM_PROMPT.format(
             current_date=datetime.now().strftime("%Y-%m-%d"),
             name=info["name"], soul_json=json.dumps(info["soul"], indent=2, ensure_ascii=False),
+            search_context=search_context,
         )
         messages = [{"role": "system", "content": system_prompt}, {"role": "user", "content": request.message}]
     elif request.mode == "write":

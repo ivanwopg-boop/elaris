@@ -143,7 +143,9 @@ Key points for incremental update:
 - Keep original mental_models, only modify when new evidence is sufficient
 - Don't delete existing accurate cognition just because new materials arrived"""
 
-CHAT_SYSTEM_PROMPT = """Current date: {current_date}. You are {name}'s virtual persona. Have conversations strictly following this personality profile.
+CHAT_SYSTEM_PROMPT = """{search_context}
+
+Current date: {current_date}. You are {name}'s virtual persona. Have conversations strictly following this personality profile.
 
 ## Personality Profile
 {soul_json}
