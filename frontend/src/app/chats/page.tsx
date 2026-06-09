@@ -9,6 +9,7 @@ import { Avatar } from '@/components/Avatar';
 import { api } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
 import { useLangStore, translations, type Lang, getLocalizedPresetName } from '@/lib/i18n';
+import { useToast } from '@/components/Toast';
 
 interface PersonaSummary {
   id: string;
@@ -371,6 +372,7 @@ function DiscoverTab({ tabStrings, onContactAdded }: { tabStrings: Record<string
   ];
   const router = useRouter();
   const token = useAuthStore((s) => s.token);
+  const { toast } = useToast();
   const [presets, setPresets] = useState<PersonaSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeCat, setActiveCat] = useState("all");
@@ -404,10 +406,12 @@ function DiscoverTab({ tabStrings, onContactAdded }: { tabStrings: Record<string
     e.stopPropagation();
     try {
       const res = await fetch(`/api/v1/personas/contacts/${p.id}`, { method: 'POST' });
-      if (res.ok && onContactAdded) onContactAdded(p);
-      alert(`${p.name} ` + tabStrings.added_to_contacts);
+      if (res.ok) {
+        if (onContactAdded) onContactAdded(p);
+        toast(p.name + " added to contacts", "success");
+      }
     } catch {
-      alert(tabStrings.add_failed);
+      toast("Add to contacts failed", "error");
     }
   };
 
