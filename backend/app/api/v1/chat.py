@@ -129,7 +129,7 @@ async def chat_stream(persona_id: str, message: str, request: Request, db: Async
     # Real-time web search for current information
     search_context = ""
     try:
-        sr = await search_web([message])
+        sr = await search_web([message]) if needs_web_search(message) else [{"results": []}]
         if sr and sr[0].get("results"):
             sc_parts = ["\n## Web Search (Real-time " + datetime.now().strftime("%Y-%m-%d") + ")"]
             for r in sr[0]["results"][:4]:
@@ -255,7 +255,7 @@ async def _handle_mode(request: ChatRequest, user_id: str, db: AsyncSession) -> 
     if request.mode == "chat":
         search_context = ""
         try:
-            sr = await search_web([request.message])
+            sr = await search_web([request.message]) if needs_web_search(request.message) else [{"results": []}]
             if sr and sr[0].get("results"):
                 sc_parts = ["\n## Web Search (Real-time " + datetime.now().strftime("%Y-%m-%d") + ")"]
                 for r in sr[0]["results"][:4]:
