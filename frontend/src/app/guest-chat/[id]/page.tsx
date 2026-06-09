@@ -19,16 +19,21 @@ function saveGuestMessages(personaId: string, msgs: { role: string; content: str
   localStorage.setItem(`guest_msgs_${personaId}`, JSON.stringify(msgs));
 }
 
-function TypeText({ text, speed = 15 }: { text: string; speed?: number }) {
-  const [d, setD] = useState("");
+function TypeText({ text, speed = 15, animate = false }: { text: string; speed?: number; animate?: boolean }) {
+  const [d, setD] = useState(animate ? "" : text);
+  const doneRef = useRef(false);
   useEffect(() => {
-    setD(""); let i = 0;
+    if (!animate) { setD(text); return; }
+    if (doneRef.current) { setD(text); return; }
+    setD("");
+    let i = 0;
     const t = window.setInterval(() => {
-      if (i < text.length) { setD(text.slice(0, i + 1)); i++; } else window.clearInterval(t);
+      if (i < text.length) { setD(text.slice(0, i + 1)); i++; }
+      else { window.clearInterval(t); doneRef.current = true; }
     }, speed);
     return () => window.clearInterval(t);
-  }, [text, speed]);
-  return <>{d}{d.length < text.length && <span className="animate-pulse opacity-40">▊</span>}</>;
+  }, [text, speed, animate]);
+  return <span>{d}</span>;
 }
 
 export default function GuestChatPage() {
@@ -144,8 +149,11 @@ const t2 = translations[lang];
           <button onClick={() => router.push("/chats")} className="text-[#86868B] hover:text-[#1D1D1F] p-1.5 -ml-1.5 rounded-full hover:bg-[rgba(0,0,0,0.04)] active:bg-[rgba(0,0,0,0.08)] transition-colors">
             <ChevronLeft size={20} strokeWidth={1.5} />
           </button>
-          <Avatar name={persona?.name || "?"} url={persona?.avatar_url} size="sm" className="shrink-0" />
-          <div className="text-sm font-light flex-1 truncate">{n}</div>
+          <button onClick={() => router.push(`/persona/${id}`)} className="shrink-0 active:scale-95 transition-transform" title="View profile">
+            <Avatar name={persona?.name || "?"} url={persona?.avatar_url} size="sm" className="shrink-0" />
+          </button>
+          <button onClick={() => router.push(`/persona/${id}`)} className="text-sm font-light truncate text-left hover:text-[#0071E3] transition-colors" title="View profile">{n}</button>
+          <div className="flex-1" />
         </div>
       </header>
 
@@ -172,7 +180,7 @@ const t2 = translations[lang];
             <div className="flex gap-3">
               <Avatar name={n} url={persona?.avatar_url} size="sm" />
               <div className="max-w-[75%] rounded-2xl px-4 py-3 bg-[#F5F5F7] text-[#1D1D1F] text-sm leading-relaxed">
-                <TypeText text={liveContent} />
+                <TypeText text={liveContent} animate={true} />
               </div>
             </div>
           )}

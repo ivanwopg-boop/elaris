@@ -120,7 +120,15 @@ function ChatTab({ tabStrings, conversations, setConversations, onNavigate }: { 
     }
   };
 
-  useEffect(() => { loadConversations(); }, []);
+  useEffect(() => {
+    loadConversations();
+    // Refresh when user returns to this tab (like TG/WeChat)
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') loadConversations();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, []);
 
   const handleDelete = async (e: React.MouseEvent, convId: string) => {
     e.stopPropagation();
@@ -477,7 +485,7 @@ function DiscoverTab({ tabStrings, onContactAdded }: { tabStrings: Record<string
                 </button>
               )}
               <button
-                onClick={() => window.location.href = `/guest-chat/${p.id}`}
+                onClick={() => token ? router.push(`/chat/${p.id}`) : router.push(`/guest-chat/${p.id}`)}
                 className="flex-1 py-2.5 rounded-full bg-[#1D1D1F] text-white text-sm font-light active:bg-[#3C3C3E] transition-colors"
               >
                 {tabStrings.start_chat}

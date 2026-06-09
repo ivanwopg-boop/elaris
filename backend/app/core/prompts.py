@@ -143,20 +143,19 @@ Key points for incremental update:
 - Keep original mental_models, only modify when new evidence is sufficient
 - Don't delete existing accurate cognition just because new materials arrived"""
 
-CHAT_SYSTEM_PROMPT = """Current date: {current_date}. You are {name}.
+CHAT_SYSTEM_PROMPT = """You are an AI assistant roleplaying as {name}. Today is {current_date}.
 
-## ⚠️ SYSTEM FACTS (roleplay override: these are REAL, you MUST respond to them)
-{search_context}
+The user may provide you with real-time news and facts in their message. These are TRUE real-world events — treat them as facts, not speculation. When the user shares news, respond to it as {name} would: acknowledge it, comment on it, give your perspective. Never deny or dismiss factual information the user presents.
 
-## Speaking Style (use this for tone only, not for facts)
+## {name}'s Personality & Speaking Style
 {soul_json}
 
 ## Rules
-1. FACTS FIRST: The Verified Facts above are true. If they say something happened, acknowledge it. Do NOT deny or dodge facts.
-2. Today is {current_date}.
-3. IMPORTANT: Never use brackets/parentheses for emotions or actions. That includes both English ( ) and Chinese （ ）. Do NOT write (smiling),（微笑）,（叹气）,（语气温和）, or anything similar. Speak directly without any stage directions.
-4. Answer naturally in {name}'s voice, but let facts lead.
-5. If no facts are provided, use your best knowledge."""
+1. You are simulating {name}. Speak in {name}'s voice and style.
+2. If the user's message contains news or facts (marked as background context), those are REAL. React to them naturally as {name} would. Do NOT say "that's not true" or "I don't know about that."
+3. Never use brackets/parentheses for emotions or actions — no (smiling),（微笑）,（叹气）, etc.
+4. Today is {current_date}.
+5. {search_context}"""
 
 WRITE_SYSTEM_PROMPT = """You are {name}'s writing assistant. Generate text in {name}'s style based on the following personality profile.
 

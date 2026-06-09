@@ -13,16 +13,21 @@ function ft(t: number) {
   return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
 }
 
-function TypeText({ text, speed = 20 }: { text: string; speed?: number }) {
-  const [d, setD] = useState("");
+function TypeText({ text, speed = 20, animate = false }: { text: string; speed?: number; animate?: boolean }) {
+  const [d, setD] = useState(animate ? "" : text);
+  const doneRef = useRef(false);
+
   useEffect(() => {
+    if (!animate) { setD(text); return; }
+    if (doneRef.current) { setD(text); return; }
     setD("");
     let i = 0;
     const t = window.setInterval(() => {
-      if (i < text.length) { setD(text.slice(0, i + 1)); i++; } else window.clearInterval(t);
+      if (i < text.length) { setD(text.slice(0, i + 1)); i++; }
+      else { window.clearInterval(t); doneRef.current = true; }
     }, speed);
     return () => window.clearInterval(t);
-  }, [text, speed]);
+  }, [text, speed, animate]);
   return <span>{d}</span>;
 }
 
@@ -39,12 +44,12 @@ export default function ChatPage() {
   const ref = useRef<HTMLDivElement>(null);
   const esRef = useRef<EventSource | null>(null);
   const liveRef = useRef("");
-  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Selection mode
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [copied, setCopied] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   useEffect(() => {
     if (convId) {
@@ -73,11 +78,25 @@ export default function ChatPage() {
       try { const ev = JSON.parse(e.data); const c = ev.content || ev.text || ""; setLiveContent(c); liveRef.current = c; } catch {}
     });
 
-    es.addEventListener("done", () => {
+    es.addEventListener("done", (e) => {
       es.close(); setSending(false);
+      let realUserMsgId = null, realAsstMsgId = null;
+      try { const ev = JSON.parse(e.data); realUserMsgId = ev.user_msg_id; realAsstMsgId = ev.assistant_msg_id; } catch {}
       const c = liveRef.current;
       if (c) {
-        setMsgs((p) => [...p, { role: "assistant", content: c, id: `a-${Date.now()}`, time: Date.now() }]);
+        setMsgs((p) => {
+          const updated = [...p];
+          // Replace temp user message ID with real one
+          if (realUserMsgId) {
+            const lastUser = updated.findLast(m => m.role === "user");
+            if (lastUser && lastUser.id.startsWith("u-")) {
+              lastUser.id = realUserMsgId;
+            }
+          }
+          // Add assistant message with real ID
+          updated.push({ role: "assistant", content: c, id: realAsstMsgId || `a-${Date.now()}`, time: Date.now() });
+          return updated;
+        });
         setLiveContent(""); liveRef.current = "";
       }
     });
@@ -85,22 +104,21 @@ export default function ChatPage() {
     es.onerror = () => { es.close(); setSending(false); };
   };
 
-  // Long press handler
-  const startLongPress = (msgId: string) => {
-    longPressTimer.current = setTimeout(() => {
+  // ── Click-to-select (tap message to enter multi-select) ──
+  const handleMessageClick = (msgId: string) => {
+    if (selectMode) {
+      toggleSelect(msgId);
+    } else {
+      // Enter select mode and select this message
+      window.history.pushState({ selectMode: true }, '');
+      if (navigator.vibrate) navigator.vibrate(5);
       setSelectMode(true);
       toggleSelect(msgId);
-    }, 500);
-  };
-
-  const cancelLongPress = () => {
-    if (longPressTimer.current) {
-      clearTimeout(longPressTimer.current);
-      longPressTimer.current = null;
     }
   };
 
   const toggleSelect = (msgId: string) => {
+    if (navigator.vibrate) navigator.vibrate(5);
     setSelectedIds(prev => {
       const next = new Set(prev);
       if (next.has(msgId)) {
@@ -118,18 +136,52 @@ export default function ChatPage() {
     setSelectedIds(new Set(allIds));
   };
 
+  // Back button exits select mode first (TG-style)
+  const selectModeRef = useRef(selectMode);
+  selectModeRef.current = selectMode;
+  useEffect(() => {
+    const onPop = () => {
+      if (selectModeRef.current) {
+        window.history.pushState({ selectMode: true }, '');
+        exitSelectMode();
+      }
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+
   const exitSelectMode = () => {
     setSelectMode(false);
     setSelectedIds(new Set());
+    setShowDeleteConfirm(false);
   };
 
   const copySelected = async () => {
     const texts = msgs
       .filter(m => selectedIds.has(m.id))
-      .map(m => `[${m.role === "user" ? "You" : persona?.name || "AI"}]: ${m.content}`)
+      .map(m => m.content)
       .join("\n\n");
-    await navigator.clipboard.writeText(texts);
-    setCopied(true); setTimeout(() => setCopied(false), 2000);
+
+    let ok = false;
+    // Try modern clipboard API first (requires HTTPS)
+    if (navigator.clipboard && window.isSecureContext) {
+      try { await navigator.clipboard.writeText(texts); ok = true; } catch {}
+    }
+    // Fallback for HTTP: use textarea trick
+    if (!ok) {
+      const ta = document.createElement("textarea");
+      ta.value = texts;
+      ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand("copy"); ok = true; } catch {}
+      document.body.removeChild(ta);
+    }
+
+    if (ok) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    }
     exitSelectMode();
   };
 
@@ -143,9 +195,7 @@ export default function ChatPage() {
     // Try to delete from backend (best effort)
     try {
       for (const mid of ids) {
-        if (!mid.startsWith("u-") && !mid.startsWith("a-")) {
-          await fetch(`/api/v1/conversations/${convId}/messages/${mid}`, { method: "DELETE" });
-        }
+        await fetch(`/api/v1/conversations/${convId}/messages/${mid}`, { method: "DELETE" }).catch(() => {});
       }
     } catch {}
   };
@@ -161,7 +211,8 @@ export default function ChatPage() {
             <button onClick={exitSelectMode} className="text-[#0071E3] hover:text-[#005BB5] p-1.5 -ml-1.5 rounded-full hover:bg-[rgba(0,113,227,0.06)] transition-colors">
               <X size={20} strokeWidth={1.5} />
             </button>
-            <span className="text-sm font-light text-[#0071E3]">{selectedIds.size} selected</span>
+            <span className="bg-[#0071E3] text-white text-xs font-medium px-2.5 py-1 rounded-full">{selectedIds.size}</span>
+            <span className="text-sm font-light text-[#1D1D1F]">selected</span>
             <div className="flex-1" />
             <button onClick={selectAll} className="text-xs text-[#0071E3] font-light px-2 py-1 rounded-md hover:bg-[rgba(0,113,227,0.06)] transition-colors">Select All</button>
           </div>
@@ -170,8 +221,11 @@ export default function ChatPage() {
             <button onClick={() => router.push("/chats")} className="text-[#86868B] hover:text-[#1D1D1F] p-1.5 -ml-1.5 rounded-full hover:bg-[rgba(0,0,0,0.04)] active:bg-[rgba(0,0,0,0.08)] transition-colors">
               <ChevronLeft size={20} strokeWidth={1.5} />
             </button>
-            <Avatar name={persona?.name || "?"} url={persona?.avatar_url} size="sm" className="shrink-0" />
-            <div className="text-sm font-light flex-1 truncate">{n}</div>
+            <button onClick={() => router.push(`/persona/${id}`)} className="shrink-0 active:scale-95 transition-transform" title="View profile">
+              <Avatar name={persona?.name || "?"} url={persona?.avatar_url} size="sm" className="shrink-0" />
+            </button>
+            <button onClick={() => router.push(`/persona/${id}`)} className="text-sm font-light truncate text-left hover:text-[#0071E3] transition-colors" title="View profile">{n}</button>
+            <div className="flex-1" />
           </div>
         )}
       </header>
@@ -190,27 +244,29 @@ export default function ChatPage() {
               <div
                 key={m.id}
                 className={`flex mb-5 ${m.role === "user" ? "justify-end" : "justify-start"}`}
-                onTouchStart={() => startLongPress(m.id)}
-                onTouchEnd={cancelLongPress}
-                onTouchMove={cancelLongPress}
-                onContextMenu={(e) => { e.preventDefault(); toggleSelect(m.id); }}
+                onClick={() => handleMessageClick(m.id)}
+                onContextMenu={(e) => { e.preventDefault(); handleMessageClick(m.id); }}
               >
                 {m.role !== "user" && (
                   <Avatar name={persona?.name || "?"} url={persona?.avatar_url} size="sm" className="shrink-0 mr-2 self-end" />
                 )}
                 <div
-                  onClick={() => selectMode && toggleSelect(m.id)}
+                 
                   className={`relative group max-w-[78%] rounded-[14px] px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap font-light transition-all ${
                     m.role === "user"
-                      ? `bg-[#1D1D1F] text-white rounded-br-[4px] ${isSelected ? "ring-2 ring-[#0071E3] ring-offset-1" : ""} ${selectMode ? "cursor-pointer active:scale-[0.98]" : ""}`
-                      : `bg-[rgba(0,0,0,0.03)] text-[#1D1D1F] border border-[rgba(0,0,0,0.06)] rounded-bl-[4px] ${isSelected ? "ring-2 ring-[#0071E3] ring-offset-1" : ""} ${selectMode ? "cursor-pointer active:scale-[0.98]" : ""}`
+                      ? `bg-[#1D1D1F] text-white rounded-br-[4px] ${isSelected ? "ring-2 ring-[#0071E3] ring-offset-1" : ""} ${selectMode ? "cursor-pointer active:scale-[0.97] transition-transform duration-75" : ""}`
+                      : `bg-[rgba(0,0,0,0.03)] text-[#1D1D1F] border border-[rgba(0,0,0,0.06)] rounded-bl-[4px] ${isSelected ? "ring-2 ring-[#0071E3] ring-offset-1" : ""} ${selectMode ? "cursor-pointer active:scale-[0.97] transition-transform duration-75" : ""}`
                   }`}
                 >
-                  {m.role === "user" ? m.content : <TypeText text={m.content} />}
+                  {m.role === "user" ? m.content : <TypeText text={m.content} animate={false} />}
                   {m.time && <p className={`text-[10px] mt-1 font-light ${m.role === "user" ? "opacity-40 text-white" : "text-[#ACACB2]"}`}>{ft(m.time)}</p>}
-                  {isSelected && (
-                    <div className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-[#0071E3] flex items-center justify-center shadow-md">
-                      <Check size={12} strokeWidth={3} className="text-white" />
+                  {selectMode && (
+                    <div className={`absolute -top-2 -right-2 w-5 h-5 rounded-full flex items-center justify-center shadow-md transition-all ${
+                      isSelected
+                        ? "bg-[#0071E3] scale-100"
+                        : "bg-white border-2 border-[#C7C7CC] scale-90"
+                    }`}>
+                      {isSelected && <Check size={12} strokeWidth={3} className="text-white" />}
                     </div>
                   )}
                 </div>
@@ -221,7 +277,7 @@ export default function ChatPage() {
             <div className="flex justify-start mb-5">
               <Avatar name={persona?.name || "?"} url={persona?.avatar_url} size="sm" className="shrink-0 mr-2 self-end" />
               <div className="max-w-[78%] rounded-[14px] rounded-bl-[4px] px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap font-light bg-[rgba(0,0,0,0.03)] text-[#1D1D1F] border border-[rgba(0,0,0,0.06)]">
-                <TypeText text={liveContent} />
+                <TypeText text={liveContent} animate={true} />
               </div>
             </div>
           )}
@@ -246,7 +302,7 @@ export default function ChatPage() {
         <div className="shrink-0 border-t border-[rgba(0,0,0,0.06)] bg-white/95">
           <div className="max-w-3xl mx-auto px-4 py-3 flex gap-3 justify-center">
             <Button onClick={copySelected} className="flex-1 max-w-[160px] bg-[#0071E3] hover:bg-[#005BB5] text-white rounded-xl h-11 text-sm font-light">
-              {copied ? <><ClipboardCheck size={16} strokeWidth={1.5} className="mr-2" /> Copied!</> : <><Copy size={16} strokeWidth={1.5} className="mr-2" /> Copy</>}
+              {copied ? <><ClipboardCheck size={16} strokeWidth={1.5} className="mr-2" /> Copied ✓</> : <><Copy size={16} strokeWidth={1.5} className="mr-2" /> Copy ({selectedIds.size})</>}
             </Button>
             <Button onClick={deleteSelected} className="flex-1 max-w-[160px] bg-white border border-[#FF3B30] text-[#FF3B30] hover:bg-[#FFF5F5] rounded-xl h-11 text-sm font-light">
               <Trash2 size={16} strokeWidth={1.5} className="mr-2" /> Delete

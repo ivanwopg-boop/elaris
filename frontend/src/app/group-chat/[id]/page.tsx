@@ -9,15 +9,21 @@ import { api, GroupChatOut, GroupChatMessageOut } from "@/lib/api";
 
 const COLORS = ["#0071E3","#7c3aed","#22c55e","#eab308","#ec4899","#06b6d4"];
 
-function TypeText({ text, speed = 35 }: { text: string; speed?: number }) {
-  const [d, setD] = useState("");
+function TypeText({ text, speed = 35, animate = false }: { text: string; speed?: number; animate?: boolean }) {
+  const [d, setD] = useState(animate ? "" : text);
+  const doneRef = useRef(false);
   useEffect(() => {
-    setD(""); let i = 0; const t = window.setInterval(() => {
-      if (i < text.length) { setD(text.slice(0, i + 1)); i++; } else window.clearInterval(t);
+    if (!animate) { setD(text); return; }
+    if (doneRef.current) { setD(text); return; }
+    setD("");
+    let i = 0;
+    const t = window.setInterval(() => {
+      if (i < text.length) { setD(text.slice(0, i + 1)); i++; }
+      else { window.clearInterval(t); doneRef.current = true; }
     }, speed);
     return () => window.clearInterval(t);
-  }, [text, speed]);
-  return <>{d}{d.length < text.length && <span className="animate-pulse opacity-40">▊</span>}</>;
+  }, [text, speed, animate]);
+  return <span>{d}</span>;
 }
 
 function Bubble({ name, content, ci, avatarUrl, isUser, isFresh }: { name: string; content: string; ci: number; avatarUrl?: string; isUser?: boolean; isFresh?: boolean }) {

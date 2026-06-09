@@ -13,10 +13,39 @@ from app.database import get_db
 from app.models.db_models import Persona, PersonaSoul, Conversation as ConvTable, ConversationMessage
 from app.models.schemas import ChatRequest, ChatResponse
 from app.core.minimax_client import minimax_client
-from app.core.prompts import CHAT_SYSTEM_PROMPT, WRITE_SYSTEM_PROMPT, ADVISE_SYSTEM_PROMPT
+from app.core.prompts import CHAT_SYSTEM_PROMPT
+from app.api.v1.chat_utils import needs_web_search
+from app.services.web_search import search_web
 from app.core.auth_deps import require_auth, require_auth_optional
 from app.core.auth import decode_token
 from app.models.db_models import User
+
+# === Output sanitizer: remove bracketed stage directions ===
+import re as _re
+
+# Only match bracketed emotion/action descriptions: (smiles) （叹气）(winks)
+_BRACKET_RE = _re.compile(r'[\(（][^)）]{1,40}?[\)）]')
+
+def _sanitize_reply(text: str) -> str:
+    """Remove bracketed stage directions and markdown formatting from AI reply."""
+    if not text:
+        return text
+    # Remove bracketed actions/emotions: (smiling) （叹气）
+    text = _BRACKET_RE.sub("", text)
+    # Remove markdown bold/italic: **text** __text__ *text* _text_
+    text = _re.sub(r"\*\*(.+?)\*\*", r"\1", text)  # **bold**
+    text = _re.sub(r"__(.+?)__", r"\1", text)          # __bold__
+    text = _re.sub(r"\*(.+?)\*", r"\1", text)         # *italic*
+    text = _re.sub(r"(?<!\w)_(.+?)_(?!\w)", r"\1", text)  # _italic_ (not in words)
+    # Remove markdown headers: ### Title
+    text = _re.sub(r"^#{1,6}\s+", "", text, flags=_re.MULTILINE)
+    # Remove markdown links but keep text: [text](url) -> text
+    text = _re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", text)
+    # Collapse multiple spaces
+    text = _re.sub(r" {2,}", " ", text)
+    return text.strip()
+
+
 from fastapi.responses import JSONResponse
 
 router = APIRouter(prefix="", tags=["Chat"])
@@ -61,8 +90,9 @@ async def _save_message(
     content: str,
     db: AsyncSession,
 ):
+    msg_id = str(uuid.uuid4())
     msg = ConversationMessage(
-        id=str(uuid.uuid4()),
+        id=msg_id,
         conversation_id=conversation_id,
         user_id=user_id,
         persona_id=persona_id,
@@ -76,6 +106,7 @@ async def _save_message(
     conv = result.scalar_one()
     conv.updated_at = datetime.utcnow()
     await db.flush()
+    return msg_id
 
 
 # ── Soul fetch ────────────────────────────────────────────────
@@ -126,19 +157,32 @@ async def chat_stream(persona_id: str, message: str, conv: str = None, request: 
         if not persona or persona.user_id is not None:
             raise HTTPException(status_code=403, detail="Login required for this persona")
     info = await _get_soul(persona_id, db)
-    # Real-time web search for current information
+    # Always search (self-hosted, unlimited) — use multiple queries for better coverage
     search_context = ""
     try:
-        sr = await search_web([f"{name} {message} 2026"])  # always search (self-hosted, unlimited)
-        if sr and sr[0].get("results"):
-            sc_parts = ["\n## Web Search (Real-time " + datetime.now().strftime("%Y-%m-%d") + ")"]
-            for r in sr[0]["results"][:4]:
-                if r.get("snippet"):
-                    sc_parts.append(f"- {r['title']}: {r['snippet'][:200]}")
-            search_context = "\n".join(sc_parts)
-    except Exception as e:
-        pass  # Continue without search results
+        _search_queries = [
+            f"{info['name']} {message} 2026",
+            message,
+        ]
+        sr = await search_web(_search_queries)
+        if sr:
+            _seen_urls = set()
+            _all_results = []
+            for _q_result in sr:
+                for r in _q_result.get("results", []):
+                    _url = r.get("url", "")
+                    if _url and _url not in _seen_urls and r.get("snippet"):
+                        _seen_urls.add(_url)
+                        _all_results.append(r)
+            if _all_results:
+                sc_parts = ["\n### Latest web search results (retrieved just now):"]
+                for r in _all_results[:6]:
+                    sc_parts.append(f"- **{r['title']}**: {r['snippet'][:200]}")
+                search_context = "\n".join(sc_parts)
+    except Exception as _search_err:
+        import logging; logging.getLogger("uvicorn").error(f"[SEARCH_ERROR] {_search_err}")
 
+    import logging; logging.getLogger("uvicorn").info(f"[SEARCH_DEBUG] context_len={len(search_context)}, preview={repr(search_context[:150])}")
     system_prompt = CHAT_SYSTEM_PROMPT.format(
             current_date=datetime.now().strftime("%Y-%m-%d"),
         name=info["name"],
@@ -158,103 +202,39 @@ async def chat_stream(persona_id: str, message: str, conv: str = None, request: 
         for hm in reversed(hres.scalars().all()):
             history_msgs.append({"role": hm.role, "content": hm.content})
 
+    # Inject search results into user message (models respect user input far more than system instructions)
+    user_content = message
+    if search_context.strip():
+        user_content = f"""{message}
+
+---
+[Background context for {info['name']} to reference when answering]:
+{search_context}
+Please factor in the above information when responding."""
+
     msgs = [
         {"role": "system", "content": system_prompt},
     ] + history_msgs + [
-        {"role": "user", "content": message},
+        {"role": "user", "content": user_content},
     ]
 
     user_id = _get_user_from_request(request)
     conv_id = None
+    user_msg_id = None
     if user_id:
         conv_id = await _get_or_create_conversation(user_id, persona_id, db)
-        await _save_message(conv_id, user_id, persona_id, "user", message, db)
+        user_msg_id = await _save_message(conv_id, user_id, persona_id, "user", message, db)
 
     async def event_gen():
+        nonlocal user_msg_id
         try:
             reply = await minimax_client.chat(msgs, temperature=0.4, max_tokens=10000)
+            reply = _sanitize_reply(reply)
+            assistant_msg_id = None
             if conv_id and user_id:
-                await _save_message(conv_id, user_id, persona_id, "assistant", reply, db)
+                assistant_msg_id = await _save_message(conv_id, user_id, persona_id, "assistant", reply, db)
             yield await _sse_event("chat_message", {"content": reply})
-            yield await _sse_event("done", {})
-        except Exception as e:
-            yield await _sse_event("error", {"message": str(e)})
-
-    return StreamingResponse(event_gen(), media_type="text/event-stream")
-
-
-@router.get("/write/{persona_id}/stream")
-async def write_stream(persona_id: str, message: str, context: str = "", request: Request = None, db: AsyncSession = Depends(get_db)):
-    # Allow guests to write with preset personas only
-    user_id = _get_user_from_request(request) if request else None
-    if not user_id:
-        from app.models.db_models import Persona
-        pr = await db.execute(select(Persona).where(Persona.id == persona_id))
-        persona = pr.scalars().first()
-        if not persona or persona.user_id is not None:
-            raise HTTPException(status_code=403, detail="Login required for this persona")
-    info = await _get_soul(persona_id, db)
-    system_prompt = WRITE_SYSTEM_PROMPT.format(
-        name=info["name"],
-        soul_json=json.dumps(info["soul"], indent=2, ensure_ascii=False),
-        context=context or message,
-    )
-
-    user_id = _get_user_from_request(request) if request else None
-    conv_id = None
-    if user_id:
-        conv_id = await _get_or_create_conversation(user_id, persona_id, db)
-        await _save_message(conv_id, user_id, persona_id, "user", message, db)
-
-    async def event_gen():
-        try:
-            reply = await minimax_client.chat(
-                [{"role": "system", "content": system_prompt}, {"role": "user", "content": message}],
-                temperature=0.4, max_tokens=10000,
-            )
-            if conv_id and user_id:
-                await _save_message(conv_id, user_id, persona_id, "assistant", reply, db)
-            yield await _sse_event("chat_message", {"content": reply})
-            yield await _sse_event("done", {})
-        except Exception as e:
-            yield await _sse_event("error", {"message": str(e)})
-
-    return StreamingResponse(event_gen(), media_type="text/event-stream")
-
-
-@router.get("/advise/{persona_id}/stream")
-async def advise_stream(persona_id: str, message: str, context: str = "", request: Request = None, db: AsyncSession = Depends(get_db)):
-    # Allow guests to advise with preset personas only
-    user_id = _get_user_from_request(request) if request else None
-    if not user_id:
-        from app.models.db_models import Persona
-        pr = await db.execute(select(Persona).where(Persona.id == persona_id))
-        persona = pr.scalars().first()
-        if not persona or persona.user_id is not None:
-            raise HTTPException(status_code=403, detail="Login required for this persona")
-    info = await _get_soul(persona_id, db)
-    system_prompt = ADVISE_SYSTEM_PROMPT.format(
-        name=info["name"],
-        soul_json=json.dumps(info["soul"], indent=2, ensure_ascii=False),
-        context=context or message,
-    )
-
-    user_id = _get_user_from_request(request) if request else None
-    conv_id = None
-    if user_id:
-        conv_id = await _get_or_create_conversation(user_id, persona_id, db)
-        await _save_message(conv_id, user_id, persona_id, "user", message, db)
-
-    async def event_gen():
-        try:
-            reply = await minimax_client.chat(
-                [{"role": "system", "content": system_prompt}, {"role": "user", "content": message}],
-                temperature=0.4, max_tokens=10000,
-            )
-            if conv_id and user_id:
-                await _save_message(conv_id, user_id, persona_id, "assistant", reply, db)
-            yield await _sse_event("chat_message", {"content": reply})
-            yield await _sse_event("done", {})
+            yield await _sse_event("done", {"user_msg_id": user_msg_id, "assistant_msg_id": assistant_msg_id})
         except Exception as e:
             yield await _sse_event("error", {"message": str(e)})
 
@@ -265,66 +245,49 @@ async def advise_stream(persona_id: str, message: str, context: str = "", reques
 
 async def _handle_mode(request: ChatRequest, user_id: str, db: AsyncSession) -> ChatResponse:
     info = await _get_soul(request.persona_id, db)
-    if request.mode == "chat":
-        search_context = ""
-        try:
-            sr = await search_web([f"{info[chr(39)+chr(39).join([])]} {request.message} 2026"])  # always search (self-hosted, unlimited)
-            if sr and sr[0].get("results"):
-                sc_parts = ["\n## Web Search (Real-time " + datetime.now().strftime("%Y-%m-%d") + ")"]
-                for r in sr[0]["results"][:4]:
-                    if r.get("snippet"):
-                        sc_parts.append(f"- {r['title']}: {r['snippet'][:200]}")
+    search_context = ""
+    try:
+        sr = await search_web([f"{info['name']} {request.message} 2026"])
+        if sr:
+            _seen_urls = set()
+            _all_results = []
+            for _q_result in sr:
+                for r in _q_result.get("results", []):
+                    _url = r.get("url", "")
+                    if _url and _url not in _seen_urls and r.get("snippet"):
+                        _seen_urls.add(_url)
+                        _all_results.append(r)
+            if _all_results:
+                sc_parts = ["\n### Latest web search results (retrieved just now):"]
+                for r in _all_results[:6]:
+                    sc_parts.append(f"- **{r['title']}**: {r['snippet'][:200]}")
                 search_context = "\n".join(sc_parts)
-        except Exception:
-            pass
-        system_prompt = CHAT_SYSTEM_PROMPT.format(
-            current_date=datetime.now().strftime("%Y-%m-%d"),
-            name=info["name"], soul_json=json.dumps(info["soul"], indent=2, ensure_ascii=False),
-            search_context=search_context,
-        )
-        messages = [{"role": "system", "content": system_prompt}, {"role": "user", "content": request.message}]
-    elif request.mode == "write":
-        system_prompt = WRITE_SYSTEM_PROMPT.format(
-            name=info["name"], soul_json=json.dumps(info["soul"], indent=2, ensure_ascii=False),
-            context=request.context or request.message,
-        )
-        messages = [{"role": "system", "content": system_prompt}, {"role": "user", "content": request.message}]
-    elif request.mode == "advise":
-        system_prompt = ADVISE_SYSTEM_PROMPT.format(
-            name=info["name"], soul_json=json.dumps(info["soul"], indent=2, ensure_ascii=False),
-            context=request.context or request.message,
-        )
-        messages = [{"role": "system", "content": system_prompt}, {"role": "user", "content": request.message}]
-    else:
-        raise HTTPException(status_code=400, detail=f"Unknown mode: {request.mode}")
+    except Exception:
+        pass
+    system_prompt = CHAT_SYSTEM_PROMPT.format(
+        current_date=datetime.now().strftime("%Y-%m-%d"),
+        name=info["name"], soul_json=json.dumps(info["soul"], indent=2, ensure_ascii=False),
+        search_context=search_context,
+    )
+    user_msg = request.message
+    if search_context.strip():
+        user_msg = f"""{request.message}
 
-    # Get or create conversation
+---
+[Background context for {info['name']} to reference when answering]:
+{search_context}
+Please factor in the above information when responding."""
+    messages = [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_msg}]
     conv_id = await _get_or_create_conversation(user_id, request.persona_id, db)
-
-    # Save user message
     await _save_message(conv_id, user_id, request.persona_id, "user", request.message, db)
-
     reply = await minimax_client.chat(messages, temperature=0.4, max_tokens=10000)
-
-    # Save assistant message
     await _save_message(conv_id, user_id, request.persona_id, "assistant", reply, db)
-
+    reply = _sanitize_reply(reply)
     return ChatResponse(message=reply, sources=["L3"], style_match=0.85)
-
 
 @router.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest, user: User = Depends(require_auth), db: AsyncSession = Depends(get_db)):
     request.mode = "chat"
-    return await _handle_mode(request, user.id, db)
-
-@router.post("/write", response_model=ChatResponse)
-async def write(request: ChatRequest, user: User = Depends(require_auth), db: AsyncSession = Depends(get_db)):
-    request.mode = "write"
-    return await _handle_mode(request, user.id, db)
-
-@router.post("/advise", response_model=ChatResponse)
-async def advise(request: ChatRequest, user: User = Depends(require_auth), db: AsyncSession = Depends(get_db)):
-    request.mode = "advise"
     return await _handle_mode(request, user.id, db)
 
 
@@ -472,3 +435,24 @@ async def get_conversation_messages(
         }
         for m in messages
     ]
+
+@router.delete("/conversations/{conversation_id}/messages/{message_id}", status_code=204)
+async def delete_message(
+    conversation_id: str,
+    message_id: str,
+    user: User = Depends(require_auth),
+    db: AsyncSession = Depends(get_db)
+):
+    """Delete a single message from a conversation."""
+    result = await db.execute(
+        select(ConvTable).where(ConvTable.id == conversation_id, ConvTable.user_id == user.id)
+    )
+    if not result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    await db.execute(
+        delete(ConversationMessage).where(
+            ConversationMessage.id == message_id,
+            ConversationMessage.conversation_id == conversation_id
+        )
+    )
+    await db.flush()
