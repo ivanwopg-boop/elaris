@@ -424,8 +424,9 @@ function DiscoverTab({ tabStrings, onContactAdded }: { tabStrings: Record<string
   const [presets, setPresets] = useState<PersonaSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeCat, setActiveCat] = useState("all");
-  const [toastMsg, setToastMsg] = useState<string | null>(null);
-  const [toastVisible, setToastVisible] = useState(false);
+  const [addedContact, setAddedContact] = useState<string | null>(null);
+
+  useEffect(() => { if (addedContact) { const t = setTimeout(() => setAddedContact(null), 2000); return () => clearTimeout(t); } }, [addedContact]);
 
   useEffect(() => {
     api.listPresets(lang)
@@ -458,9 +459,7 @@ function DiscoverTab({ tabStrings, onContactAdded }: { tabStrings: Record<string
       const res = await fetch(`/api/v1/personas/contacts/${p.id}`, { method: 'POST' });
       if (res.ok) {
         if (onContactAdded) onContactAdded(p);
-        setToastMsg(p.name + " added to contacts");
-        setToastVisible(true);
-        setTimeout(() => setToastVisible(false), 2000);
+        setAddedContact(p.name);
       }
     } catch { }
 
@@ -489,7 +488,7 @@ function DiscoverTab({ tabStrings, onContactAdded }: { tabStrings: Record<string
 
   return (
     <div>
-      <Toast message={toastMsg} visible={toastVisible} />
+      {addedContact && <Toast message={addedContact + " added to contacts"} visible={true} />}
       {confirmDeletePreset && (
         <DeleteConfirmDialog
           open={confirmDeletePreset !== null}
