@@ -1,27 +1,34 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/Avatar";
 import { api, PersonaDetail } from "@/lib/api";
+import { ChevronLeft, Copy, Trash2, X, Check } from "lucide-react";
 
-function ft(t: number){if(!t)return"";let d=new Date(t),h=d.getHours(),m=d.getMinutes();return String(h).padStart(2,"0")+":"+String(m).padStart(2,"0")}
+function ft(t: number) {
+  if (!t) return "";
+  const d = new Date(t);
+  return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+}
 
-function TypeText({ text, speed = 35 }: { text: string; speed?: number }) {
+function TypeText({ text, speed = 20 }: { text: string; speed?: number }) {
   const [d, setD] = useState("");
   useEffect(() => {
-    setD(""); let i = 0;
+    setD("");
+    let i = 0;
     const t = window.setInterval(() => {
       if (i < text.length) { setD(text.slice(0, i + 1)); i++; } else window.clearInterval(t);
     }, speed);
     return () => window.clearInterval(t);
   }, [text, speed]);
-  return <>{d}{d.length < text.length && <span className="animate-pulse opacity-40">▊</span>}</>;
+  return <span>{d}</span>;
 }
 
 export default function ChatPage() {
-  const params = useParams(); const router = useRouter();
+  const params = useParams();
+  const router = useRouter();
   const id = params.id as string;
   const convId = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("conv") : null;
   const [persona, setPersona] = useState<PersonaDetail | null>(null);
@@ -32,20 +39,28 @@ export default function ChatPage() {
   const ref = useRef<HTMLDivElement>(null);
   const esRef = useRef<EventSource | null>(null);
   const liveRef = useRef("");
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Selection mode
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (convId) {
-      api.getConversationMessages(convId)
-        .then((data) => setMsgs(data.map((m: any) => ({ role: m.role, content: m.content, id: m.id || m.role+"-"+Date.now(), time: m.created_at ? new Date(m.created_at).getTime() : undefined }))))
+      fetch(`/api/v1/conversations/${convId}/messages`)
+        .then(r => r.json())
+        .then((data) => setMsgs(data.map((m: any) => ({ role: m.role, content: m.content, id: m.id || m.role + "-" + Date.now(), time: m.created_at ? new Date(m.created_at).getTime() : undefined }))))
         .catch(() => {});
     }
-    api.getPersona(id).then(setPersona).catch(() => router.push("/")); }, [id, router, convId]);
-  useEffect(() => { ref.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs.length, liveContent]);
+    api.getPersona(id).then(setPersona).catch(() => router.push("/"));
+  }, [id, router, convId]);
 
+  useEffect(() => { ref.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs.length, liveContent, sending]);
   useEffect(() => { liveRef.current = liveContent; }, [liveContent]);
 
   const send = () => {
     if (!input.trim() || sending) return;
+    if (selectMode) return; // Don't send in select mode
     const text = input.trim(); setInput(""); setSending(true); setLiveContent("");
     esRef.current?.close();
     setMsgs((p) => [...p, { role: "user", content: text, id: `u-${Date.now()}`, time: Date.now() }]);
@@ -69,38 +84,137 @@ export default function ChatPage() {
     es.onerror = () => { es.close(); setSending(false); };
   };
 
+  // Long press handler
+  const startLongPress = (msgId: string) => {
+    longPressTimer.current = setTimeout(() => {
+      setSelectMode(true);
+      toggleSelect(msgId);
+    }, 500);
+  };
+
+  const cancelLongPress = () => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  };
+
+  const toggleSelect = (msgId: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(msgId)) {
+        next.delete(msgId);
+        if (next.size === 0) setSelectMode(false);
+      } else {
+        next.add(msgId);
+      }
+      return next;
+    });
+  };
+
+  const selectAll = () => {
+    const allIds = msgs.map(m => m.id);
+    setSelectedIds(new Set(allIds));
+  };
+
+  const exitSelectMode = () => {
+    setSelectMode(false);
+    setSelectedIds(new Set());
+  };
+
+  const copySelected = async () => {
+    const texts = msgs
+      .filter(m => selectedIds.has(m.id))
+      .map(m => `[${m.role === "user" ? "You" : persona?.name || "AI"}]: ${m.content}`)
+      .join("\n\n");
+    await navigator.clipboard.writeText(texts);
+    exitSelectMode();
+  };
+
+  const deleteSelected = async () => {
+    const ids = Array.from(selectedIds);
+    const toDelete = msgs.filter(m => selectedIds.has(m.id));
+    if (!confirm(`Delete ${toDelete.length} message(s)?`)) return;
+    // Remove from local state
+    setMsgs(prev => prev.filter(m => !selectedIds.has(m.id)));
+    exitSelectMode();
+    // Try to delete from backend (best effort)
+    try {
+      for (const mid of ids) {
+        if (!mid.startsWith("u-") && !mid.startsWith("a-")) {
+          await fetch(`/api/v1/conversations/${convId}/messages/${mid}`, { method: "DELETE" });
+        }
+      }
+    } catch {}
+  };
+
   const n = persona?.name || "person";
 
   return (
     <div className="h-screen flex flex-col bg-white">
-      <header className="shrink-0 border-b border-[rgba(0,0,0,0.06)] bg-white/95 z-10">
-        <div className="max-w-3xl mx-auto px-4 h-14 flex items-center gap-3">
-          <button onClick={() => router.push(`/persona/${id}`)} className="text-[#86868B] hover:text-[#1D1D1F] text-2xl font-light leading-none">‹</button>
-          <Avatar name={persona?.name || "?"} url={persona?.avatar_url} size="sm" className="shrink-0" />
-          <div className="text-sm font-light flex-1 truncate">{n}</div>
-        </div>
+      {/* Header */}
+      <header className={`shrink-0 border-b bg-white/95 z-20 ${selectMode ? "border-[#0071E3]" : "border-[rgba(0,0,0,0.06)]"}`}>
+        {selectMode ? (
+          <div className="max-w-3xl mx-auto px-4 h-14 flex items-center gap-3">
+            <button onClick={exitSelectMode} className="text-[#0071E3] hover:text-[#005BB5] p-1.5 -ml-1.5 rounded-full hover:bg-[rgba(0,113,227,0.06)] transition-colors">
+              <X size={20} strokeWidth={1.5} />
+            </button>
+            <span className="text-sm font-light text-[#0071E3]">{selectedIds.size} selected</span>
+            <div className="flex-1" />
+            <button onClick={selectAll} className="text-xs text-[#0071E3] font-light px-2 py-1 rounded-md hover:bg-[rgba(0,113,227,0.06)] transition-colors">Select All</button>
+          </div>
+        ) : (
+          <div className="max-w-3xl mx-auto px-4 h-14 flex items-center gap-3">
+            <button onClick={() => router.push("/chats")} className="text-[#86868B] hover:text-[#1D1D1F] p-1.5 -ml-1.5 rounded-full hover:bg-[rgba(0,0,0,0.04)] active:bg-[rgba(0,0,0,0.08)] transition-colors">
+              <ChevronLeft size={20} strokeWidth={1.5} />
+            </button>
+            <Avatar name={persona?.name || "?"} url={persona?.avatar_url} size="sm" className="shrink-0" />
+            <div className="text-sm font-light flex-1 truncate">{n}</div>
+          </div>
+        )}
       </header>
 
-      <div className="flex-1 overflow-y-auto px-4 py-6">
+      {/* Messages */}
+      <div className={`flex-1 overflow-y-auto px-4 py-6 ${selectMode ? "pb-32" : ""}`}>
         <div className="max-w-3xl mx-auto">
           {msgs.length === 0 && !liveContent && (
             <div className="text-center pt-24">
               <p className="text-sm text-[#86868B] font-light">Start a conversation with {n}</p>
             </div>
           )}
-          {msgs.map((m) => (
-            <div key={m.id} className={`flex mb-5 ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-              {m.role !== "user" && (
-                <Avatar name={persona?.name || "?"} url={persona?.avatar_url} size="sm" className="shrink-0 mr-2 self-end" />
-              )}
-              <div className={`max-w-[78%] rounded-[14px] px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap font-light ${
-                m.role === "user" ? "bg-[#1D1D1F] text-white rounded-br-[4px]" : "bg-[rgba(0,0,0,0.03)] text-[#1D1D1F] border border-[rgba(0,0,0,0.06)] rounded-bl-[4px]"
-              }`}>
-                {m.role === "user" ? m.content : <TypeText text={m.content} />}
-                {m.time && <p className="text-[10px] opacity-40 mt-1 font-light">{ft(m.time)}</p>}
+          {msgs.map((m) => {
+            const isSelected = selectedIds.has(m.id);
+            return (
+              <div
+                key={m.id}
+                className={`flex mb-5 ${m.role === "user" ? "justify-end" : "justify-start"}`}
+                onTouchStart={() => startLongPress(m.id)}
+                onTouchEnd={cancelLongPress}
+                onTouchMove={cancelLongPress}
+                onContextMenu={(e) => { e.preventDefault(); toggleSelect(m.id); }}
+              >
+                {m.role !== "user" && (
+                  <Avatar name={persona?.name || "?"} url={persona?.avatar_url} size="sm" className="shrink-0 mr-2 self-end" />
+                )}
+                <div
+                  onClick={() => selectMode && toggleSelect(m.id)}
+                  className={`relative group max-w-[78%] rounded-[14px] px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap font-light transition-all ${
+                    m.role === "user"
+                      ? `bg-[#1D1D1F] text-white rounded-br-[4px] ${isSelected ? "ring-2 ring-[#0071E3] ring-offset-1" : ""} ${selectMode ? "cursor-pointer active:scale-[0.98]" : ""}`
+                      : `bg-[rgba(0,0,0,0.03)] text-[#1D1D1F] border border-[rgba(0,0,0,0.06)] rounded-bl-[4px] ${isSelected ? "ring-2 ring-[#0071E3] ring-offset-1" : ""} ${selectMode ? "cursor-pointer active:scale-[0.98]" : ""}`
+                  }`}
+                >
+                  {m.role === "user" ? m.content : <TypeText text={m.content} />}
+                  {m.time && <p className={`text-[10px] mt-1 font-light ${m.role === "user" ? "opacity-40 text-white" : "text-[#ACACB2]"}`}>{ft(m.time)}</p>}
+                  {isSelected && (
+                    <div className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-[#0071E3] flex items-center justify-center shadow-md">
+                      <Check size={12} strokeWidth={3} className="text-white" />
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
           {liveContent && (
             <div className="flex justify-start mb-5">
               <Avatar name={persona?.name || "?"} url={persona?.avatar_url} size="sm" className="shrink-0 mr-2 self-end" />
@@ -125,16 +239,30 @@ export default function ChatPage() {
         </div>
       </div>
 
-      <footer className="shrink-0 border-t border-[rgba(0,0,0,0.06)] bg-white/95">
-        <div className="max-w-3xl mx-auto px-4 py-4 flex gap-2">
-          <input value={input} onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && send()}
-            placeholder="Type a message..."
-            className="flex-1 bg-white border border-[rgba(0,0,0,0.08)] rounded-[10px] px-4 py-3 text-sm text-[#1D1D1F] placeholder-[#86868B] focus:outline-none focus:border-[#0071E3] font-light"
-            disabled={sending} />
-          <Button onClick={send} loading={sending} disabled={!input.trim()}>Send</Button>
+      {/* Footer: Selection actions or input */}
+      {selectMode ? (
+        <div className="shrink-0 border-t border-[rgba(0,0,0,0.06)] bg-white/95">
+          <div className="max-w-3xl mx-auto px-4 py-3 flex gap-3 justify-center">
+            <Button onClick={copySelected} className="flex-1 max-w-[160px] bg-[#0071E3] hover:bg-[#005BB5] text-white rounded-xl h-11 text-sm font-light">
+              <Copy size={16} strokeWidth={1.5} className="mr-2" /> Copy
+            </Button>
+            <Button onClick={deleteSelected} className="flex-1 max-w-[160px] bg-white border border-[#FF3B30] text-[#FF3B30] hover:bg-[#FFF5F5] rounded-xl h-11 text-sm font-light">
+              <Trash2 size={16} strokeWidth={1.5} className="mr-2" /> Delete
+            </Button>
+          </div>
         </div>
-      </footer>
+      ) : (
+        <footer className="shrink-0 border-t border-[rgba(0,0,0,0.06)] bg-white/95" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
+          <div className="max-w-3xl mx-auto px-4 py-4 flex gap-2">
+            <input value={input} onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && send()}
+              placeholder="Type a message..."
+              className="flex-1 bg-white border border-[rgba(0,0,0,0.08)] rounded-[10px] px-4 py-3 text-base text-[#1D1D1F] placeholder-[#86868B] focus:outline-none focus:border-[#0071E3] font-light" style={{ fontSize: "16px" }}
+              disabled={sending} />
+            <Button onClick={send} loading={sending} disabled={!input.trim()}>Send</Button>
+          </div>
+        </footer>
+      )}
     </div>
   );
 }
