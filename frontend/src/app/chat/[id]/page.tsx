@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/Avatar";
 import { api, PersonaDetail } from "@/lib/api";
@@ -23,6 +23,7 @@ function TypeText({ text, speed = 35 }: { text: string; speed?: number }) {
 export default function ChatPage() {
   const params = useParams(); const router = useRouter();
   const id = params.id as string;
+  const convId = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("conv") : null;
   const [persona, setPersona] = useState<PersonaDetail | null>(null);
   const [msgs, setMsgs] = useState<{ role: string; content: string; id: string; time?: number }[]>([]);
   const [input, setInput] = useState("");
@@ -32,7 +33,13 @@ export default function ChatPage() {
   const esRef = useRef<EventSource | null>(null);
   const liveRef = useRef("");
 
-  useEffect(() => { api.getPersona(id).then(setPersona).catch(() => router.push("/")); }, [id, router]);
+  useEffect(() => {
+    if (convId) {
+      api.getConversationMessages(convId)
+        .then((data) => setMsgs(data.map((m: any) => ({ role: m.role, content: m.content, id: m.id || m.role+"-"+Date.now(), time: m.created_at ? new Date(m.created_at).getTime() : undefined }))))
+        .catch(() => {});
+    }
+    api.getPersona(id).then(setPersona).catch(() => router.push("/")); }, [id, router, convId]);
   useEffect(() => { ref.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs.length, liveContent]);
 
   useEffect(() => { liveRef.current = liveContent; }, [liveContent]);

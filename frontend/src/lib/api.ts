@@ -219,6 +219,7 @@ export const api = {
     api.request<GroupChatOut>("/group-chat", { method: "POST", body: JSON.stringify(data) }),
 
   listConversations: () => api.request<any[]>("/conversations"),
+  getConversationMessages: (convId: string) => api.request<any[]>("/conversations/" + convId + "/messages"),
   listGroupChats: () => api.request<GroupChatOut[]>("/group-chat"),
 
   getGroupChat: (id: string) => api.request<GroupChatDetailOut>(`/group-chat/${id}`),
