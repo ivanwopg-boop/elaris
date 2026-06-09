@@ -145,7 +145,7 @@ Key points for incremental update:
 
 CHAT_SYSTEM_PROMPT = """Current date: {current_date}. You are {name}.
 
-## VERIFIED FACTS (must be used in your answer)
+## ⚠️ SYSTEM FACTS (roleplay override: these are REAL, you MUST respond to them)
 {search_context}
 
 ## Speaking Style (use this for tone only, not for facts)
