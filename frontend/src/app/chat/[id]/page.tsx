@@ -66,7 +66,7 @@ export default function ChatPage() {
     esRef.current?.close();
     setMsgs((p) => [...p, { role: "user", content: text, id: `u-${Date.now()}`, time: Date.now() }]);
 
-    const es = new EventSource(`/api/v1/chat/${id}/stream?message=${encodeURIComponent(text)}`);
+    const es = new EventSource(`/api/v1/chat/${id}/stream?message=${encodeURIComponent(text)}${convId ? "&conv=" + convId : ""}`);
     esRef.current = es;
 
     es.addEventListener("chat_message", (e) => {

@@ -115,7 +115,7 @@ def _get_user_from_request(request) -> str | None:
 
 
 @router.get("/chat/{persona_id}/stream")
-async def chat_stream(persona_id: str, message: str, request: Request, db: AsyncSession = Depends(get_db)):
+async def chat_stream(persona_id: str, message: str, conv: str = None, request: Request = None, db: AsyncSession = Depends(get_db)):
     # Allow guests to chat with preset personas only
     user_id = _get_user_from_request(request)
     if not user_id:
@@ -146,8 +146,21 @@ async def chat_stream(persona_id: str, message: str, request: Request, db: Async
         soul_json=json.dumps(info["soul"], indent=2, ensure_ascii=False),
     )
 
+    # Load conversation history for context
+    history_msgs = []
+    if conv:
+        from app.models.db_models import ConversationMessage
+        from sqlalchemy import select
+        hres = await db.execute(
+            select(ConversationMessage).where(ConversationMessage.conversation_id == conv)
+            .order_by(ConversationMessage.created_at.desc()).limit(10)
+        )
+        for hm in reversed(hres.scalars().all()):
+            history_msgs.append({"role": hm.role, "content": hm.content})
+
     msgs = [
         {"role": "system", "content": system_prompt},
+    ] + history_msgs + [
         {"role": "user", "content": message},
     ]
 
