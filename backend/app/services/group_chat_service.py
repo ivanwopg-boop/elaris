@@ -192,10 +192,21 @@ async def run_group_chat_stream(
                              if not _lowered[i].startswith(_bad_prefixes)
                              and len(l) >= 10
                              and 'keyword' not in _lowered[i]]
-                    _qs = _kept[:2] if len(_kept) >= 2 else [
-                        persona['name'] + " latest " + str(_tp.year) + " news lawsuit",
-                        persona['name']
-                    ]
+                    if len(_kept) >= 2:
+                        _qs = _kept[:2]
+                    else:
+                        _topic_words = []
+                        _topic_msg = (user_msg_text + " ").replace("?", " ").replace("？", " ").replace("!", " ")
+                        for _w in _topic_msg.split():
+                            _w = _w.strip()
+                            if len(_w) >= 2 and _w not in ("你", "我", "他", "她", "的", "了", "吗", "呢", "啊", "吧", "是", "在", "有", "不", "就", "也", "还", "都", "要", "会", "能", "可以", "什么", "怎么", "为什么", "哪个", "哪里", "谁", "什么时候", "有没有", "是不是", "能不能", "现在", "最近", "最新", "一下", "今天", "昨天", "明天"):
+                                if _w not in _topic_words:
+                                    _topic_words.append(_w)
+                        _topics = " ".join(_topic_words[:3])
+                        _qs = [
+                            persona['name'] + " " + _topics + " " + str(_tp.year),
+                            persona['name'] + " " + _topics
+                        ]
                     _log.info(f"[SEARCH_Q] name={persona['name']} raw={user_msg_text[:40]!r} -> {_qs}")
                     _sr = await search_web(_qs)
                     _hits = 0

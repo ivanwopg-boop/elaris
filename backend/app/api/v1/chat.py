@@ -181,10 +181,21 @@ async def chat_stream(persona_id: str, message: str, conv: str = None, request: 
                  if not _lowered[i].startswith(_bad_prefixes)
                  and len(l) >= 10
                  and 'keyword' not in _lowered[i]]
-        _search_queries = _kept[:2] if len(_kept) >= 2 else [
-            info['name'] + " latest " + str(_now.year) + " news lawsuit",
-            info['name']
-        ]
+        if len(_kept) >= 2:
+            _search_queries = _kept[:2]
+        else:
+            # Smart fallback: extract key topic words from user message
+            _topic_words = []
+            for _w in (message + " ").replace("?", " ").replace("？", " ").replace("!", " ").split():
+                _w = _w.strip()
+                if len(_w) >= 2 and _w not in ("你", "我", "他", "她", "的", "了", "吗", "呢", "啊", "吧", "是", "在", "有", "不", "就", "也", "还", "都", "要", "会", "能", "可以", "什么", "怎么", "为什么", "哪个", "哪里", "谁", "什么时候", "有没有", "是不是", "能不能", "现在", "最近", "最新", "一下", "今天", "昨天", "明天"):
+                    if _w not in _topic_words:
+                        _topic_words.append(_w)
+            _topics = " ".join(_topic_words[:3])
+            _search_queries = [
+                info['name'] + " " + _topics + " " + str(_now.year),
+                info['name'] + " " + _topics
+            ]
         _log.info(f"[SEARCH_Q] raw={message[:40]!r} -> {_search_queries}")
 
         # Step 2: Broad search (up to 15 results via Exa)
@@ -200,12 +211,15 @@ async def chat_stream(persona_id: str, message: str, conv: str = None, request: 
                         _all_results.append(r)
             _all_results = _all_results[:15]
             if _all_results:
-                # Step 3: List results directly — let the persona's own prompt handle interpretation
-                _parts = ["\n### Latest web search results (retrieved just now):"]
-                for r in _all_results[:6]:
-                    _parts.append("- **" + r['title'] + "**: " + r['snippet'][:250])
-                search_context = "\n".join(_parts)
-                _log.info(f"[SEARCH_REFINE] {len(_all_results)} results, context={len(search_context)} chars")
+                # Step 3: Extract key facts from search results
+                _raw_results = "\n".join(["- " + r['title'] + " | " + r['snippet'][:300] for r in _all_results[:8]])
+                _extract_prompt = "Here are search results. Extract ONLY factual, verifiable information that helps answer this question: '" + message + "'\n\nSearch results:\n" + _raw_results + "\n\nRules:\n- Extract ONLY dates, locations, names, events, numbers\n- 3-5 bullet points max\n- NO opinions, NO analysis, NO answering the question\n- If the results don't contain relevant facts, say 'No relevant facts found'\n- Format: '- Fact: ...'\n- Use original language (Chinese for Chinese facts, English for English facts)"
+                _extracted = await minimax_client.chat(
+                    [{"role": "user", "content": _extract_prompt}],
+                    temperature=0.0, max_tokens=300
+                )
+                search_context = "\n### Verified facts from web (just retrieved):\n" + _extracted.strip()
+                _log.info(f"[SEARCH_REFINE] {len(_all_results)} results -> {len(search_context)} chars")
     except Exception as _search_err:
         import logging; logging.getLogger("uvicorn").error(f"[SEARCH_ERROR] {_search_err}")
 

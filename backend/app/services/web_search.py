@@ -86,12 +86,18 @@ async def search_web(queries: list[str]) -> list[dict]:
     2. Deduplicate and rank by relevance
     3. Enrich results that lack snippets via trafilatura
     """
-    # Parallel search — use news search for time-sensitive queries
-    _news_hints = ('2024', '2025', '2026', 'latest', 'news', 'today', 'current', 'lawsuit', 'lawsuit')
+    # Parallel search — Chinese queries get dual search (zh web + en news)
+    _nh = ('2024', '2025', '2026', 'latest', 'news', 'today', 'current', 'lawsuit', 'concert', 'tour')
     tasks = []
     for q in queries:
-        _is_news = any(hint in q.lower() for hint in _news_hints)
-        tasks.append(_searxng_search(q, language="en", categories="news" if _is_news else None))
+        _cjk = any('一' <= ch <= '鿿' for ch in q)
+        if _cjk:
+            # Chinese query: search zh web AND en news in parallel
+            tasks.append(_searxng_search(q, language="zh"))
+            tasks.append(_searxng_search(q, language="en", categories="news"))
+        else:
+            _is_news = any(hint in q.lower() for hint in _nh)
+            tasks.append(_searxng_search(q, language="en", categories="news" if _is_news else None))
     all_raw = await asyncio.gather(*tasks)
 
     all_results = []
@@ -100,6 +106,12 @@ async def search_web(queries: list[str]) -> list[dict]:
 
     merged = _deduplicate(all_results)
     merged.sort(key=lambda r: r.get("score", 0), reverse=True)
+    # For queries with CJK, push Chinese results to the top
+    _has_cjk_query = any(any('一' <= ch <= '鿿' for ch in q) for q in queries)
+    if _has_cjk_query:
+        _cn = [r for r in merged if any('一' <= ch <= '鿿' for ch in (r.get('title','') + r.get('snippet','')))]
+        _en = [r for r in merged if r not in _cn]
+        merged = _cn + _en
     merged = merged[:MAX_RESULTS]
 
     # Enrich results with missing/short snippets
