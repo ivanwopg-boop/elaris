@@ -176,9 +176,28 @@ async def run_group_chat_stream(
                     from app.services.web_search import search_web
                     import logging
                     _log = logging.getLogger("uvicorn")
-                    _q = f"{persona['name']} {user_msg_text} 2026"
-                    _q = _q.strip()[:300]
-                    _sr = await search_web([_q])
+                    from datetime import datetime as _dt; _tp = _dt.now(); _today = _tp.strftime("%Y-%m-%d")
+                    _rp = "Search keywords: " + persona['name'] + " OR " + persona['name'] + ". Question to research: '" + user_msg_text + "'. Current date: " + _today + ". Give me ONLY two search-engine-ready query strings, exactly like:  'keyword1 keyword2 keyword3 2026'. Use " + persona['name'] + "'s real name. Factor in that we are past " + _today + ". Your ENTIRE RESPONSE must be exactly 2 lines, each line a search query. No explanations, no thinking, no prefix."
+                    _rr = await minimax_client.chat(
+                        [{"role": "user", "content": _rp}], temperature=0.1, max_tokens=150
+                    )
+                    _rlines = [l.strip() for l in _rr.strip().split("\n") if l.strip()]
+                    _bad_prefixes = ('we need', 'we should', 'the question', 'the user', 'possible',
+                                     'interpret', 'so we', 'so the', 'use real', 'first query',
+                                     'second query', 'query 1', 'query 2', 'we can', 'here are',
+                                     'let me', 'i need', 'i will', 'output',
+                                     '我们需要', '问题', '可以', '这样', '首先', '然后')
+                    _lowered = [l.lower() for l in _rlines]
+                    _kept = [l for i, l in enumerate(_rlines)
+                             if not _lowered[i].startswith(_bad_prefixes)
+                             and len(l) >= 10
+                             and 'keyword' not in _lowered[i]]
+                    _qs = _kept[:2] if len(_kept) >= 2 else [
+                        persona['name'] + " latest " + str(_tp.year) + " news lawsuit",
+                        persona['name']
+                    ]
+                    _log.info(f"[SEARCH_Q] name={persona['name']} raw={user_msg_text[:40]!r} -> {_qs}")
+                    _sr = await search_web(_qs)
                     _hits = 0
                     if _sr:
                         _seen = set()

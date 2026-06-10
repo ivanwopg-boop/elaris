@@ -14,17 +14,17 @@ logger = logging.getLogger("uvicorn")
 
 SEARXNG_URL = "http://127.0.0.1:8888"
 TIMEOUT = 12.0
-MAX_RESULTS = 8
+MAX_RESULTS = 15
 
 
-async def _searxng_search(query: str, language: str = "auto") -> list[dict]:
+async def _searxng_search(query: str, language: str = "auto", categories: str = None) -> list[dict]:
     """Search via local SearXNG instance."""
     try:
         async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-            resp = await client.get(
-                f"{SEARXNG_URL}/search",
-                params={"q": query, "format": "json", "language": language},
-            )
+            params = {"q": query, "format": "json", "language": language}
+            if categories:
+                params["categories"] = categories
+            resp = await client.get(f"{SEARXNG_URL}/search", params=params)
             if resp.status_code != 200:
                 logger.warning(f"[SEARXNG] HTTP {resp.status_code} for: {query}")
                 return []
@@ -86,8 +86,12 @@ async def search_web(queries: list[str]) -> list[dict]:
     2. Deduplicate and rank by relevance
     3. Enrich results that lack snippets via trafilatura
     """
-    # Parallel search
-    tasks = [_searxng_search(q) for q in queries]
+    # Parallel search — use news search for time-sensitive queries
+    _news_hints = ('2024', '2025', '2026', 'latest', 'news', 'today', 'current', 'lawsuit', 'lawsuit')
+    tasks = []
+    for q in queries:
+        _is_news = any(hint in q.lower() for hint in _news_hints)
+        tasks.append(_searxng_search(q, language="en", categories="news" if _is_news else None))
     all_raw = await asyncio.gather(*tasks)
 
     all_results = []

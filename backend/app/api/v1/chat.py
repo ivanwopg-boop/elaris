@@ -160,10 +160,34 @@ async def chat_stream(persona_id: str, message: str, conv: str = None, request: 
     # Always search (self-hosted, unlimited) — use multiple queries for better coverage
     search_context = ""
     try:
-        _search_queries = [
-            f"{info['name']} {message} 2026",
-            message,
+        import logging; _log = logging.getLogger("uvicorn")
+        _now = datetime.now()
+        _today = _now.strftime("%Y-%m-%d")
+
+        # Step 1: LLM reformulates user question into search keywords
+        _rp = "Search keywords: " + info['name'] + " OR " + info['name'] + ". Question to research: '" + message + "'. Current date: " + _today + ". Give me ONLY two search-engine-ready query strings, exactly like:  'keyword1 keyword2 keyword3 2026'. Use " + info['name'] + "'s real name. Factor in that we are past " + _today + ". Your ENTIRE RESPONSE must be exactly 2 lines, each line a search query. No explanations, no thinking, no prefix."
+        _rr = await minimax_client.chat(
+            [{"role": "user", "content": _rp}], temperature=0.1, max_tokens=150
+        )
+        _rlines = [l.strip() for l in _rr.strip().split("\n") if l.strip()]
+        # Filter out LLM narration lines — only keep lines that look like search queries
+        _bad_prefixes = ('we need', 'we should', 'the question', 'the user', 'possible',
+                         'interpret', 'so we', 'so the', 'use real', 'first query',
+                         'second query', 'query 1', 'query 2', 'we can', 'here are',
+                         'let me', 'i need', 'i will', 'output',
+                         '我们需要', '问题', '可以', '这样', '首先', '然后')
+        _lowered = [l.lower() for l in _rlines]
+        _kept = [l for i, l in enumerate(_rlines)
+                 if not _lowered[i].startswith(_bad_prefixes)
+                 and len(l) >= 10
+                 and 'keyword' not in _lowered[i]]
+        _search_queries = _kept[:2] if len(_kept) >= 2 else [
+            info['name'] + " latest " + str(_now.year) + " news lawsuit",
+            info['name']
         ]
+        _log.info(f"[SEARCH_Q] raw={message[:40]!r} -> {_search_queries}")
+
+        # Step 2: Broad search (up to 15 results via Exa)
         sr = await search_web(_search_queries)
         if sr:
             _seen_urls = set()
@@ -174,13 +198,17 @@ async def chat_stream(persona_id: str, message: str, conv: str = None, request: 
                     if _url and _url not in _seen_urls and r.get("snippet"):
                         _seen_urls.add(_url)
                         _all_results.append(r)
+            _all_results = _all_results[:15]
             if _all_results:
-                sc_parts = ["\n### Latest web search results (retrieved just now):"]
+                # Step 3: List results directly — let the persona's own prompt handle interpretation
+                _parts = ["\n### Latest web search results (retrieved just now):"]
                 for r in _all_results[:6]:
-                    sc_parts.append(f"- **{r['title']}**: {r['snippet'][:200]}")
-                search_context = "\n".join(sc_parts)
+                    _parts.append("- **" + r['title'] + "**: " + r['snippet'][:250])
+                search_context = "\n".join(_parts)
+                _log.info(f"[SEARCH_REFINE] {len(_all_results)} results, context={len(search_context)} chars")
     except Exception as _search_err:
         import logging; logging.getLogger("uvicorn").error(f"[SEARCH_ERROR] {_search_err}")
+
 
     import logging; logging.getLogger("uvicorn").info(f"[SEARCH_DEBUG] context_len={len(search_context)}, preview={repr(search_context[:150])}")
     system_prompt = CHAT_SYSTEM_PROMPT.format(
@@ -190,17 +218,28 @@ async def chat_stream(persona_id: str, message: str, conv: str = None, request: 
         soul_json=json.dumps(info["soul"], indent=2, ensure_ascii=False),
     )
 
-    # Load conversation history for context
+    # ── Context gate: only load history when the message needs it ──
     history_msgs = []
     if conv:
-        from app.models.db_models import ConversationMessage
-        # select already imported at module level
-        hres = await db.execute(
-            select(ConversationMessage).where(ConversationMessage.conversation_id == conv)
-            .order_by(ConversationMessage.created_at.desc()).limit(10)
-        )
-        for hm in reversed(hres.scalars().all()):
-            history_msgs.append({"role": hm.role, "content": hm.content})
+        try:
+            _gate_prompt = "A user in a chat sent this message: '" + message + "'. Does this message require remembering the PREVIOUS conversation context to understand and answer properly? Examples: 'tell me more' = YES, 'what about X' where X was just mentioned = YES, 'what is the capital of France?' = NO, 'who is Elon Musk?' = NO. Reply exactly one word: YES or NO."
+            _gate_resp = await minimax_client.chat(
+                [{"role": "user", "content": _gate_prompt}],
+                temperature=0.0, max_tokens=5
+            )
+            _needs_context = "YES" in _gate_resp.upper().strip()
+        except Exception:
+            _needs_context = True  # safe default: include history on failure
+        
+        if _needs_context:
+            from app.models.db_models import ConversationMessage
+            hres = await db.execute(
+                select(ConversationMessage).where(ConversationMessage.conversation_id == conv)
+                .order_by(ConversationMessage.created_at.desc()).limit(10)
+            )
+            for hm in reversed(hres.scalars().all()):
+                history_msgs.append({"role": hm.role, "content": hm.content})
+
 
     # Inject search results into user message (models respect user input far more than system instructions)
     user_content = message
