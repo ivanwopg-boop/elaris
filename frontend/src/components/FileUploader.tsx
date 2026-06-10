@@ -33,7 +33,7 @@ export function FileUploader({ onFilesSelected, className }: FileUploaderProps) 
       {/* Drop zone */}
       <div
         className={cn(
-          "border-2 border-dashed rounded-2xl p-8 text-center transition-all cursor-pointer",
+          "border-2 border-dashed rounded-3xl p-8 text-center transition-all cursor-pointer",
           dragOver
             ? "border-accent-blue bg-accent-blue/5"
             : "border-border hover:border-text-secondary"

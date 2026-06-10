@@ -164,7 +164,7 @@ if (loading) {
             </label>
           </div>
           <div>
-            <h1 className="text-2xl sm:text-3xl font-extralight tracking-tight">{persona.name}</h1>
+            <h1 className="text-2xl sm:text-3xl font-medium tracking-tight">{persona.name}</h1>
             {persona.description && <p className="text-sm text-[#86868B] font-light mt-1 hidden sm:block">{persona.description}</p>}
           </div>
         </div>

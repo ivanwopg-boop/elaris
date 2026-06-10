@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { MessageSquare, Compass, User, LogOut, ChevronRight, Plus, Users, Sparkles, Settings, HelpCircle, Info } from 'lucide-react';
 import TabBar from '@/components/TabBar';
 import { Avatar } from '@/components/Avatar';
+import { SwipeableRow } from '@/components/SwipeableRow';
 import { api } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
 import { useLangStore, translations, type Lang, getLocalizedPresetName } from '@/lib/i18n';
@@ -61,7 +62,7 @@ function AppBar({ title, action }: { title: string; action?: React.ReactNode }) 
     >
       <div className="h-12 flex items-center justify-center px-4">
         {action && <div className="absolute right-4">{action}</div>}
-        <h1 className="text-base font-light tracking-wide text-[#1D1D1F]">{title}</h1>
+        <h1 className="text-base font-medium tracking-wide text-[#1D1D1F]">{title}</h1>
       </div>
     </header>
   );
@@ -87,9 +88,6 @@ function ChatTab({ tabStrings, conversations, setConversations, onNavigate }: { 
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [revealedId, setRevealedId] = useState<string | null>(null);
-  const [longPressTimer, setLongPressTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
-  const [touchStartX, setTouchStartX] = useState<number>(0);
 
   const loadConversations = async () => {
     try {
@@ -123,8 +121,7 @@ function ChatTab({ tabStrings, conversations, setConversations, onNavigate }: { 
 
   useEffect(() => { loadConversations(); }, []);
 
-  const handleDelete = async (e: React.MouseEvent, convId: string) => {
-    e.stopPropagation();
+  const handleDelete = async (convId: string) => {
     if (!confirm(tabStrings.delete_confirm_conv || "Delete this conversation?")) return;
     setDeletingId(convId);
     try {
@@ -154,69 +151,52 @@ function ChatTab({ tabStrings, conversations, setConversations, onNavigate }: { 
 
   if (conversations.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
-        <div className="w-20 h-20 rounded-full bg-[#F5F5F7] flex items-center justify-center mb-5">
-          <MessageSquare size={28} strokeWidth={1.5} className="text-[#86868B]" />
+      <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
+        <div className="w-24 h-24 rounded-3xl bg-gradient-to-br from-[#E8E8ED] to-[#F5F5F7] flex items-center justify-center mb-6">
+          <MessageSquare size={40} strokeWidth={1} className="text-[#86868B]" />
         </div>
-        <p className="text-base font-light text-[#1D1D1F] mb-1">{tabStrings.no_chats}</p>
-        <p className="text-sm text-[#86868B] font-light mb-8 leading-relaxed">{tabStrings.chat_with_them}</p>
-        <div className="relative">
-          <button
-            onClick={onNavigate}
-            className="px-8 py-3.5 rounded-full bg-[#1D1D1F] text-white text-sm font-light hover:bg-[#3C3C3E] active:bg-[#000] transition-colors flex items-center justify-center gap-2"
-          >
-            {tabStrings.go_discover}
-            <ChevronRight size={16} strokeWidth={1.5} />
-          </button>
-        </div>
+        <p className="text-lg font-medium text-[#1D1D1F] mb-2">{tabStrings.no_chats}</p>
+        <p className="text-sm text-[#86868B] font-light mb-10 leading-relaxed max-w-[240px]">{tabStrings.chat_with_them}</p>
+        <button
+          onClick={onNavigate}
+          className="px-10 py-3.5 rounded-full bg-[#1D1D1F] text-white text-sm font-medium hover:bg-[#3C3C3E] active:bg-[#000] active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-lg shadow-black/10"
+        >
+          {tabStrings.go_discover}
+          <ChevronRight size={16} strokeWidth={1.5} />
+        </button>
       </div>
+
     );
   }
 
   return (
     <div className="bg-white">
       {conversations.map((conv) => (
-        <div
+        <SwipeableRow
           key={conv.id}
-          className={`flex items-center gap-3 px-4 py-4 border-b border-[rgba(0,0,0,0.04)] active:bg-[rgba(0,0,0,0.02)] transition-colors cursor-pointer ${revealedId === conv.id ? 'bg-[#FFF9F9]' : ''}`}
-          style={{ minHeight: '64px' }}
-          onClick={() => router.push(conv.type === 'group' ? `/group-chat/${conv.id}` : `/chat/${conv.persona_id}?conv=${conv.id}`)}
-          onContextMenu={(e) => { e.preventDefault(); handleDelete(e as any, conv.id); }}
-          onTouchStart={(e) => { setTouchStartX(e.touches[0].clientX); }}
-          onTouchMove={(e) => {
-            const diff = e.touches[0].clientX - touchStartX;
-            if (diff < -80) { setRevealedId(conv.id); }
-            else if (diff > 80) { setRevealedId(null); }
-          }}
-          onTouchEnd={() => { setRevealedId(null); }}
+          onDelete={() => handleDelete(conv.id)}
+          deleteLabel={tabStrings.delete || "Delete"}
+          deleting={deletingId === conv.id}
         >
-          <Avatar name={getLocalizedPresetName(conv.persona_name, lang)} url={conv.persona_avatar} size="md" />
-          <div className="flex-1 min-w-0">
-            <p className="text-base font-normal text-[#1D1D1F] truncate">{getLocalizedPresetName(conv.persona_name, lang)}</p>
-            {conv.last_message && (
-              <p className="text-sm text-[#86868B] font-light truncate mt-0.5">{conv.last_message}</p>
-            )}
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <span className="text-xs text-[#AEAEB2] font-light">{formatTime(conv.updated_at)}</span>
-            {revealedId === conv.id && (
-              <span className="text-xs text-[#FF3B30] font-light animate-pulse">← swipe to cancel</span>
-            )}
-            <div
-              onClick={(e) => handleDelete(e, conv.id)}
-              role="button"
-              aria-label={tabStrings.delete || "Delete"}
-              className="w-8 h-8 rounded-full flex items-center justify-center text-[#C7C7CC] hover:text-red-500 hover:bg-red-50 active:bg-red-100 transition-all text-xl font-light ml-1 cursor-pointer"
-            >
-              {deletingId === conv.id ? (
-                <span className="w-4 h-4 rounded-full border-2 border-[#C7C7CC] border-t-transparent animate-spin inline-block" />
-              ) : (
-                <span>×</span>
+          <div
+            className="flex items-center gap-3 px-4 py-4 border-b border-[rgba(0,0,0,0.04)] active:bg-[rgba(0,0,0,0.02)] active:scale-[0.98] transition-all cursor-pointer"
+            style={{ minHeight: '64px' }}
+            onClick={() => router.push(conv.type === 'group' ? `/group-chat/${conv.id}` : `/chat/${conv.persona_id}?conv=${conv.id}`)}
+            onContextMenu={(e) => { e.preventDefault(); handleDelete(conv.id); }}
+          >
+            <Avatar name={getLocalizedPresetName(conv.persona_name, lang)} url={conv.persona_avatar} size="md" />
+            <div className="flex-1 min-w-0">
+              <p className="text-base font-medium text-[#1D1D1F] truncate">{getLocalizedPresetName(conv.persona_name, lang)}</p>
+              {conv.last_message && (
+                <p className="text-sm text-[#86868B] font-light truncate mt-0.5">{conv.last_message}</p>
               )}
             </div>
-            <ChevronRight size={18} className="text-[#C7C7CC]" strokeWidth={1.5} />
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-xs text-[#AEAEB2] font-light">{formatTime(conv.updated_at)}</span>
+              <ChevronRight size={18} className="text-[#C7C7CC]" strokeWidth={1.5} />
+            </div>
           </div>
-        </div>
+        </SwipeableRow>
       ))}
     </div>
   );
@@ -230,8 +210,7 @@ function ContactsTab({ isActive, onNavigate, tabStrings, contacts, setContacts, 
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const loading = false; // ChatsContent handles fetching
 
-  const handleDelete = async (e: React.MouseEvent, personaId: string) => {
-    e.stopPropagation();
+  const handleDelete = async (personaId: string) => {
     if (!confirm(tabStrings.delete_confirm_contact || "Delete this contact?")) return;
     setDeletingId(personaId);
     try {
@@ -296,55 +275,50 @@ function ContactsTab({ isActive, onNavigate, tabStrings, contacts, setContacts, 
 
   if (displayContacts.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
-        <div className="w-20 h-20 rounded-full bg-[#F5F5F7] flex items-center justify-center mb-5">
-          <Compass size={28} strokeWidth={1.5} className="text-[#86868B]" />
+      <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
+        <div className="w-24 h-24 rounded-3xl bg-gradient-to-br from-[#E8E8ED] to-[#F5F5F7] flex items-center justify-center mb-6">
+          <Compass size={40} strokeWidth={1} className="text-[#86868B]" />
         </div>
-        <p className="text-base font-light text-[#1D1D1F] mb-1">{tabStrings.no_contacts}</p>
-        <p className="text-sm text-[#86868B] font-light mb-8 leading-relaxed">{tabStrings.add_contacts_hint}</p>
+        <p className="text-lg font-medium text-[#1D1D1F] mb-2">{tabStrings.no_contacts}</p>
+        <p className="text-sm text-[#86868B] font-light mb-10 leading-relaxed max-w-[240px]">{tabStrings.add_contacts_hint}</p>
         <button
           onClick={onNavigate}
-          className="px-8 py-3.5 rounded-full bg-[#1D1D1F] text-white text-sm font-light hover:bg-[#3C3C3E] active:bg-[#000] transition-colors"
+          className="px-10 py-3.5 rounded-full bg-[#1D1D1F] text-white text-sm font-medium hover:bg-[#3C3C3E] active:bg-[#000] active:scale-[0.98] transition-all shadow-lg shadow-black/10"
         >
           {tabStrings.go_discover}
         </button>
       </div>
+
     );
   }
 
   return (
     <div className="bg-white">
       {displayContacts.map((p: any) => (
-        <div
+        <SwipeableRow
           key={p.id}
-          className="flex items-center gap-3 px-4 py-4 border-b border-[rgba(0,0,0,0.04)] active:bg-[rgba(0,0,0,0.02)] transition-colors cursor-pointer"
-          style={{ minHeight: '64px' }}
-          onClick={() => window.location.href = `/persona/${p.id}`}
-          onContextMenu={(e) => { e.preventDefault(); handleDelete(e as any, p.id); }}
+          onDelete={() => handleDelete(p.id)}
+          deleteLabel={tabStrings.delete || "Delete"}
+          deleting={deletingId === p.id}
         >
-          <Avatar name={getLocalizedPresetName(p.name, lang)} url={p.avatar_url} size="md" />
-          <div className="flex-1 min-w-0">
-            <p className="text-base font-normal text-[#1D1D1F] truncate">{getLocalizedPresetName(p.name, lang)}</p>
-            {p.description && (
-              <p className="text-sm text-[#86868B] font-light truncate mt-0.5">{p.description}</p>
-            )}
-          </div>
-          <div className="flex items-center gap-1 shrink-0">
-            <button
-              onClick={(e) => handleDelete(e, p.id)}
-              disabled={deletingId === p.id}
-              className="w-8 h-8 rounded-full flex items-center justify-center text-[#C7C7CC] hover:text-red-500 hover:bg-red-50 active:bg-red-100 transition-all text-xl font-light"
-              title={tabStrings.delete || "Delete"}
-            >
-              {deletingId === p.id ? (
-                <span className="w-4 h-4 rounded-full border-2 border-[#C7C7CC] border-t-transparent animate-spin inline-block" />
-              ) : (
-                <span>×</span>
+          <div
+            className="flex items-center gap-3 px-4 py-4 border-b border-[rgba(0,0,0,0.04)] active:bg-[rgba(0,0,0,0.02)] active:scale-[0.98] transition-all cursor-pointer"
+            style={{ minHeight: '64px' }}
+            onClick={() => window.location.href = `/persona/${p.id}`}
+            onContextMenu={(e) => { e.preventDefault(); handleDelete(p.id); }}
+          >
+            <Avatar name={getLocalizedPresetName(p.name, lang)} url={p.avatar_url} size="md" />
+            <div className="flex-1 min-w-0">
+              <p className="text-base font-medium text-[#1D1D1F] truncate">{getLocalizedPresetName(p.name, lang)}</p>
+              {p.description && (
+                <p className="text-sm text-[#86868B] font-light truncate mt-0.5">{p.description}</p>
               )}
-            </button>
-            <ChevronRight size={18} className="text-[#C7C7CC]" strokeWidth={1.5} />
+            </div>
+            <div className="flex items-center gap-1 shrink-0">
+              <ChevronRight size={18} className="text-[#C7C7CC]" strokeWidth={1.5} />
+            </div>
           </div>
-        </div>
+        </SwipeableRow>
       ))}
     </div>
   );
@@ -392,13 +366,14 @@ function DiscoverTab({ tabStrings, onContactAdded }: { tabStrings: Record<string
 
   if (presets.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
-        <div className="w-20 h-20 rounded-full bg-[#F5F5F7] flex items-center justify-center mb-5">
-          <Compass size={28} strokeWidth={1.5} className="text-[#86868B]" />
+      <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
+        <div className="w-24 h-24 rounded-3xl bg-gradient-to-br from-[#E8E8ED] to-[#F5F5F7] flex items-center justify-center mb-6">
+          <Sparkles size={40} strokeWidth={1} className="text-[#86868B]" />
         </div>
-        <p className="text-base font-light text-[#1D1D1F] mb-1">{tabStrings.no_presets}</p>
-        <p className="text-sm text-[#86868B] font-light leading-relaxed">{tabStrings.check_back_later}</p>
+        <p className="text-lg font-medium text-[#1D1D1F] mb-2">{tabStrings.no_presets}</p>
+        <p className="text-sm text-[#86868B] font-light leading-relaxed max-w-[240px]">{tabStrings.check_back_later}</p>
       </div>
+
     );
   }
 
@@ -439,7 +414,7 @@ function DiscoverTab({ tabStrings, onContactAdded }: { tabStrings: Record<string
           <button
             key={cat.key}
             onClick={() => setActiveCat(cat.key)}
-            className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-light transition-colors ${activeCat === cat.key ? 'bg-[#1D1D1F] text-white' : 'bg-[#F5F5F7] text-[#86868B]'}`}
+            className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-light transition-all active:scale-[0.98] ${activeCat === cat.key ? 'bg-[#0071E3] text-white' : 'bg-[#F5F5F7] text-[#86868B]'}`}
           >
             {cat.label}
           </button>
@@ -447,15 +422,15 @@ function DiscoverTab({ tabStrings, onContactAdded }: { tabStrings: Record<string
       </div>
       <div className="p-4 grid grid-cols-1 gap-3">
         {filtered.map((p) => (
-          <div key={p.id} className="rounded-2xl border border-[rgba(0,0,0,0.06)] bg-white overflow-hidden">
+          <div key={p.id} className="rounded-3xl border border-[rgba(0,0,0,0.06)] bg-white overflow-hidden">
             <button
               onClick={() => window.location.href = `/persona/${p.id}`}
-              className="w-full text-left p-4 active:bg-[rgba(0,0,0,0.02)] transition-colors"
+              className="w-full text-left p-4 active:bg-[rgba(0,0,0,0.02)] active:scale-[0.98] transition-all"
             >
               <div className="flex items-start gap-4">
                 <Avatar name={getLocalizedPresetName(p.name, lang)} url={p.avatar_url} size="lg" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-base font-normal text-[#1D1D1F] mb-1">{getLocalizedPresetName(p.name, lang)}</p>
+                  <p className="text-base font-medium text-[#1D1D1F] mb-1">{getLocalizedPresetName(p.name, lang)}</p>
                   {p.description && (
                     <p className="text-sm text-[#86868B] font-light leading-relaxed line-clamp-2">{p.description}</p>
                   )}
@@ -463,7 +438,7 @@ function DiscoverTab({ tabStrings, onContactAdded }: { tabStrings: Record<string
                 {token && (
                   <button
                     onClick={(e) => handleDeletePreset(e, p)}
-                    className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-[#C7C7CC] hover:text-red-500 hover:bg-red-50 active:bg-red-100 transition-all text-xl font-light"
+                    className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-[#C7C7CC] hover:text-red-500 hover:bg-red-50 active:bg-red-100 active:scale-[0.98] transition-all text-xl font-light"
                     title="Delete"
                   >
                     ×
@@ -475,14 +450,14 @@ function DiscoverTab({ tabStrings, onContactAdded }: { tabStrings: Record<string
               {token && (
                 <button
                   onClick={(e) => handleAddToContacts(e, p)}
-                  className="flex-1 py-2.5 rounded-full border border-[rgba(0,0,0,0.12)] text-sm font-light text-[#1D1D1F] bg-white active:bg-[rgba(0,0,0,0.04)] transition-colors"
+                  className="flex-1 py-2.5 rounded-full border border-[rgba(0,0,0,0.12)] text-sm font-light text-[#1D1D1F] bg-white active:bg-[rgba(0,0,0,0.04)] active:scale-[0.98] transition-all"
                 >
                   {tabStrings.add_to_contacts}
                 </button>
               )}
               <button
                 onClick={() => window.location.href = `/guest-chat/${p.id}`}
-                className="flex-1 py-2.5 rounded-full bg-[#1D1D1F] text-white text-sm font-light active:bg-[#3C3C3E] transition-colors"
+                className="flex-1 py-2.5 rounded-full bg-[#1D1D1F] text-white text-sm font-light active:bg-[#3C3C3E] active:scale-[0.98] transition-all"
               >
                 {tabStrings.start_chat}
               </button>
@@ -517,12 +492,12 @@ function MeTab({ tabStrings }: { tabStrings: Record<string, string> }) {
 
   return (
     <div className="px-4 py-6 bg-[#F9F9F9] min-h-full">
-      <div className="bg-white rounded-2xl border border-[rgba(0,0,0,0.06)] p-5 mb-4 flex items-center gap-4">
+      <div className="bg-white rounded-3xl border border-[rgba(0,0,0,0.06)] p-5 mb-4 flex items-center gap-4">
         <div className="w-14 h-14 rounded-full bg-[#F5F5F7] flex items-center justify-center shrink-0">
           <User size={22} className="text-[#86868B]" strokeWidth={1.5} />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-lg font-normal text-[#1D1D1F]">{user?.name || tabStrings.guest}</p>
+          <p className="text-lg font-medium text-[#1D1D1F]">{user?.name || tabStrings.guest}</p>
           {user?.email && (
             <p className="text-sm text-[#86868B] font-light mt-0.5 truncate">{user.email}</p>
           )}
@@ -532,16 +507,16 @@ function MeTab({ tabStrings }: { tabStrings: Record<string, string> }) {
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl border border-[rgba(0,0,0,0.06)] overflow-hidden mb-4">
+      <div className="bg-white rounded-3xl border border-[rgba(0,0,0,0.06)] overflow-hidden mb-4">
         {menuItems.map((item, i) => (
           <button
             key={i}
             onClick={item.onClick}
-            className="w-full flex items-center gap-3 px-5 py-4 text-left border-b border-[rgba(0,0,0,0.04)] last:border-b-0 active:bg-[rgba(0,0,0,0.02)] transition-colors"
+            className="w-full flex items-center gap-3 px-5 py-4 text-left border-b border-[rgba(0,0,0,0.04)] last:border-b-0 active:bg-[rgba(0,0,0,0.02)] active:scale-[0.98] transition-all"
             style={{ minHeight: '52px' }}
           >
             <span className="text-[#86868B]">{item.icon}</span>
-            <span className="text-sm font-normal text-[#1D1D1F]">{item.label}</span>
+            <span className="text-sm font-medium text-[#1D1D1F]">{item.label}</span>
           </button>
         ))}
       </div>
@@ -549,7 +524,7 @@ function MeTab({ tabStrings }: { tabStrings: Record<string, string> }) {
       {user && (
         <button
           onClick={handleLogout}
-          className="w-full py-3.5 rounded-full border border-[rgba(0,0,0,0.12)] text-sm font-normal text-[#1D1D1F] bg-white active:bg-[rgba(0,0,0,0.03)] transition-colors flex items-center justify-center gap-2"
+          className="w-full py-3.5 rounded-full border border-[rgba(0,0,0,0.12)] text-sm font-medium text-[#1D1D1F] bg-white active:bg-[rgba(0,0,0,0.03)] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
         >
           <LogOut size={16} strokeWidth={1.5} />
           {tabStrings.logout}
@@ -690,7 +665,7 @@ function ChatsContent() {
                     <Users size={20} strokeWidth={1.5} className="text-white" />
                   </div>
                   <div className="text-left flex-1">
-                    <p className="text-sm font-normal text-[#1D1D1F]">{t.create_group_chat || "Create Group Chat"}</p>
+                    <p className="text-sm font-medium text-[#1D1D1F]">{t.create_group_chat || "Create Group Chat"}</p>
                     <p className="text-xs text-[#86868B] font-light">{t.chat_with_multi || "Chat with multiple personas"}</p>
                   </div>
                 </button>
@@ -702,7 +677,7 @@ function ChatsContent() {
                     <Sparkles size={20} strokeWidth={1.5} className="text-white" />
                   </div>
                   <div className="text-left flex-1">
-                    <p className="text-sm font-normal text-[#1D1D1F]">{t.create_persona || "Create Persona"}</p>
+                    <p className="text-sm font-medium text-[#1D1D1F]">{t.create_persona || "Create Persona"}</p>
                     <p className="text-xs text-[#86868B] font-light">{t.distill_twin || "Distill your own AI twin"}</p>
                   </div>
                 </button>

@@ -31,7 +31,7 @@ export default function TabBar({ active, onTabChange }: TabBarProps) {
 
   return (
     <div
-      className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-sm border-t border-[rgba(0,0,0,0.06)]"
+      className="fixed bottom-0 left-0 right-0 z-40 bg-white/90 backdrop-blur-md border-t border-[rgba(0,0,0,0.06)]"
       style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
       <div className="flex h-14">
@@ -42,7 +42,7 @@ export default function TabBar({ active, onTabChange }: TabBarProps) {
               key={tab.key}
               onClick={() => handleTabClick(tab.key)}
               className={cn(
-                'flex-1 flex flex-col items-center justify-center gap-0.5 transition-colors',
+                'flex-1 flex flex-col items-center justify-center gap-0.5 transition-all active:scale-[0.98]',
                 isActive ? 'text-[#1D1D1F]' : 'text-[#86868B]'
               )}
             >
