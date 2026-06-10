@@ -4,8 +4,8 @@
   "description": "Turn any person s wisdom into a reusable AI persona",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#1D1D1F",
-  "theme_color": "#1D1D1F",
+  "background_color": "#FAFAFA",
+  "theme_color": "#FAFAFA",
   "icons": [
     {
       "src": "/pwa-192.png",

@@ -16,7 +16,7 @@ import HideOnChat from "@/components/HideOnChat";
 export const metadata: Metadata = {
   title: "Elaris",
   description: "Turn any person's wisdom into a reusable AI persona",
-  icons: "/icon-192.png",
+  icons: [{url: "/pwa-192.png", sizes: "192x192"}, {url: "/pwa-512.png", sizes: "512x512"}],
   appleWebApp: { capable: true, title: "Elaris", statusBarStyle: "default" },
   themeColor: "#FAFAFA",
 };
@@ -29,6 +29,7 @@ export default function RootLayout({
   return (
     <html lang="zh-CN" className="h-full antialiased">
       <head>
+        <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48.png" />
         <link rel="apple-touch-startup-image" href="/splash-iphone-2688.png" media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3)" />
         <link rel="apple-touch-startup-image" href="/splash-iphone-2532.png" media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3)" />
         <link rel="apple-touch-startup-image" href="/splash-iphone-2436.png" media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3)" />
