@@ -16,6 +16,9 @@ import HideOnChat from "@/components/HideOnChat";
 export const metadata: Metadata = {
   title: "Elaris",
   description: "Turn any person's wisdom into a reusable AI persona",
+  icons: "/icon-192.png",
+  appleWebApp: { capable: true, title: "Elaris", statusBarStyle: "default" },
+  themeColor: "#FAFAFA",
 };
 
 export default function RootLayout({
@@ -25,6 +28,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="zh-CN" className="h-full antialiased">
+      <head>
+        <link rel="apple-touch-startup-image" href="/splash-iphone-2688.png" media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3)" />
+        <link rel="apple-touch-startup-image" href="/splash-iphone-2532.png" media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3)" />
+        <link rel="apple-touch-startup-image" href="/splash-iphone-2436.png" media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3)" />
+        <link rel="apple-touch-startup-image" href="/splash-ipad-2732.png" media="(device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2)" />
+      </head>
       <body className="min-h-full flex flex-col bg-[#FAFAFA] text-[#1D1D1F] font-sans">
         <HideOnChat><Navbar /></HideOnChat>
         <main className="flex-1">
