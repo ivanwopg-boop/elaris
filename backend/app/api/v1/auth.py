@@ -3,7 +3,7 @@
 import uuid
 import secrets
 from datetime import datetime, timezone, timedelta
-from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Response, Request, UploadFile, File
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
@@ -248,6 +248,26 @@ async def change_password(request: Request, user: User = Depends(require_auth), 
     db_user.hashed_password = pwd_ctx.hash(new_pw)
     await db.commit()
     return {"ok": True}
+@router.post("/me/avatar", status_code=status.HTTP_200_OK)
+async def upload_user_avatar(
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_auth),
+):
+    """Upload avatar image for current user."""
+    settings = get_settings()
+    avatar_dir = Path(settings.UPLOAD_DIR) / "avatars"
+    avatar_dir.mkdir(parents=True, exist_ok=True)
+    ext = Path(file.filename).suffix if file.filename else ".png"
+    filename = f"{user.id}{ext}"
+    filepath = avatar_dir / filename
+    contents = await file.read()
+    with open(filepath, "wb") as f:
+        f.write(contents)
+    user.avatar_url = f"/uploads/avatars/{filename}"
+    await db.flush()
+    return {"avatar_url": user.avatar_url}
+
 # ── OAuth placeholders (requires API keys setup) ───────
 @router.get("/google")
 async def auth_google():

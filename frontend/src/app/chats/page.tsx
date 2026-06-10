@@ -480,7 +480,7 @@ function DiscoverTab({ tabStrings, onContactAdded }: { tabStrings: Record<string
 
 function MeTab({ tabStrings }: { tabStrings: Record<string, string> }) {
   const router = useRouter();
-  const { user, clearAuth } = useAuthStore();
+  const { user, token, clearAuth, setAuth } = useAuthStore();
 
   const handleLogout = async () => {
     try { await api.logout(); } catch { /* ignore */ }
@@ -499,9 +499,23 @@ function MeTab({ tabStrings }: { tabStrings: Record<string, string> }) {
   return (
     <div className="px-4 py-6 bg-[#F9F9F9] min-h-full">
       <div className="bg-white rounded-3xl border border-[rgba(0,0,0,0.06)] p-5 mb-4 flex items-center gap-4">
-        <div className="w-14 h-14 rounded-full bg-[#F5F5F7] flex items-center justify-center shrink-0">
-          <User size={22} className="text-[#86868B]" strokeWidth={1.5} />
-        </div>
+        <label className="cursor-pointer shrink-0 relative group">
+          <Avatar name={user?.name || "?"} url={user?.avatar_url} size="lg" className="shrink-0 group-hover:opacity-80 transition-opacity" />
+          <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
+            const file = e.target.files?.[0];
+            if (!file) return;
+            try {
+              const form = new FormData();
+              form.append('file', file);
+              const res = await fetch('/api/v1/auth/me/avatar', { method: 'POST', body: form, headers: { Authorization: 'Bearer ' + token } });
+              if (res.ok) {
+                const data = await res.json();
+                setAuth(token!, { ...user!, avatar_url: data.avatar_url });
+                window.location.reload();
+              }
+            } catch {}
+          }} />
+        </label>
         <div className="flex-1 min-w-0">
           <p className="text-lg font-medium text-[#1D1D1F]">{user?.name || tabStrings.guest}</p>
           {user?.email && (
@@ -513,7 +527,7 @@ function MeTab({ tabStrings }: { tabStrings: Record<string, string> }) {
         </div>
       </div>
 
-      <div className="bg-white rounded-3xl border border-[rgba(0,0,0,0.06)] overflow-hidden mb-4">
+      <div className="bg-white rounded-3xl border border-[rgba(0,0,0,0.06)] overflow-hidden">
         {menuItems.map((item, i) => (
           <button
             key={i}
@@ -530,9 +544,8 @@ function MeTab({ tabStrings }: { tabStrings: Record<string, string> }) {
       {user && (
         <button
           onClick={handleLogout}
-          className="w-full py-3.5 rounded-full border border-[rgba(0,0,0,0.12)] text-sm font-medium text-[#1D1D1F] bg-white active:bg-[rgba(0,0,0,0.03)] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+          className="w-full py-3 rounded-full border border-[rgba(0,0,0,0.08)] text-sm font-light text-[#86868B] bg-white hover:text-[#1D1D1F] hover:border-[rgba(0,0,0,0.15)] active:bg-[rgba(0,0,0,0.02)] active:scale-[0.98] transition-all"
         >
-          <LogOut size={16} strokeWidth={1.5} />
           {tabStrings.logout}
         </button>
       )}
@@ -573,6 +586,7 @@ function ChatsContent() {
     create_persona: t.create_persona,
     account_settings: t.account_settings,
     help_feedback: t.help_feedback,
+    about: t.about,
   };
   const TAB_TITLES: Record<TabKey, string> = {
     chat: t.tab_chat,

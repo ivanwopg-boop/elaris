@@ -24,6 +24,10 @@ function RegisterForm() {
       setError(t.please_fill_all || 'Please fill in all fields');
       return;
     }
+    if (!/^([a-zA-Z0-9._%-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})$/.test(email.trim())) {
+      setError(t.invalid_email || "Please enter a valid email address");
+      return;
+    }
     if (password.length < 6) {
       setError(t.password_min_6 || 'Password must be at least 6 characters');
       return;

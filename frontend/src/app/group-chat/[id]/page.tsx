@@ -109,7 +109,7 @@ export default function GroupChatRoom() {
       });
       setPersonaNameMap(nameMap);
       setFreshIds(new Set());
-    }).catch(() => router.push("/group-chat")).finally(() => setLoading(false));
+    }).catch(() => router.push("/chats")).finally(() => setLoading(false));
   }, [id, router]);
 
   const handleInputChange = useCallback((value: string) => {
@@ -209,9 +209,9 @@ export default function GroupChatRoom() {
     <div className="flex flex-col bg-white relative" style={{ height: "100dvh" }}>
       <header className="shrink-0 border-b border-[rgba(0,0,0,0.06)] bg-white/95 z-10">
         <div className="max-w-3xl mx-auto px-4 h-14 flex items-center gap-3">
-          <button onClick={() => router.push("/group-chat")} className="text-[#86868B] hover:text-[#1D1D1F] text-sm font-light leading-none">{t.back}</button>
+          <button onClick={() => router.push("/chats")} className="text-[#86868B] hover:text-[#1D1D1F] text-sm font-light leading-none"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>
           <div className="text-sm font-light flex-1 truncate">{chat.title}</div>
-          <div className="text-[11px] text-[#86868B] font-light">{chat.persona_ids.length}{t.people}</div>
+          
           <button onClick={async () => {
             const allP = await api.listPersonas();
             const inChat = new Set(chat.persona_ids);
@@ -222,7 +222,7 @@ export default function GroupChatRoom() {
             const allP = await api.listPersonas();
             setMemberPersonas(allP.filter((p: any) => chat.persona_ids.includes(p.id)));
             setShowMembers(true);
-          }} className="text-[11px] text-[#86868B] hover:text-[#1D1D1F] px-2.5 py-1 border border-[rgba(0,0,0,0.08)] rounded-[8px] transition-colors font-light">{chat.persona_ids.length}</button>
+          }} className="text-[11px] text-[#86868B] hover:text-[#1D1D1F] px-2.5 py-1 border border-[rgba(0,0,0,0.08)] rounded-[8px] transition-colors font-light">{chat.persona_ids.length} {t.people}</button>
         </div>
       </header>
 
