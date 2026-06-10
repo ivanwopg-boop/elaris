@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/Avatar";
 import { api, GroupChatOut, GroupChatMessageOut } from "@/lib/api";
+import { useAuthStore } from "@/lib/auth-store";
 
 const COLORS = ["#0071E3","#7c3aed","#22c55e","#eab308","#ec4899","#06b6d4"];
 
@@ -28,12 +29,15 @@ function TypeText({ text, speed = 35, animate = false }: { text: string; speed?:
 
 function Bubble({ name, content, ci, avatarUrl, isUser, isFresh }: { name: string; content: string; ci: number; avatarUrl?: string; isUser?: boolean; isFresh?: boolean }) {
   const c = COLORS[ci % COLORS.length];
+  // For user bubbles, ci is irrelevant — use a neutral grey so the bubble stays dark.
   return (
     <div className={`flex items-end gap-2 mb-5 ${isUser ? "flex-row-reverse" : ""}`}>
-      <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm shrink-0" style={{ backgroundColor: `${c}10` }}>
-        {isUser ? "·" : <Avatar name={name} url={avatarUrl} size="sm" />}
+      <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm shrink-0 overflow-hidden" style={!isUser ? { backgroundColor: `${c}10` } : {}}>
+        {isUser
+          ? <Avatar name={name || "Me"} url={avatarUrl} size="sm" />
+          : <Avatar name={name} url={avatarUrl} size="sm" />}
       </div>
-      <div className={`max-w-[78%] ${isUser ? "items-end" : ""}`}>
+      <div className={`max-w-[78%] ${isUser ? "items-end" : ""} flex flex-col`}>
         {!isUser && <span className="text-[11px] font-light mb-1 block" style={{ color: c, opacity: 0.7 }}>{name}</span>}
         <div className={`rounded-[12px] rounded-bl-[4px] px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap font-light ${isUser ? "bg-[#1D1D1F] text-white rounded-br-[4px] rounded-bl-none" : ""}`}
           style={!isUser ? { backgroundColor: `${c}06`, border: `1px solid ${c}10` } : {}}>
@@ -71,18 +75,33 @@ export default function GroupChatRoom() {
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastCount = useRef(0);
 
+  // Current logged-in user (for user-bubble avatar)
+  const currentUser = useAuthStore((s) => s.user);
+  const userName = currentUser?.name || currentUser?.email?.split("@")[0] || "Me";
+  const userAvatarUrl = currentUser?.avatar_url || undefined;
+
   useEffect(() => {
     api.getGroupChat(id).then(async (d) => {
       setChat(d.chat); setAllMsgs(d.messages); lastCount.current = d.messages.length;
+      // Fetch all personas to get their avatar_url (the message API does not include it)
+      let personaIdToAvatar: Record<string, string | null> = {};
+      try {
+        const allPersonas = await api.listPersonas();
+        allPersonas.forEach((p: any) => { personaIdToAvatar[p.id] = p.avatar_url; });
+      } catch {}
       // Build name map from API response + messages
       const nameMap: Record<string, {name: string; avatar_url?: string}> = {};
       const pnames = d.chat.persona_names || {};
       Object.entries(pnames).forEach(([pid, name]) => {
-        nameMap[pid] = { name: name as string };
+        nameMap[pid] = { name: name as string, avatar_url: personaIdToAvatar[pid] || undefined };
       });
       d.messages.forEach((m: any) => {
         if (m.sender_type === "persona" && m.sender_id && m.sender_name) {
-          nameMap[m.sender_id] = { name: m.sender_name, avatar_url: m.avatar_url };
+          const existing = nameMap[m.sender_id];
+          nameMap[m.sender_id] = {
+            name: m.sender_name,
+            avatar_url: existing?.avatar_url || personaIdToAvatar[m.sender_id] || undefined,
+          };
         } else if (m.sender_type === "system" && m.sender_name) {
           const match = m.sender_name.match(/^(.+?)\s+joined/);
           if (match) { const pid = m.sender_id || m.sender_name; if (!nameMap[pid]) nameMap[pid] = { name: match[1] }; }
@@ -120,9 +139,11 @@ export default function GroupChatRoom() {
   const allPersonaNames = [...new Set(
     chat?.persona_ids.map((pid: string) => (personaNameMap[pid]?.name) || pid) || []
   )];
-  // Only show names that are real (not UUIDs) and match filter
+  // Filter out UUIDs (fallback when name not yet known) but keep all real names
+  // regardless of length or hyphens. UUIDs match 8-4-4-4-12 hex pattern.
+  const isUuid = (n: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(n);
   const filteredMentions = allPersonaNames
-    .filter((n: string) => !n.includes('-') && n.length > 5)
+    .filter((n: string) => !isUuid(n))
     .filter((n: string) =>
       n.toLowerCase().includes(mentionFilter.toLowerCase())
     );
@@ -146,7 +167,7 @@ export default function GroupChatRoom() {
             const unique = newMsgs.filter((m: any) => !existingIds.has(m.id));
             return [...prev, ...unique];
           });
-          setPersonaNameMap((prev) => { const next = { ...prev }; newMsgs.forEach((m: any) => { if (m.sender_type === "persona" && m.sender_id && m.sender_name) next[m.sender_id] = { name: m.sender_name, avatar_url: m.avatar_url }; }); return next; });
+          setPersonaNameMap((prev) => { const next = { ...prev }; newMsgs.forEach((m: any) => { if (m.sender_type === "persona" && m.sender_id && m.sender_name) { const existing = next[m.sender_id]; next[m.sender_id] = { name: m.sender_name, avatar_url: existing?.avatar_url }; } }); return next; });
           setThinking(null);
         }
       } catch {}
@@ -216,10 +237,7 @@ export default function GroupChatRoom() {
             <div className="max-h-64 overflow-y-auto">
               {memberPersonas.map((p: any) => (
                 <div key={p.id} className="px-4 py-3 flex items-center gap-3 border-b border-[rgba(0,0,0,0.04)] last:border-0">
-                  {p.avatar_url
-                    ? <img src={p.avatar_url} className="w-8 h-8 rounded-full object-cover shrink-0" alt="" />
-                    : <span className="w-8 h-8 rounded-full bg-[rgba(0,113,227,0.08)] flex items-center justify-center text-sm font-light">{(p.name || '?')[0]}</span>
-                  }
+                  <Avatar name={p.name || '?'} url={p.avatar_url} size="sm" />
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-light text-[#1D1D1F] truncate">{p.name}</div>
                   </div>
@@ -268,10 +286,7 @@ export default function GroupChatRoom() {
                   disabled={inviting}
                   className="w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-[rgba(0,0,0,0.02)] transition-colors border-b border-[rgba(0,0,0,0.04)] last:border-0"
                 >
-                  {p.avatar_url
-                    ? <img src={p.avatar_url} className="w-8 h-8 rounded-full object-cover shrink-0" alt="" />
-                    : <span className="w-8 h-8 rounded-full bg-[rgba(0,113,227,0.08)] flex items-center justify-center text-sm font-light">{(p.name || '?')[0]}</span>
-                  }
+                  <Avatar name={p.name || '?'} url={p.avatar_url} size="sm" />
                   <div className="min-w-0">
                     <div className="text-sm font-light text-[#1D1D1F] truncate">{p.name}</div>
                     <div className="text-xs text-[#86868B] font-light truncate">{p.description || ''}</div>
@@ -293,7 +308,7 @@ export default function GroupChatRoom() {
           {allMsgs.map((m: any) => {
             const fresh = freshIds.has(m.id);
             if (m.sender_type === "user" || m.sender_name === "Me")
-              return <Bubble key={m.id} name={t.me} content={m.content} ci={99} isUser isFresh={fresh} />;
+              return <Bubble key={m.id} name={userName} content={m.content} ci={99} avatarUrl={userAvatarUrl} isUser isFresh={fresh} />;
             if (m.sender_type === "system")
               return <div key={m.id} className="text-center text-xs text-[#86868B] py-2 italic font-light">{m.content}</div>;
             const ci = chat.persona_ids.indexOf(m.sender_id || "");

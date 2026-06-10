@@ -24,41 +24,69 @@ async def create_persona(data: PersonaCreate, db: AsyncSession = Depends(get_db)
         persona.avatar_url = generate_avatar_url(persona.name)
         await db.flush()
 
-    # If source_id provided, copy soul (PersonaSoul) from source persona
+    # If source_id provided, copy souls + files + web search results from source persona.
+    # IMPORTANT: copy the LATEST soul for EACH language so the cloned persona is bilingual,
+    # not just the single most-recently-created soul row.
     if data.source_id:
-        from sqlalchemy import select, update
-        from app.models.db_models import PersonaSoul
-        # Copy latest soul version from source
-        src_soul = await db.execute(
-            select(PersonaSoul).where(PersonaSoul.persona_id == data.source_id).order_by(PersonaSoul.version.desc())
+        from sqlalchemy import select
+        from app.models.db_models import PersonaSoul, PersonaFile, WebSearchResult
+        from datetime import datetime
+
+        # 1. Copy latest soul per lang (en, zh-CN) — preserves bilingual coverage.
+        src_souls = await db.execute(
+            select(PersonaSoul)
+            .where(PersonaSoul.persona_id == data.source_id)
+            .order_by(PersonaSoul.lang, PersonaSoul.version.desc())
         )
-        src = src_soul.scalars().first()
-        if src:
-            from datetime import datetime
+        src_soul_rows = src_souls.scalars().all()
+        seen_langs = set()
+        for ss in src_soul_rows:
+            # Keep only the highest-version row per lang
+            if ss.lang in seen_langs:
+                continue
+            seen_langs.add(ss.lang)
             new_soul = PersonaSoul(
                 id=str(uuid.uuid4()),
                 persona_id=persona.id,
-                soul_json=src.soul_json,
+                lang=ss.lang,                 # <- critical: preserve the original lang
                 version=1,
+                soul_json=ss.soul_json,
+                distill_source_count=ss.distill_source_count,
+                distill_file_ids=ss.distill_file_ids,
+                distill_search_ids=ss.distill_search_ids,
                 created_at=datetime.utcnow(),
             )
             db.add(new_soul)
-            # Also copy files
-            from app.models.db_models import PersonaFile
-            src_files = await db.execute(select(PersonaFile).where(PersonaFile.persona_id == data.source_id))
-            for sf in src_files.scalars().all():
-                new_file = PersonaFile(
-                    id=str(uuid.uuid4()),
-                    persona_id=persona.id,
-                    file_name=sf.file_name,
-                    file_type=sf.file_type,
-                    file_size=sf.file_size,
-                    parsed_content=sf.parsed_content,
-                    upload_batch=sf.upload_batch,
-                    created_at=datetime.utcnow(),
-                )
-                db.add(new_file)
-            await db.flush()
+
+        # 2. Copy files
+        src_files = await db.execute(select(PersonaFile).where(PersonaFile.persona_id == data.source_id))
+        for sf in src_files.scalars().all():
+            new_file = PersonaFile(
+                id=str(uuid.uuid4()),
+                persona_id=persona.id,
+                file_name=sf.file_name,
+                file_type=sf.file_type,
+                file_size=sf.file_size,
+                parsed_content=sf.parsed_content,
+                upload_batch=sf.upload_batch,
+                created_at=datetime.utcnow(),
+            )
+            db.add(new_file)
+
+        # 3. Copy web search results so the next distillation has the same context.
+        src_searches = await db.execute(select(WebSearchResult).where(WebSearchResult.persona_id == data.source_id))
+        for sw in src_searches.scalars().all():
+            new_search = WebSearchResult(
+                id=str(uuid.uuid4()),
+                persona_id=persona.id,
+                query=sw.query,
+                results_json=sw.results_json,
+                search_batch=sw.search_batch,
+                created_at=datetime.utcnow(),
+            )
+            db.add(new_search)
+
+        await db.flush()
 
     return PersonaOut(
         id=persona.id,

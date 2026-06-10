@@ -134,13 +134,6 @@ async def run_group_chat_stream(
             parts.append(f"[{role}]: {m.content}")
         full_history = "\n\n".join(parts)
 
-    # Build a compact "recent conversation" string from the last 10 messages
-    # (including the just-sent user message). Used as context for per-persona
-    # web search so the query is not just a bare name like "周杰伦 2026".
-    recent_msgs = [m for m in all_messages[-10:]]
-    recent_texts = [m.content for m in recent_msgs if getattr(m, "content", None)]
-    recent_context = " ".join(recent_texts)[-200:]
-
     import asyncio
 
     async def _call_one(persona: dict) -> dict:
@@ -158,8 +151,7 @@ async def run_group_chat_stream(
                     from app.services.web_search import search_web
                     import logging
                     _log = logging.getLogger("uvicorn")
-                    # Rich query: name + recent conversation tail + current msg + year hint.
-                    _q = f"{persona['name']} {recent_context} {user_msg_text} 2026"
+                    _q = f"{persona['name']} {user_msg_text} 2026"
                     _q = _q.strip()[:300]
                     _sr = await search_web([_q])
                     _hits = 0

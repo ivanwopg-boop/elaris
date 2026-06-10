@@ -5,6 +5,7 @@ import { useLangStore, translations, getLocalizedPresetName } from '@/lib/i18n';
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Avatar } from "@/components/Avatar";
 import { api, PersonaOut } from "@/lib/api";
 
 export default function NewGroupChatPage() {
@@ -59,7 +60,7 @@ export default function NewGroupChatPage() {
               <Button variant="secondary" size="sm" className="mt-3" onClick={() => router.push("/personas/new")}>{t.create_persona || "Create Persona"}</Button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[420px] overflow-y-auto pr-1">
               {ready.map((p) => (
                 <div key={p.id}
                   className={`p-3 rounded-[10px] border transition-all cursor-pointer ${
@@ -67,9 +68,9 @@ export default function NewGroupChatPage() {
                   }`}
                   onClick={() => toggle(p.id)}>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-light text-[#86868B]">·</span>
-                    <span className="text-sm font-light text-[#1D1D1F]">{getLocalizedPresetName(p.name, lang)}</span>
-                    {selected.includes(p.id) && <span className="text-xs text-[#0071E3] font-light ml-auto">✓</span>}
+                    <Avatar name={getLocalizedPresetName(p.name, lang)} url={p.avatar_url} size="sm" />
+                    <span className="text-sm font-light text-[#1D1D1F] flex-1 truncate">{getLocalizedPresetName(p.name, lang)}</span>
+                    {selected.includes(p.id) && <span className="text-xs text-[#0071E3] font-light">✓</span>}
                   </div>
                   {selected.includes(p.id) && (
                     <input value={roles[p.id] || ""} onChange={(e) => setRoles((r) => ({ ...r, [p.id]: e.target.value }))}

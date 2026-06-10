@@ -151,13 +151,21 @@ async def run_distillation(
         souls = {}
         version = 0
         sources_used = 0
-        # en: v2 cognitive profile | zh-CN: v1 traditional profile
+        # Distill BOTH en and zh-CN so users always get a bilingual soul.
+        # Each lang is wrapped in try/except: one failure must not block the other.
         lang_configs = [("en", True), ("zh-CN", True)]
         for target_lang, target_v2 in lang_configs:
-            result = await distill_persona(persona_id, db, lang=target_lang, use_v2=target_v2)
-            souls[target_lang] = result["soul"].model_dump()
-            version = max(version, result["version"])
-            sources_used = result["sources_used"]
+            try:
+                result = await distill_persona(persona_id, db, lang=target_lang, use_v2=target_v2)
+                souls[target_lang] = result["soul"].model_dump()
+                version = max(version, result["version"])
+                sources_used = result["sources_used"]
+            except Exception as lang_err:
+                # Log but continue with the next language so we never return a half-distilled persona.
+                import traceback
+                print(f"[distill] lang={target_lang} failed: {lang_err}", flush=True)
+                traceback.print_exc()
+                continue
         # Auto-categorize based on v2 soul expertise data
         en_soul = souls.get("en", {})
         if en_soul:

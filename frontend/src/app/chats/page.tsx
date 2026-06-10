@@ -392,7 +392,7 @@ function DiscoverTab({ tabStrings, onContactAdded }: { tabStrings: Record<string
 
   const handleDeletePreset = async (e: React.MouseEvent, p: PersonaSummary) => {
     e.stopPropagation();
-    if (!confirm(`Delete this preset from Discover?`)) return;
+
     try {
       const res = await fetch(`/api/v1/personas/presets/${p.id}`, { method: 'DELETE' });
       if (res.ok) {
@@ -403,6 +403,9 @@ function DiscoverTab({ tabStrings, onContactAdded }: { tabStrings: Record<string
     } catch {
       alert(tabStrings.delete_failed || 'Delete failed');
     }
+  };
+  const handleSwipeDelete = (p: PersonaSummary) => {
+    handleDeletePreset(new MouseEvent('click') as any, p);
   };
 
   const filtered = activeCat === "all" ? presets : presets.filter((p) => (p.category || "other") === activeCat);
@@ -422,7 +425,12 @@ function DiscoverTab({ tabStrings, onContactAdded }: { tabStrings: Record<string
       </div>
       <div className="p-4 grid grid-cols-1 gap-3">
         {filtered.map((p) => (
-          <div key={p.id} className="rounded-3xl border border-[rgba(0,0,0,0.06)] bg-white overflow-hidden">
+          <SwipeableRow
+            key={p.id}
+            onDelete={() => handleSwipeDelete(p)}
+            deleteLabel={tabStrings.delete || "Delete"}
+          >
+            <div key={p.id} className="rounded-3xl border border-[rgba(0,0,0,0.06)] bg-white overflow-hidden">
             <button
               onClick={() => window.location.href = `/persona/${p.id}`}
               className="w-full text-left p-4 active:bg-[rgba(0,0,0,0.02)] active:scale-[0.98] transition-all"
@@ -435,15 +443,6 @@ function DiscoverTab({ tabStrings, onContactAdded }: { tabStrings: Record<string
                     <p className="text-sm text-[#86868B] font-light leading-relaxed line-clamp-2">{p.description}</p>
                   )}
                 </div>
-                {token && (
-                  <button
-                    onClick={(e) => handleDeletePreset(e, p)}
-                    className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-[#C7C7CC] hover:text-red-500 hover:bg-red-50 active:bg-red-100 active:scale-[0.98] transition-all text-xl font-light"
-                    title="Delete"
-                  >
-                    ×
-                  </button>
-                )}
               </div>
             </button>
             <div className="px-4 pb-4 flex gap-2">
@@ -463,6 +462,7 @@ function DiscoverTab({ tabStrings, onContactAdded }: { tabStrings: Record<string
               </button>
             </div>
           </div>
+          </SwipeableRow>
         ))}
       </div>
     </div>
