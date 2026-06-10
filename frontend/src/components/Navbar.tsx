@@ -39,7 +39,7 @@ export default function Navbar({ hideWhenNoAuth }: { hideWhenNoAuth?: boolean })
     <nav className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-[rgba(0,0,0,0.06)]">
       <div className="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between">
         <Link href="/chats" className="flex items-center gap-2 h-8">
-          <span className="text-base font-semibold tracking-[0.1em] text-[#1D1D1F]">ELARIS</span>
+          <img src="/logo.png" alt="ELARIS" className="h-3 w-24" />
         </Link>
 
         <div className="flex items-center gap-6">
