@@ -4,6 +4,7 @@ export const translations: Record<Lang, Record<string, string>> = {
   en: {
     // Navbar & global
     sign_in: "Sign in",
+  input_placeholder: "Type a message...",
     sign_out: "Sign out",
     tab_chat: "Chat",
     tab_contacts: "Contacts",
@@ -288,6 +289,7 @@ clarity_vs_impress_label: "Clarity vs. Impress",
   },
   'zh-CN': {
     sign_in: "登录",
+  input_placeholder: "输入消息...",
     sign_out: "退出",
     tab_chat: "对话",
     tab_contacts: "通讯录",

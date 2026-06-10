@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useLangStore, translations } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/Avatar";
 import { api, PersonaDetail } from "@/lib/api";
@@ -39,6 +40,8 @@ export default function ChatPage() {
   const [persona, setPersona] = useState<PersonaDetail | null>(null);
   const [msgs, setMsgs] = useState<{ role: string; content: string; id: string; time?: number }[]>([]);
   const [input, setInput] = useState("");
+  const { lang } = useLangStore();
+  const tl = translations[lang];
   const [sending, setSending] = useState(false);
   const [liveContent, setLiveContent] = useState("");
   const ref = useRef<HTMLDivElement>(null);
@@ -327,10 +330,10 @@ export default function ChatPage() {
           <div className="max-w-3xl mx-auto px-4 py-4 flex gap-2">
             <input value={input} onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && send()}
-              placeholder="Type a message..."
+              placeholder={tl.input_placeholder}
               className="flex-1 bg-white border border-[rgba(0,0,0,0.08)] rounded-[10px] px-4 py-3 text-base text-[#1D1D1F] placeholder-[#86868B] focus:outline-none focus:border-[#0071E3] font-light" style={{ fontSize: "16px" }}
               disabled={sending} />
-            <Button onClick={send} loading={sending} disabled={!input.trim()}>Send</Button>
+            <Button onClick={send} loading={sending} disabled={!input.trim()}>{tl.send}</Button>
           </div>
         </footer>
       )}

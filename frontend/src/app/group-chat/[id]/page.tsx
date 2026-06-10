@@ -209,7 +209,7 @@ export default function GroupChatRoom() {
     <div className="flex flex-col bg-white relative" style={{ height: "100dvh" }}>
       <header className="shrink-0 border-b border-[rgba(0,0,0,0.06)] bg-white/95 z-10">
         <div className="max-w-3xl mx-auto px-4 h-14 flex items-center gap-3">
-          <button onClick={() => router.push("/group-chat")} className="text-[#86868B] hover:text-[#1D1D1F] text-2xl font-light leading-none">{t.back}</button>
+          <button onClick={() => router.push("/group-chat")} className="text-[#86868B] hover:text-[#1D1D1F] text-sm font-light leading-none">{t.back}</button>
           <div className="text-sm font-light flex-1 truncate">{chat.title}</div>
           <div className="text-[11px] text-[#86868B] font-light">{chat.persona_ids.length}{t.people}</div>
           <button onClick={async () => {
@@ -217,7 +217,7 @@ export default function GroupChatRoom() {
             const inChat = new Set(chat.persona_ids);
             setInviteList(allP.filter((p: any) => !inChat.has(p.id)));
             setShowInvite(true);
-          }} className="text-[11px] text-[#0071E3] hover:text-[#1D1D1F] px-2.5 py-1 border border-[rgba(0,113,227,0.2)] rounded-[8px] transition-colors font-light">+ {t.invite}</button>
+          }} className="text-[11px] text-[#0071E3] hover:text-[#1D1D1F] px-2.5 py-1 border border-[rgba(0,113,227,0.2)] rounded-[8px] transition-colors font-light">{t.invite}</button>
           <button onClick={async () => {
             const allP = await api.listPersonas();
             setMemberPersonas(allP.filter((p: any) => chat.persona_ids.includes(p.id)));
@@ -232,7 +232,7 @@ export default function GroupChatRoom() {
           <div className="bg-white border border-[rgba(0,0,0,0.06)] rounded-[12px] w-72 overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.08)]" onClick={(e) => e.stopPropagation()}>
             <div className="px-4 py-3 border-b border-[rgba(0,0,0,0.06)] flex items-center justify-between">
               <span className="text-sm font-light text-[#1D1D1F]">Group Members</span>
-              <button onClick={() => setShowMembers(false)} className="text-[#86868B] hover:text-[#1D1D1F] text-xl font-light leading-none">{t.close}</button>
+              <button onClick={() => setShowMembers(false)} className="text-[#86868B] hover:text-[#1D1D1F] text-sm">{t.close}</button>
             </div>
             <div className="max-h-64 overflow-y-auto">
               {memberPersonas.map((p: any) => (
@@ -262,7 +262,7 @@ export default function GroupChatRoom() {
           <div className="bg-white border border-[rgba(0,0,0,0.06)] rounded-[12px] w-72 overflow-hidden shadow-[0_8px_32px_rgba(0,0,0,0.08)]">
             <div className="px-4 py-3 border-b border-[rgba(0,0,0,0.06)] flex items-center justify-between">
               <span className="text-sm font-light text-[#1D1D1F]">Invite Persona</span>
-              <button onClick={() => setShowInvite(false)} className="text-[#86868B] hover:text-[#1D1D1F] text-xl font-light leading-none">{t.close}</button>
+              <button onClick={() => setShowInvite(false)} className="text-[#86868B] hover:text-[#1D1D1F] text-sm">{t.close}</button>
             </div>
             <div className="max-h-64 overflow-y-auto">
               {inviteList.length === 0 ? (
@@ -298,7 +298,7 @@ export default function GroupChatRoom() {
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto px-4 py-6" style={{ overscrollBehavior: 'contain' }}>
+      <div className="flex-1 overflow-y-auto px-4 py-6 pb-20" style={{ overscrollBehavior: 'contain' }}>
         <div className="max-w-3xl mx-auto">
           {allMsgs.length === 0 && (
             <div className="text-center pt-24">
@@ -351,11 +351,11 @@ export default function GroupChatRoom() {
                 if (e.key === "ArrowUp" && showMentions) { e.preventDefault(); setMentionIdx((i) => Math.max(i - 1, 0)); }
                 if (e.key === "Escape") setShowMentions(false);
               }}
-              placeholder="Type a message... @mention persona"
+              placeholder={t.input_placeholder}
               className="w-full bg-white border border-[rgba(0,0,0,0.08)] rounded-[10px] px-4 py-3 text-sm text-[#1D1D1F] placeholder-[#86868B] focus:outline-none focus:border-[#0071E3] font-light"
               disabled={sending} />
           </div>
-          <Button onClick={send} loading={sending} disabled={!input.trim()} className="shrink-0 px-5">Send</Button>
+          <Button onClick={send} loading={sending} disabled={!input.trim()} className="shrink-0 px-5">{t.send}</Button>
         </div>
       </footer>
     </div>

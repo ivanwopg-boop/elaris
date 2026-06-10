@@ -184,7 +184,13 @@ function ChatTab({ tabStrings, conversations, setConversations, onNavigate }: { 
             onClick={() => router.push(conv.type === 'group' ? `/group-chat/${conv.id}` : `/chat/${conv.persona_id}?conv=${conv.id}`)}
             onContextMenu={(e) => { e.preventDefault(); handleDelete(conv.id); }}
           >
-            <Avatar name={getLocalizedPresetName(conv.persona_name, lang)} url={conv.persona_avatar} size="md" />
+            {conv.type === 'group' ? (
+              <div className="w-10 h-10 rounded-full bg-[rgba(0,0,0,0.04)] flex items-center justify-center shrink-0">
+                <Users size={18} className="text-[#86868B]" strokeWidth={1.5} />
+              </div>
+            ) : (
+              <Avatar name={getLocalizedPresetName(conv.persona_name, lang)} url={conv.persona_avatar} size="md" />
+            )}
             <div className="flex-1 min-w-0">
               <p className="text-base font-medium text-[#1D1D1F] truncate">{getLocalizedPresetName(conv.persona_name, lang)}</p>
               {conv.last_message && (

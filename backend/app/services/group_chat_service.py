@@ -53,6 +53,31 @@ async def add_user_message(chat_id: str, message: str, db: AsyncSession) -> Grou
     return msg
 
 
+# === Output sanitizer: remove bracketed stage directions ===
+import re as _re
+
+# Only match bracketed emotion/action descriptions: (smiles) （叹气）(winks)
+_BRACKET_RE = _re.compile(r'[\(（][^)）]{1,40}?[\)）]')
+
+def _sanitize_reply(text: str) -> str:
+    """Remove bracketed stage directions and markdown formatting from AI reply."""
+    if not text:
+        return text
+    # Remove bracketed actions/emotions: (smiling) （叹气）
+    text = _BRACKET_RE.sub("", text)
+    # Remove markdown bold/italic: **text** __text__ *text* _text_
+    text = _re.sub(r"\*\*(.+?)\*\*", r"\1", text)  # **bold**
+    text = _re.sub(r"__(.+?)__", r"\1", text)          # __bold__
+    text = _re.sub(r"\*(.+?)\*", r"\1", text)         # *italic*
+    text = _re.sub(r"(?<!\w)_(.+?)_(?!\w)", r"\1", text)  # _italic_ (not in words)
+    # Remove markdown headers: ### Title
+    text = _re.sub(r"^#{1,6}\s+", "", text, flags=_re.MULTILINE)
+    # Remove markdown links but keep text: [text](url) -> text
+    text = _re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", text)
+    # Collapse multiple spaces
+    text = _re.sub(r" {2,}", " ", text)
+    return text.strip()
+
 async def run_group_chat_stream(
     chat_id: str, user_message: str, db: AsyncSession,
     search_context: str = "",
@@ -197,7 +222,7 @@ async def run_group_chat_stream(
                     [{"role": "system", "content": sp}, {"role": "user", "content": up}],
                     temperature=0.5, max_tokens=10000),
                 timeout=120)
-            return {"persona_name": persona["name"], "persona_id": persona["id"], "content": reply}
+            return {"persona_name": persona["name"], "persona_id": persona["id"], "content": _sanitize_reply(reply)}
         except asyncio.TimeoutError:
             return {"persona_name": persona["name"], "persona_id": persona["id"], "content": f"（{persona['name']}正在思考中...）"}
         except Exception as e:
