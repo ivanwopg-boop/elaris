@@ -90,6 +90,8 @@ async def group_chat_send_blocking(
         # Save user message
         await add_user_message(chat_id, data.message, db)
 
+        # NOTE: Web search is now done PER PERSONA inside _call_one.
+
         # Run all persona responses — continue even if some fail
         has_error = False
         async for event in run_group_chat_stream(chat_id, data.message, db):

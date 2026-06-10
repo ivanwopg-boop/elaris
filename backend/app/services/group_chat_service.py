@@ -55,8 +55,10 @@ async def add_user_message(chat_id: str, message: str, db: AsyncSession) -> Grou
 
 async def run_group_chat_stream(
     chat_id: str, user_message: str, db: AsyncSession,
+    search_context: str = "",
 ) -> AsyncGenerator[dict, None]:
-    """Generate persona responses as SSE events."""
+    """Generate persona responses as SSE events. search_context is ignored —
+    each persona does its own web search inside _call_one."""
     # Load chat
     result = await db.execute(select(GroupChat).where(GroupChat.id == chat_id))
     chat = result.scalar_one_or_none()
@@ -132,12 +134,59 @@ async def run_group_chat_stream(
             parts.append(f"[{role}]: {m.content}")
         full_history = "\n\n".join(parts)
 
-    user_msg_text = user_message
+    # Build a compact "recent conversation" string from the last 10 messages
+    # (including the just-sent user message). Used as context for per-persona
+    # web search so the query is not just a bare name like "周杰伦 2026".
+    recent_msgs = [m for m in all_messages[-10:]]
+    recent_texts = [m.content for m in recent_msgs if getattr(m, "content", None)]
+    recent_context = " ".join(recent_texts)[-200:]
 
     import asyncio
 
     async def _call_one(persona: dict) -> dict:
         try:
+            # ── Per-persona web search (V2) ──
+            # Each @'d persona queries for its own latest context. If no @mentions
+            # exist, every active persona searches so the question is fair to all.
+            # Query = persona name + recent chat context + current user message + "2026".
+            persona_search_context = ""
+            # Gate: search only when there are no @mentions (everyone responds),
+            # or when this specific persona is in the @mentioned set.
+            should_search = (not mentioned) or (persona["id"] in mentioned)
+            if should_search:
+                try:
+                    from app.services.web_search import search_web
+                    import logging
+                    _log = logging.getLogger("uvicorn")
+                    # Rich query: name + recent conversation tail + current msg + year hint.
+                    _q = f"{persona['name']} {recent_context} {user_msg_text} 2026"
+                    _q = _q.strip()[:300]
+                    _sr = await search_web([_q])
+                    _hits = 0
+                    if _sr:
+                        _seen = set()
+                        _parts = ["\n### Live web search results (just retrieved, for you):"]
+                        for _qr in _sr:
+                            for r in _qr.get("results", []):
+                                _u = r.get("url", "")
+                                if _u and _u not in _seen and r.get("snippet"):
+                                    _seen.add(_u)
+                                    _parts.append(f"- **{r['title']}**: {r['snippet'][:200]}")
+                                    _hits += 1
+                                    if _hits >= 6:
+                                        break
+                            if _hits >= 6:
+                                break
+                        if _hits > 0:
+                            persona_search_context = "\n".join(_parts)
+                    _log.info(
+                        f"[PERSONA_SEARCH] name={persona['name']} q={_q[:60]!r} hits={_hits}"
+                    )
+                except Exception as _se:
+                    import logging
+                    logging.getLogger("uvicorn").error(
+                        f"[PERSONA_SEARCH_ERROR] name={persona['name']} {_se}"
+                    )
             if full_history:
                 up = GROUP_CHAT_USER_PROMPT.format(
                     chat_title=chat.title,
@@ -149,7 +198,8 @@ async def run_group_chat_stream(
             sp = GROUP_CHAT_SYSTEM_PROMPT.format(
                 persona_name=persona["name"],
                 soul_json=json.dumps(persona["soul"], indent=2, ensure_ascii=False),
-                role=persona["role"])
+                role=persona["role"],
+                search_context=persona_search_context or "(No live web search results — answer from your knowledge and the conversation history.)")
             reply = await asyncio.wait_for(
                 minimax_client.chat(
                     [{"role": "system", "content": sp}, {"role": "user", "content": up}],
