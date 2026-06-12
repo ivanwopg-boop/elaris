@@ -2,7 +2,6 @@
 
 import React, { useState } from "react";
 import { Card } from "./ui/card";
-import { Avatar } from "./Avatar";
 import { useLangStore, translations } from "@/lib/i18n";
 
 /* ── Types ── */
@@ -10,7 +9,6 @@ interface SoulCardProps {
   soul: any;
   version?: number;
   name?: string;
-  avatar_url?: string | null;
 }
 
 /* ── Helpers ── */
@@ -310,7 +308,7 @@ function RawDNA({ s }: { s: any }) {
 /* ═══════════════════════════
    MAIN
    ═══════════════════════════ */
-export function SoulCard({ soul, version, name, avatar_url }: SoulCardProps) {
+export function SoulCard({ soul, version, name }: SoulCardProps) {
   const { lang } = useLangStore();
   const t = translations[lang];
 
@@ -337,22 +335,13 @@ export function SoulCard({ soul, version, name, avatar_url }: SoulCardProps) {
       )}
 
       {/* ── HEADER: AI Identity ── */}
-      <div className="flex items-center gap-4 px-5 pt-4 pb-3">
-        <div className="relative shrink-0">
-          <Avatar name={personaName || "?"} url={avatar_url} size="lg" />
-          {sourceName && (
-            <span className="absolute -bottom-0.5 -right-0.5 px-1.5 py-0.5 rounded-full bg-[#0071E3] text-white text-[9px] font-medium leading-none border-2 border-white">AI</span>
-          )}
-        </div>
-        <div>
-          <h2 className="text-[20px] font-semibold text-[#1D1D1F] tracking-[-0.02em]">{personaName || "Unknown"}</h2>
-          {/* One-liner essence */}
-          {(str(ident.title) || str(ident.what_they_are_known_for)) && (
-            <p className="text-[14px] font-light text-[#6E6E73] mt-0.5 leading-relaxed">
-              {str(ident.what_they_are_known_for || ident.title)}
-            </p>
-          )}
-        </div>
+      <div className="px-5 pt-4 pb-3">
+        <h2 className="text-[20px] font-semibold text-[#1D1D1F] tracking-[-0.02em]">{personaName || "Unknown"}</h2>
+        {(str(ident.title) || str(ident.what_they_are_known_for)) && (
+          <p className="text-[14px] font-light text-[#6E6E73] mt-0.5 leading-relaxed">
+            {str(ident.what_they_are_known_for || ident.title)}
+          </p>
+        )}
       </div>
 
       {/* ── SOURCE: Where this soul comes from ── */}

@@ -159,6 +159,9 @@ if (loading) {
         <div className="flex items-center gap-5">
           <div className="relative group">
             <Avatar name={persona.name} url={persona.avatar_url} size="lg" className="w-16 h-16 text-2xl" />
+            {persona.source_name && (
+              <span className="absolute -bottom-0.5 -right-0.5 px-1.5 py-0.5 rounded-full bg-[#0071E3] text-white text-[9px] font-medium leading-none border-2 border-white z-10">AI</span>
+            )}
             <label className="absolute inset-0 rounded-full opacity-0 group-hover:opacity-100 bg-black/40 flex items-center justify-center cursor-pointer transition-opacity">
               <span className="text-white text-xs font-light">{t.edit}</span>
               <input type="file" accept="image/*" className="hidden"
@@ -207,7 +210,7 @@ if (loading) {
       {activeTab === "soul" && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-4 sm:space-y-5">
-            <SoulCard soul={soul} version={soulVersion ?? undefined} name={persona?.name} avatar_url={persona?.avatar_url} />
+            <SoulCard soul={soul} version={soulVersion ?? undefined} name={persona?.name} />
             {persona.user_id && (
               <>
                 <DistillProgress status={distillStatus} error={distillError} version={soulVersion ?? undefined} onNameConfirm={handleNameConfirm} defaultName={persona?.name} />
