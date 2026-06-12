@@ -94,6 +94,15 @@ export default function PersonaDetailPage() {
     }
   };
 
+  const handleNameConfirm = async (displayName: string) => {
+    try {
+      await api.updatePersona(id, { name: displayName });
+      loadData();
+    } catch (e: any) {
+      // name update failed silently — still shows the old name
+    }
+  };
+
   const handleUploadFiles = async (newFiles: File[], urls: string[]) => {
     if (newFiles.length === 0 && urls.length === 0) return;
     setUploadStatus("uploading");
@@ -201,7 +210,7 @@ if (loading) {
             <SoulCard soul={soul} version={soulVersion ?? undefined} name={persona?.name} avatar_url={persona?.avatar_url} />
             {persona.user_id && (
               <>
-                <DistillProgress status={distillStatus} error={distillError} version={soulVersion ?? undefined} />
+                <DistillProgress status={distillStatus} error={distillError} version={soulVersion ?? undefined} onNameConfirm={handleNameConfirm} defaultName={persona?.name} />
                 <div className="flex gap-2">
                   <Button onClick={handleDistill} loading={distillStatus === "distilling"}>
                     {soul ? t.redistill : t.start_distillation}

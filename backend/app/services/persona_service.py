@@ -152,7 +152,14 @@ async def update_persona(persona_id: str, data: PersonaUpdate, db: AsyncSession,
         return None
     if user_id is not None and persona.user_id is not None and persona.user_id != user_id:
         return None
-    if data.name is not None:
+    if data.name is not None and data.name != persona.name:
+        # Block names that match the source person name
+        src = persona.source_name or ""
+        if src and data.name.strip().lower() == src.strip().lower():
+            return None  # silently reject — frontend handles validation
+        # Auto-preserve original name as source_name on first rename
+        if not persona.source_name:
+            persona.source_name = persona.name
         persona.name = data.name
     if data.description is not None:
         persona.description = data.description
