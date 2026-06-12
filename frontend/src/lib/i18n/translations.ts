@@ -109,6 +109,16 @@ export const translations: Record<Lang, Record<string, string>> = {
     not_distilled_soul: "Soul not yet forged",
     inspired_by: "Inspired by the public works of",
 
+    // ── Insight Card titles ──
+    insight_source: "Where this soul comes from",
+    insight_perception: "How this persona perceives the world",
+    insight_anchor: "What anchors this persona",
+    insight_drive: "What drives this persona",
+    insight_voice: "How this persona speaks",
+    insight_shadow: "What haunts this persona",
+    insight_arc: "How this persona evolves",
+    insight_archive: "Full DNA Archive",
+
     // ── V3 6-group collapsible panel titles ──
     soul_group_identity: "Persona Identity",
     soul_group_mind: "Cognitive Blueprint",
@@ -510,6 +520,16 @@ clarity_vs_impress_label: "Clarity vs. Impress",
 
     not_distilled_soul: "尚未锻造。上传文件后点击锻造灵魂",
     inspired_by: "灵感来源于",
+
+    // ── Insight Card titles ──
+    insight_source: "这个灵魂从哪里来",
+    insight_perception: "它如何感知世界",
+    insight_anchor: "什么锚定它",
+    insight_drive: "什么驱动它",
+    insight_voice: "它如何表达",
+    insight_shadow: "什么困扰它",
+    insight_arc: "它如何演变",
+    insight_archive: "完整 DNA 档案",
 
     // ── V3 6-group collapsible panel titles ──
     soul_group_identity: "角色核心",
