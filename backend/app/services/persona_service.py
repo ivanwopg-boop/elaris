@@ -112,9 +112,12 @@ async def list_personas(db: AsyncSession, user_id: str | None = None, include_pr
             .order_by(PersonaSoul.version.desc())
         )
         soul = soul_result.scalars().first()
-        # Compute lang-specific description from soul — persona-centric
+        # Compute lang-specific description — persona-centric
         lang_desc = p.description
-        if soul:
+        if p.source_name:
+            # Persona has a known source — show inspired-by for clean narrative
+            lang_desc = f"Inspired by {p.source_name}" if lang == 'en' else f"灵感来源于 {p.source_name}"
+        elif soul:
             try:
                 import json
                 d = json.loads(soul.soul_json)
@@ -128,6 +131,9 @@ async def list_personas(db: AsyncSession, user_id: str | None = None, include_pr
                     parts.append(known_for)
                 if parts:
                     lang_desc = " | ".join(parts)
+                elif p.source_name:
+                    # Fallback for old distillations: show inspired-by
+                    lang_desc = f"Inspired by {p.source_name}" if lang == 'en' else f"灵感来源于 {p.source_name}"
             except:
                 pass
 
