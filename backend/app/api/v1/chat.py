@@ -329,7 +329,7 @@ Please factor in the above information when responding."""
 
 # ── Blocking endpoints ────────────────────────────────────────
 
-async def _handle_mode(request: ChatRequest, user_id: str, db: AsyncSession) -> ChatResponse:
+async def _handle_mode(request: ChatRequest, user_id: str, db: AsyncSession, user_tier: str = "free") -> ChatResponse:
     # Safety filter: check input
     safety = check_input(request.message)
     if not safety["safe"]:
@@ -379,7 +379,7 @@ Please factor in the above information when responding."""
     if not out_check["safe"]:
         reply = out_check["message"]
     # Restricted mode: extra checks
-    if user.tier == "restricted":
+    if user_tier == "restricted":
         _rc = check_restricted_output(reply)
         if not _rc["safe"]:
             reply = _rc["message"]
@@ -389,7 +389,7 @@ Please factor in the above information when responding."""
 @router.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest, user: User = Depends(require_auth), db: AsyncSession = Depends(get_db)):
     request.mode = "chat"
-    return await _handle_mode(request, user.id, db)
+    return await _handle_mode(request, user.id, db, user.tier)
 
 
 # ── Conversation list & delete ────────────────────────────────
