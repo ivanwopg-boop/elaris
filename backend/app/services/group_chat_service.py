@@ -118,6 +118,7 @@ async def run_group_chat_stream(
         personas.append({
             "id": pid,
             "name": p.name,
+            "source_name": p.source_name or "",
             "soul": json.loads(soul.soul_json) if soul else {},
             "has_soul": soul is not None,
             "role": persona_roles.get(pid, ""),
@@ -177,7 +178,8 @@ async def run_group_chat_stream(
                     import logging
                     _log = logging.getLogger("uvicorn")
                     from datetime import datetime as _dt; _tp = _dt.now(); _today = _tp.strftime("%Y-%m-%d")
-                    _rp = "Search keywords: " + persona['name'] + " OR " + persona['name'] + ". Question to research: '" + user_msg_text + "'. Current date: " + _today + ". Give me ONLY two search-engine-ready query strings, exactly like:  'keyword1 keyword2 keyword3 2026'. Use " + persona['name'] + "'s real name. Factor in that we are past " + _today + ". Your ENTIRE RESPONSE must be exactly 2 lines, each line a search query. No explanations, no thinking, no prefix."
+                    search_name = persona.get('source_name') or persona['name']
+                    _rp = "Search keywords: " + search_name + " OR " + search_name + ". Question to research: '" + user_msg_text + "'. Current date: " + _today + ". Give me ONLY two search-engine-ready query strings, exactly like:  'keyword1 keyword2 keyword3 2026'. Use " + search_name + "'s real name. Factor in that we are past " + _today + ". Your ENTIRE RESPONSE must be exactly 2 lines, each line a search query. No explanations, no thinking, no prefix."
                     _rr = await minimax_client.chat(
                         [{"role": "user", "content": _rp}], temperature=0.1, max_tokens=150
                     )
@@ -204,8 +206,8 @@ async def run_group_chat_stream(
                                     _topic_words.append(_w)
                         _topics = " ".join(_topic_words[:3])
                         _qs = [
-                            persona['name'] + " " + _topics + " " + str(_tp.year),
-                            persona['name'] + " " + _topics
+                            search_name + " " + _topics + " " + str(_tp.year),
+                            search_name + " " + _topics
                         ]
                     _log.info(f"[SEARCH_Q] name={persona['name']} raw={user_msg_text[:40]!r} -> {_qs}")
                     _sr = await search_web(_qs)

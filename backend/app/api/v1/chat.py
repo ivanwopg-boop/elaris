@@ -125,7 +125,7 @@ async def _get_soul(persona_id: str, db: AsyncSession) -> dict:
     soul = soul_result.scalars().first()
     if not soul:
         raise HTTPException(status_code=400, detail="Persona has no soul yet. Run distillation first.")
-    return {"name": persona.name, "soul_json": soul.soul_json, "soul": json.loads(soul.soul_json)}
+    return {"name": persona.name, "source_name": persona.source_name or "", "soul_json": soul.soul_json, "soul": json.loads(soul.soul_json)}
 
 
 async def _sse_event(event_name: str, data: dict) -> str:
@@ -175,7 +175,8 @@ async def chat_stream(persona_id: str, message: str, conv: str = None, request: 
         _today = _now.strftime("%Y-%m-%d")
 
         # Step 1: LLM reformulates user question into search keywords
-        _rp = "Search keywords: " + info['name'] + " OR " + info['name'] + ". Question to research: '" + message + "'. Current date: " + _today + ". Give me ONLY two search-engine-ready query strings, exactly like:  'keyword1 keyword2 keyword3 2026'. Use " + info['name'] + "'s real name. Factor in that we are past " + _today + ". Your ENTIRE RESPONSE must be exactly 2 lines, each line a search query. No explanations, no thinking, no prefix."
+        search_person_name = info.get('source_name') or info['name']
+        _rp = "Search keywords: " + search_person_name + " OR " + search_person_name + ". Question to research: '" + message + "'. Current date: " + _today + ". Give me ONLY two search-engine-ready query strings, exactly like:  'keyword1 keyword2 keyword3 2026'. Use " + search_person_name + "'s real name. Factor in that we are past " + _today + ". Your ENTIRE RESPONSE must be exactly 2 lines, each line a search query. No explanations, no thinking, no prefix."
         _rr = await minimax_client.chat(
             [{"role": "user", "content": _rp}], temperature=0.1, max_tokens=150
         )
@@ -203,8 +204,8 @@ async def chat_stream(persona_id: str, message: str, conv: str = None, request: 
                         _topic_words.append(_w)
             _topics = " ".join(_topic_words[:3])
             _search_queries = [
-                info['name'] + " " + _topics + " " + str(_now.year),
-                info['name'] + " " + _topics
+                search_person_name + " " + _topics + " " + str(_now.year),
+                search_person_name + " " + _topics
             ]
         _log.info(f"[SEARCH_Q] raw={message[:40]!r} -> {_search_queries}")
 
@@ -335,9 +336,10 @@ async def _handle_mode(request: ChatRequest, user_id: str, db: AsyncSession) -> 
         return ChatResponse(message=safety["message"], sources=["safety"], style_match=0.0)
 
     info = await _get_soul(request.persona_id, db)
+    search_person_name_ns = info.get('source_name') or info['name']
     search_context = ""
     try:
-        sr = await search_web([f"{info['name']} {request.message} 2026"])
+        sr = await search_web([f"{search_person_name_ns} {request.message} 2026"])
         if sr:
             _seen_urls = set()
             _all_results = []
