@@ -76,6 +76,8 @@ async def get_persona(persona_id: str, db: AsyncSession, user_id: str | None = N
     return {
         "id": persona.id,
         "name": persona.name,
+        "category": persona.category,
+        "source_name": persona.source_name,
         "description": persona.description,
         "avatar_url": persona.avatar_url,
         "created_at": persona.created_at,
