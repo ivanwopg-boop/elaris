@@ -1,8 +1,5 @@
-"""Search aggregator: SearXNG + DuckDuckGo fallback.
+"""Search: AnySearch (primary, free 1000/day) + DuckDuckGo (fallback)."""
 
-- Primary: SearXNG (self-hosted aggregator, currently unreliable)
-- Fallback: DuckDuckGo direct API (duckduckgo_search library)
-"""
 import asyncio
 import logging
 from typing import Optional
@@ -11,75 +8,87 @@ from trafilatura import extract
 
 logger = logging.getLogger("uvicorn")
 
-SEARXNG_URL = "http://127.0.0.1:8888"
+ANYSEARCH_URL = "https://api.anysearch.com/mcp"
 TIMEOUT = 12.0
 MAX_RESULTS = 15
 
 
-async def _searxng_search(query: str, language: str = "auto", categories: str = None) -> list[dict]:
-    """Search via local SearXNG instance with specific reliable engines."""
-    # Detect if query is Chinese and use Chinese-optimized engines
-    has_cn = any('\u4e00' <= c <= '\u9fff' for c in query)
-    # Mojeek is the only engine that reliably works (Bing returns garbage,
-    # Google/Brave/Baidu/Sogou rate-limited with 0 results)
-    engines = "mojeek,duckduckgo,bing"
+# ── AnySearch (Primary) ──────────────────────────────────
+
+async def _anysearch_search(query: str, max_results: int = 10) -> list[dict]:
+    """Search via AnySearch API — free, anonymous access, 1000 req/day."""
     try:
+        payload = {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tools/call",
+            "params": {
+                "name": "search",
+                "arguments": {"query": query, "max_results": max_results},
+            },
+        }
         async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-            params = {"q": query, "format": "json", "language": language, "engines": engines}
-            if categories:
-                params["categories"] = categories
-            resp = await client.get(f"{SEARXNG_URL}/search", params=params)
+            resp = await client.post(
+                ANYSEARCH_URL,
+                json=payload,
+                headers={"Content-Type": "application/json"},
+            )
             if resp.status_code != 200:
-                logger.warning(f"[SEARXNG] HTTP {resp.status_code} for: {query}")
+                logger.warning(f"[AnySearch] HTTP {resp.status_code} for: {query[:60]}")
                 return []
             data = resp.json()
-            results = []
-            for r in data.get("results", []):
-                results.append({
-                    "title": r.get("title", ""),
-                    "url": r.get("url", ""),
-                    "snippet": r.get("content", ""),
-                    "engines": r.get("engines", []),
-                    "score": r.get("score", 0),
-                })
-            return results
+            result = data.get("result", {})
+            content = result.get("content", [])
+            if not content:
+                return []
+            # AnySearch returns [{type: "text", text: "## Search Results (N results...)..."}]
+            # Parse the markdown text into structured results
+            text = content[0].get("text", "") if content else ""
+            return _parse_anysearch_markdown(text)
     except Exception as e:
-        logger.error(f"[SEARXNG] Failed: {e}")
+        logger.warning(f"[AnySearch] Failed for '{query[:60]}': {e}")
         return []
 
 
-async def _fetch_page_content(url: str) -> Optional[str]:
-    """Extract page content with trafilatura (fast, no browser)."""
-    try:
-        async with httpx.AsyncClient(timeout=8.0, follow_redirects=True) as client:
-            r = await client.get(url, headers={
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+def _parse_anysearch_markdown(text: str) -> list[dict]:
+    """Parse AnySearch markdown response into structured results.
+    
+    Format:
+    ## Search Results (N results, Xms)
+    ### 1. Title
+    - **URL**: https://...
+    - Description text...
+    """
+    import re
+    results = []
+    # Split by "### N. " pattern
+    items = re.split(r'\n### \d+\. ', text)
+    for item in items[1:]:  # skip header
+        lines = item.strip().split('\n')
+        title = lines[0].strip() if lines else ""
+        url = ""
+        snippet_parts = []
+        for line in lines[1:]:
+            url_match = re.match(r'- \*\*URL\*\*:\s*(.+)', line)
+            if url_match:
+                url = url_match.group(1).strip()
+            elif line.strip() and not line.startswith('##'):
+                snippet_parts.append(line.strip().lstrip('- '))
+        if title and url:
+            results.append({
+                "title": title,
+                "url": url,
+                "snippet": " ".join(snippet_parts)[:500],
+                "engines": ["anysearch"],
+                "score": 0.8,
             })
-            if r.status_code == 200 and r.text:
-                loop = asyncio.get_event_loop()
-                text = await loop.run_in_executor(
-                    None, lambda: extract(r.text, url=url, include_comments=False, include_tables=False, fast=True)
-                )
-                return text[:1500] if text else None
-    except Exception:
-        pass
-    return None
+    return results
 
 
-def _deduplicate(results: list[dict]) -> list[dict]:
-    """Deduplicate by URL, keep best version."""
-    seen = {}
-    for r in results:
-        url = r.get("url", "")
-        if url and url not in seen:
-            seen[url] = r
-        elif url and r.get("snippet", "") and not seen[url].get("snippet", ""):
-            seen[url]["snippet"] = r["snippet"]
-    return list(seen.values())
-
+# ── DuckDuckGo (Fallback) ────────────────────────────────
 
 def _duckduckgo_search_sync(query: str, max_results: int = 10) -> list[dict]:
-    """Direct DuckDuckGo search — reliable fallback when SearXNG fails."""
+    """Direct DuckDuckGo search via duckduckgo_search library."""
     try:
         from duckduckgo_search import DDGS
         results = []
@@ -98,75 +107,103 @@ def _duckduckgo_search_sync(query: str, max_results: int = 10) -> list[dict]:
         return []
 
 
-async def _duckduckgo_search(query: str) -> list[dict]:
-    import asyncio
-    return await asyncio.to_thread(_duckduckgo_search_sync, query)
+async def _search_one(query: str) -> list[dict]:
+    """Search one query: AnySearch first, fall back to DDG."""
+    results = await _anysearch_search(query)
+    if len(results) < 3:
+        ddg = _duckduckgo_search_sync(query)
+        results.extend(ddg)
+    return results
 
 
-async def _noop():
+# ── Main Search ──────────────────────────────────────────
+
+async def search_web(queries: list[str]) -> list[dict]:
+    """Search via AnySearch + DDG fallback."""
+    tasks = [_search_one(q) for q in queries]
+    all_raw = await asyncio.gather(*tasks, return_exceptions=True)
+
+    output = []
+    for i, results in enumerate(all_raw):
+        if isinstance(results, list):
+            output.append({"query": queries[i], "results": results})
+        else:
+            output.append({"query": queries[i], "results": []})
+    return output
+
+
+# ── Page Content Extraction ──────────────────────────────
+
+def _deduplicate(results: list[dict]) -> list[dict]:
+    seen = set()
+    out = []
+    for r in results:
+        url = r.get("url", "")
+        if url and url not in seen:
+            seen.add(url)
+            out.append(r)
+    return out
+
+
+async def _fetch_page_content(url: str) -> Optional[str]:
+    """Extract page content with trafilatura."""
+    try:
+        async with httpx.AsyncClient(timeout=8.0) as client:
+            resp = await client.get(url, follow_redirects=True)
+            if resp.status_code == 200:
+                text = extract(resp.text)
+                return text[:2000] if text else None
+    except Exception:
+        pass
     return None
 
 
-async def search_web(queries: list[str]) -> list[dict]:
+async def ensure_web_search_results(persona_id: str, db) -> None:
+    """Auto-generate web search results for new personas before distillation.
+
+    Uses source_name (real person) for search queries, not persona.name (AI display name).
     """
-    SearXNG search + trafilatura extraction.
+    import uuid
+    import json
+    from datetime import datetime, timezone
+    from sqlalchemy import select
+    from app.models.db_models import Persona, WebSearchResult
 
-    1. Fire all queries to SearXNG in parallel
-    2. Deduplicate and rank by relevance
-    3. Enrich results that lack snippets via trafilatura
-    """
-    # Parallel search — Chinese queries get dual search (zh web + en news)
-    _nh = ('2024', '2025', '2026', 'latest', 'news', 'today', 'current', 'lawsuit', 'concert', 'tour')
-    tasks = []
-    for q in queries:
-        _cjk = any('一' <= ch <= '鿿' for ch in q)
-        if _cjk:
-            # Chinese query: search zh web AND en news in parallel
-            tasks.append(_searxng_search(q, language="zh"))
-            tasks.append(_searxng_search(q, language="en", categories="news"))
-        else:
-            _is_news = any(hint in q.lower() for hint in _nh)
-            tasks.append(_searxng_search(q, language="en", categories="news" if _is_news else None))
-    all_raw = await asyncio.gather(*tasks)
+    result = await db.execute(select(WebSearchResult).where(
+        WebSearchResult.persona_id == persona_id
+    ).limit(1))
+    if result.scalars().first():
+        return  # Already has search results
 
-    all_results = []
-    for results in all_raw:
-        all_results.extend(results)
+    pr = await db.execute(select(Persona).where(Persona.id == persona_id))
+    persona = pr.scalar_one_or_none()
+    if not persona:
+        return
 
-    # ALWAYS also search DuckDuckGo directly (SearXNG is unreliable)
-    # Run DDG in parallel with SearXNG dedup, not as fallback
-    try:
-        ddg_tasks = [asyncio.to_thread(_duckduckgo_search_sync, q) for q in queries]
-        ddg_raw = await asyncio.gather(*ddg_tasks, return_exceptions=True)
-        for ddg_results in ddg_raw:
-            if isinstance(ddg_results, list):
-                all_results.extend(ddg_results)
-    except Exception:
-        pass
+    search_name = persona.source_name or persona.name
 
-    merged = _deduplicate(all_results)
-    merged.sort(key=lambda r: r.get("score", 0), reverse=True)
-    # For queries with CJK, push Chinese results to the top
-    _has_cjk_query = any(any('一' <= ch <= '鿿' for ch in q) for q in queries)
-    if _has_cjk_query:
-        _cn = [r for r in merged if any('一' <= ch <= '鿿' for ch in (r.get('title','') + r.get('snippet','')))]
-        _en = [r for r in merged if r not in _cn]
-        merged = _cn + _en
-    merged = merged[:MAX_RESULTS]
+    queries = [f"{search_name} {q}" for q in [
+        "biography life story career", "early life childhood family background",
+        "achievements awards milestones", "philosophy beliefs worldview",
+        "interview quotes thoughts opinions", "mental models thinking style",
+        "intellectual influences heroes mentors", "turning point life-changing moment",
+        "personality traits character habits", "legacy impact influence on field",
+    ]]
 
-    # Enrich results with missing/short snippets
-    enrich = []
-    for r in merged[:5]:
-        if r.get("url") and (not r.get("snippet") or len(r.get("snippet", "")) < 100):
-            enrich.append(_fetch_page_content(r["url"]))
-        else:
-            enrich.append(_noop())
+    batch = str(uuid.uuid4())
+    now = datetime.now(timezone.utc)
 
-    contents = await asyncio.gather(*enrich, return_exceptions=True)
-    for r, content in zip(merged[:5], contents):
-        if isinstance(content, str) and content:
-            if not r.get("snippet") or len(r["snippet"]) < 50:
-                r["snippet"] = content[:300]
-            r["content"] = content
+    for query in queries:
+        results = await _search_one(query)
+        for r in results[:3]:
+            ws = WebSearchResult(
+                id=str(uuid.uuid4()),
+                persona_id=persona_id,
+                query=query,
+                results_json=json.dumps([r], ensure_ascii=False),
+                search_batch=batch,
+                created_at=now,
+            )
+            db.add(ws)
 
-    return [{"query": q, "results": merged} for q in queries]
+    await db.commit()
