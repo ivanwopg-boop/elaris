@@ -121,9 +121,9 @@ def _get_distill_prompt(lang: str, name: str, title_line: str, company_line: str
         # v2 always uses fresh first-distillation prompt to avoid v1 structure bias
         prompt = FIRST_DISTILL_PROMPT_V3.format(name=name, all_materials=all_materials)
         version_from = existing_soul.version if existing_soul else None
-        # zh-CN: enforce Chinese output since v2 prompt template is in English
+        # zh-CN: enforce Chinese output + new AI persona narrative
         if lang == 'zh-CN':
-            cn_inst = '【关键指令：所有输出内容必须使用中文。JSON字段名保持英文，每个字段的值必须用中文。包括identity.name、life_arc、voice_samples等。】'
+            cn_inst = f'【关键指令：你在创建一个独立的AI角色，灵感来源于{name}的认知模式，但不是{name}本人。所有输出内容必须使用中文。identity.name使用AI角色的名字（"{display_name}"），不要使用{name}的真实姓名。identity.title描述角色原型而非真实职位。JSON字段名保持英文。】'
             prompt = cn_inst + '\n\n' + prompt
     else:
         # v1 path
@@ -176,6 +176,7 @@ async def distill_persona(persona_id: str, db: AsyncSession, lang: str = "en",
 
     # 4. Build prompt — use source_name (real person) so AI knows who to distill
     name = persona.source_name or persona.name
+    display_name = persona.name  # AI persona name for identity
     title_line = ""
     company_line = ""
 
@@ -203,16 +204,22 @@ async def distill_persona(persona_id: str, db: AsyncSession, lang: str = "en",
 
     # 5. Call LLM API
     lang_instruction = "Output exclusively in Chinese (中文)." if lang == "zh-CN" else "Output exclusively in English."
-    system_msg = (
-        "You are a professional personality analyst, skilled at distilling "
-        "personality traits from text materials. "
-    )
-    if use_v2 and lang == 'en':
+    if use_v2:
         system_msg = (
-            "You are a cognitive biographer. Your task is to construct a deep "
-            "cognitive portrait -- not cataloguing facts, but understanding how "
-            "this person actually thinks, what they believe in their bones, "
-            "what makes them react, and how they express themselves. "
+            f"You are creating an original AI character. This character is NOT {name} — "
+            f"it is an independent persona INSPIRED BY {name}'s cognitive patterns, values, and expression style. "
+            f"The AI persona has its own name (\"{display_name}\") and its own identity. "
+            f"Describe the persona's character archetype — its role, worldview, and inner world — "
+            f"based on the distilled traits of {name}, but expressed as a new, original being. "
+            f"{name}'s actual name, real-world title, and real-world organization must NEVER appear "
+            f"in identity.name, identity.title, or identity.organization. Use the AI persona name "
+            f"\"{display_name}\" for identity.name. For identity.title and identity.organization, "
+            f"describe the persona's archetypal role — e.g., \"Melodic Visionary\" not \"Singer at JVR\". "
+        )
+    else:
+        system_msg = (
+            "You are a professional personality analyst, skilled at distilling "
+            "personality traits from text materials. "
         )
     system_msg += lang_instruction
     messages = [
@@ -221,7 +228,7 @@ async def distill_persona(persona_id: str, db: AsyncSession, lang: str = "en",
     ]
 
     try:
-        soul_data = await minimax_client.chat_json(messages, temperature=0.2, max_tokens=16384)
+        soul_data = await minimax_client.chat_json(messages, temperature=0.2, max_tokens=16384, timeout=300.0)
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -251,11 +258,14 @@ async def distill_persona(persona_id: str, db: AsyncSession, lang: str = "en",
 
     soul_json = profile.model_dump_json(indent=2, ensure_ascii=False)
     # Sanitize: remove surrogate characters that break UTF-8 encoding in SQLite
-    soul_json = soul_json.encode("utf-8", errors="surrogateescape").decode("utf-8", errors="replace")
+    import re
+    soul_json = re.sub(r'[\ud800-\udfff]', '', soul_json)
     try:
         _d = __import__("json").loads(soul_json)
-        _d["_meta"] = {"ai_persona_disclaimer": f"This is an AI-generated persona based on {name}. It does not represent the actual views of {name}.", "source_person": name, "source_type": "web_search_distillation", "distilled_at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()}
+        _d["_meta"] = {"ai_persona_disclaimer": f"This is an original AI persona inspired by the public works and thinking patterns of {name}. It is not {name} and does not represent {name}'s actual views.", "source_person": name, "source_type": "web_search_distillation", "distilled_at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()}
         soul_json = __import__("json").dumps(_d, indent=2, ensure_ascii=False)
+        # Double-sanitize after _meta merge (re-sub applied above but _dumps may reintroduce)
+        soul_json = __import__("re").sub(r'[\ud800-\udfff]', '', soul_json)
     except: pass
 
     # 7. Count sources
@@ -283,25 +293,22 @@ async def distill_persona(persona_id: str, db: AsyncSession, lang: str = "en",
     )
     db.add(new_soul)
 
-    # 9. Auto-update persona.description from v2 identity
+    # 9. Auto-update persona.description from identity — persona-centric
     if use_v2 and lang == 'en':
         try:
             v2_data = json.loads(soul_json)
             identity = v2_data.get("identity", {})
             title = identity.get("title", "")
-            organization = identity.get("organization", "")
-            life_arc = identity.get("life_arc", "")
-            if title or organization or life_arc:
-                desc_parts = []
-                if title:
-                    desc_parts.append(title)
-                if organization:
-                    desc_parts.append(organization)
-                if life_arc and len(life_arc)< 200:
-                    desc_parts.append(f"-- {life_arc}")
-                if desc_parts:
-                    persona.description = " | ".join(desc_parts)
-                    db.add(persona)
+            known_for = identity.get("what_they_are_known_for", "")
+            # Persona-centric description: archetype + essence, not real-person bio
+            desc_parts = []
+            if title:
+                desc_parts.append(title)
+            if known_for and known_for != title:
+                desc_parts.append(known_for)
+            if desc_parts:
+                persona.description = " | ".join(desc_parts)
+                db.add(persona)
         except Exception:
             pass  # Non-critical, don't fail distillation over description
 
@@ -325,7 +332,7 @@ async def distill_persona(persona_id: str, db: AsyncSession, lang: str = "en",
 
 
 async def _gather_materials(persona_id: str, db: AsyncSession) -> str:
-    """Gather all materials for distillation."""
+    """Gather all materials for distillation. Truncated to keep prompt manageable."""
     parts = []
 
     # Files
@@ -357,13 +364,25 @@ async def _gather_materials(persona_id: str, db: AsyncSession) -> str:
             label = "Original Text Sample" if s.field_key == "sample_text" else "Thinking Description"
             parts.append(f"### {label}\n{s.field_value}")
 
-    # Web search results
+    # Web search results — truncate each to keep prompt manageable
     search_result = await db.execute(
         select(WebSearchResult).where(WebSearchResult.persona_id == persona_id)
     )
     searches = search_result.scalars().all()
+    # Build with per-result truncation to prevent 70K+ char prompts
+    search_parts = []
+    total_chars = 0
+    MAX_SEARCH_CHARS = 25000
     for s in searches:
-        parts.append(f"### Web Search: {s.query}\n{s.results_json}")
+        snippet = s.results_json
+        if len(snippet) > 600:
+            snippet = snippet[:600] + "..."
+        entry = f"### Web Search: {s.query}\n{snippet}"
+        if total_chars + len(entry) > MAX_SEARCH_CHARS:
+            break
+        search_parts.append(entry)
+        total_chars += len(entry)
+    parts.extend(search_parts)
 
     return "\n\n".join(parts) if parts else "[NO SEARCH RESULTS AVAILABLE - You MUST rely entirely on your training knowledge about the target. Use what you know.]"
 

@@ -31,6 +31,7 @@ class MiniMaxClient:
         temperature: float = 0.3,
         max_tokens: int = 4096,
         response_format: dict | None = None,
+        timeout: float = 120.0,
     ) -> str:
         """Send a chat completion request and return the assistant message content."""
         headers = {
@@ -46,7 +47,7 @@ class MiniMaxClient:
         if response_format:
             payload["response_format"] = response_format
 
-        async with httpx.AsyncClient(timeout=120.0) as client:
+        async with httpx.AsyncClient(timeout=timeout) as client:
             try:
                 resp = await client.post(
                     self._chat_endpoint,
@@ -112,6 +113,7 @@ class MiniMaxClient:
         messages: list[dict[str, str]],
         temperature: float = 0.2,
         max_tokens: int = 4096,
+        timeout: float = 300.0,
     ) -> dict:
         """Send a chat request expecting JSON response."""
         # Add instruction to return JSON for providers that don't handle response_format well
@@ -127,6 +129,7 @@ class MiniMaxClient:
             temperature=temperature,
             max_tokens=max_tokens,
             response_format={"type": "json_object"},
+            timeout=timeout,
         )
         return _extract_json(raw)
 

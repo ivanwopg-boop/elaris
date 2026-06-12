@@ -112,7 +112,7 @@ async def list_personas(db: AsyncSession, user_id: str | None = None, include_pr
             .order_by(PersonaSoul.version.desc())
         )
         soul = soul_result.scalars().first()
-        # Compute lang-specific description from soul
+        # Compute lang-specific description from soul — persona-centric
         lang_desc = p.description
         if soul:
             try:
@@ -120,12 +120,12 @@ async def list_personas(db: AsyncSession, user_id: str | None = None, include_pr
                 d = json.loads(soul.soul_json)
                 ident = d.get("identity", {}) or d.get("basic_info", {})
                 title = ident.get("title", "") or ""
-                org = ident.get("organization", "") or ident.get("company", "") or ""
+                known_for = ident.get("what_they_are_known_for", "") or ""
                 parts = []
-                if title:
+                if title and title != ident.get("name", ""):
                     parts.append(title)
-                if org:
-                    parts.append(org)
+                if known_for and known_for != title:
+                    parts.append(known_for)
                 if parts:
                     lang_desc = " | ".join(parts)
             except:
