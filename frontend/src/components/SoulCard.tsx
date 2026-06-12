@@ -613,7 +613,23 @@ export function SoulCard({ soul, version, name, avatar_url }: SoulCardProps) {
         </div>
       </div>
 
-      {/* 6 clean typographic panels */}
+      {/* About the Inspiration — compliance layer */}
+      {sourceName && (
+        <div className="mx-5 mb-1 mt-1 px-4 py-3 rounded-2xl bg-[#F8F9FA] border border-[rgba(0,0,0,0.04)]">
+          <p className="text-[10px] font-medium text-[#AEAEB2] tracking-[0.08em] uppercase mb-1.5">About the Inspiration</p>
+          {(soul._meta && soul._meta.source_bio) ? (
+            <p className="text-[13px] font-light text-[#6E6E73] leading-relaxed">{soul._meta.source_bio}</p>
+          ) : (
+            <p className="text-[13px] font-light text-[#6E6E73] leading-relaxed">
+              This AI persona embodies the cognitive patterns and expressive style of {sourceName}
+              {str(ident.life_arc) ? ` — ${str(ident.life_arc).slice(0, 200)}` : 
+               str(ident.what_they_are_known_for) ? `, known for ${str(ident.what_they_are_known_for).slice(0, 200)}` : '.'}
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* AI Soul DNA — 6 collapsible panels */}
       <div className="px-5">
         <PanelIdentity s={soul} t={t} />
         <PanelMind s={soul} t={t} />
