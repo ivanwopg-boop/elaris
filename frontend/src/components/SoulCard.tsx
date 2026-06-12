@@ -590,14 +590,24 @@ export function SoulCard({ soul, version, name, avatar_url }: SoulCardProps) {
 
       {/* Header — matching Elaris typographic style */}
       <div className="flex items-center gap-4 px-5 pt-4 pb-4 border-b border-[rgba(0,0,0,0.04)]">
-        <Avatar name={personaName || "?"} url={avatar_url} size="lg" />
+        {/* Avatar with AI badge */}
+        <div className="relative shrink-0">
+          <Avatar name={personaName || "?"} url={avatar_url} size="lg" />
+          {sourceName && (
+            <span className="absolute -bottom-0.5 -right-0.5 px-1.5 py-0.5 rounded-full bg-[#0071E3] text-white text-[9px] font-medium leading-none border-2 border-white">
+              AI
+            </span>
+          )}
+        </div>
         <div>
           <h2 className="text-lg font-medium text-[#1D1D1F] tracking-[-0.01em]">{personaName || "Unknown"}</h2>
           {str(ident.title) && <p className="text-sm font-light text-[#86868B] mt-0.5">{str(ident.title)}</p>}
           {str(ident.organization) && <p className="text-xs font-light text-[#AEAEB2]">{str(ident.organization)}</p>}
           {sourceName && (
             <p className="text-[10px] font-light text-[#C7C7CC] mt-1">
-              {t.inspired_by || "Inspired by the public works of"} {sourceName}
+              {str(ident.life_arc || ident.what_they_are_known_for)
+                ? str(ident.what_they_are_known_for || ident.life_arc).slice(0, 120)
+                : `${t.inspired_by || "Inspired by"} ${sourceName}`}
             </p>
           )}
         </div>

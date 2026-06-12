@@ -293,19 +293,22 @@ async def distill_persona(persona_id: str, db: AsyncSession, lang: str = "en",
     )
     db.add(new_soul)
 
-    # 9. Auto-update persona.description from identity — persona-centric
+    # 9. Auto-update persona.description — rich persona framing
     if use_v2 and lang == 'en':
         try:
             v2_data = json.loads(soul_json)
             identity = v2_data.get("identity", {})
             title = identity.get("title", "")
             known_for = identity.get("what_they_are_known_for", "")
-            # Persona-centric description: archetype + essence, not real-person bio
+            actual = identity.get("what_they_actually_are", "")
+            # Rich description: archetypal role + what they embody + deeper truth
             desc_parts = []
             if title:
                 desc_parts.append(title)
             if known_for and known_for != title:
-                desc_parts.append(known_for)
+                desc_parts.append(known_for[:100])
+            if actual and actual not in desc_parts:
+                desc_parts.append(actual[:100])
             if desc_parts:
                 persona.description = " | ".join(desc_parts)
                 db.add(persona)
