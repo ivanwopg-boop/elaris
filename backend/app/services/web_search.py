@@ -18,10 +18,15 @@ MAX_RESULTS = 15
 
 
 async def _searxng_search(query: str, language: str = "auto", categories: str = None) -> list[dict]:
-    """Search via local SearXNG instance."""
+    """Search via local SearXNG instance with specific reliable engines."""
+    # Detect if query is Chinese and use Chinese-optimized engines
+    has_cn = any('\u4e00' <= c <= '\u9fff' for c in query)
+    # Mojeek is the only engine that reliably works (Bing returns garbage,
+    # Google/Brave/Baidu/Sogou rate-limited with 0 results)
+    engines = "mojeek,duckduckgo,bing"
     try:
         async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-            params = {"q": query, "format": "json", "language": language}
+            params = {"q": query, "format": "json", "language": language, "engines": engines}
             if categories:
                 params["categories"] = categories
             resp = await client.get(f"{SEARXNG_URL}/search", params=params)
