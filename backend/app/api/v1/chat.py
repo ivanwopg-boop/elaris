@@ -176,7 +176,14 @@ async def chat_stream(persona_id: str, message: str, conv: str = None, request: 
 
         # Step 1: LLM reformulates user question into search keywords
         search_person_name = info.get('source_name') or info['name']
-        _rp = "Search keywords: " + search_person_name + " OR " + search_person_name + ". Question to research: '" + message + "'. Current date: " + _today + ". Give me ONLY two search-engine-ready query strings, exactly like:  'keyword1 keyword2 keyword3 2026'. Use " + search_person_name + "'s real name. Factor in that we are past " + _today + ". Your ENTIRE RESPONSE must be exactly 2 lines, each line a search query. No explanations, no thinking, no prefix."
+        _rp = (
+            f"Today is {_today}. The user is asking about {search_person_name}. "
+            f"Their question: '{message}'. "
+            f"Generate 2 search queries to find the MOST CURRENT, UP-TO-DATE information. "
+            f"Prioritize: official schedules, latest news, upcoming dates. "
+            f"Include the year {_now.year} in queries. "
+            f"Output ONLY 2 lines, each a search-engine-ready query. No other text."
+        )
         _rr = await minimax_client.chat(
             [{"role": "user", "content": _rp}], temperature=0.1, max_tokens=150
         )
@@ -203,9 +210,14 @@ async def chat_stream(persona_id: str, message: str, conv: str = None, request: 
                     if _w not in _topic_words:
                         _topic_words.append(_w)
             _topics = " ".join(_topic_words[:3])
+            # Add time hints for next/upcoming questions
+            _time_hint = ""
+            _msg_lower = message.lower()
+            if any(w in _msg_lower for w in ['什么时候','下一场','哪天','next','upcoming','when','日期','日程','安排','时间']):
+                _time_hint = " schedule dates upcoming"
             _search_queries = [
-                search_person_name + " " + _topics + " " + str(_now.year),
-                search_person_name + " " + _topics
+                search_person_name + " " + _topics + _time_hint + " " + str(_now.year),
+                search_person_name + " " + _topics + _time_hint
             ]
         _log.info(f"[SEARCH_Q] raw={message[:40]!r} -> {_search_queries}")
 
@@ -222,9 +234,21 @@ async def chat_stream(persona_id: str, message: str, conv: str = None, request: 
                         _all_results.append(r)
             _all_results = _all_results[:15]
             if _all_results:
-                # Step 3: Extract key facts from search results
+                # Step 3: Extract key facts — prioritize upcoming dates
                 _raw_results = "\n".join(["- " + r['title'] + " | " + r['snippet'][:300] for r in _all_results[:8]])
-                _extract_prompt = "Here are search results. Extract ONLY factual, verifiable information that helps answer this question: '" + message + "'\n\nSearch results:\n" + _raw_results + "\n\nRules:\n- Extract ONLY dates, locations, names, events, numbers\n- 3-5 bullet points max\n- NO opinions, NO analysis, NO answering the question\n- If the results don't contain relevant facts, say 'No relevant facts found'\n- Format: '- Fact: ...'\n- Use original language (Chinese for Chinese facts, English for English facts)"
+                _extract_prompt = (
+                    f"Today is {_today}. The user asked: '{message}'.\n\n"
+                    f"Search results:\n{_raw_results}\n\n"
+                    "Rules:\n"
+                    "- Extract ONLY dates, locations, names, events, numbers\n"
+                    "- If the question is about upcoming/next/future events, find the closest future date relative to today\n"
+                    "- Sort dates chronologically, list the NEXT upcoming event FIRST\n"
+                    "- 3-5 bullet points max\n"
+                    "- NO opinions, NO analysis, NO answering the question\n"
+                    "- If no relevant facts found, say 'No relevant facts found'\n"
+                    "- Format: '- Fact: ...'\n"
+                    "- Use original language"
+                )
                 _extracted = await minimax_client.chat(
                     [{"role": "user", "content": _extract_prompt}],
                     temperature=0.0, max_tokens=300
