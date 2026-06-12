@@ -335,13 +335,8 @@ export function SoulCard({ soul, version, name }: SoulCardProps) {
       )}
 
       {/* ── HEADER: AI Identity ── */}
-      <div className="px-5 pt-4 pb-3">
-        <h2 className="text-[20px] font-semibold text-[#1D1D1F] tracking-[-0.02em]">{personaName || "Unknown"}</h2>
-        {(str(ident.title) || str(ident.what_they_are_known_for)) && (
-          <p className="text-[14px] font-light text-[#6E6E73] mt-0.5 leading-relaxed">
-            {str(ident.what_they_are_known_for || ident.title)}
-          </p>
-        )}
+      <div className="px-5 pt-4 pb-3 border-b border-[rgba(0,0,0,0.04)]">
+        <p className="text-[10px] font-medium text-[#AEAEB2] tracking-[0.08em] uppercase">{t.tab_soul || "Soul"}</p>
       </div>
 
       {/* ── SOURCE: Where this soul comes from ── */}
