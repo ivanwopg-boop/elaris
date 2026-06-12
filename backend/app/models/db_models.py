@@ -20,6 +20,7 @@ class Persona(Base):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     avatar_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
     category: Mapped[str | None] = mapped_column(String(32), nullable=True, default=None)
+    source_name: Mapped[str | None] = mapped_column(String(256), nullable=True, default=None)
     is_public: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)

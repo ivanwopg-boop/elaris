@@ -20,6 +20,90 @@ from app.core.prompts import (
 )
 from app.services.web_search import search_web
 
+# ── AI Persona Naming ────────────────────────────────────
+NAME_GEN_PROMPT = """You are a creative naming AI. Given a person's distilled cognitive profile, generate 5 creative, evocative names for an AI persona inspired by them.
+
+Rules:
+- Names must NOT be the real person's name
+- Names must NOT contain obvious reference to the real person (no initials, no puns on their name)
+- Names should be poetic, memorable, and evoke the person's CORE ESSENCE
+- Mix styles: some abstract, some trait-based, some metaphorical
+- 2-4 words max each
+- Output as JSON array of 5 strings
+- Output in English (the frontend will translate if needed)
+
+Real name: {real_name}
+Brief identity: {identity_summary}
+Core traits distilled: {traits_summary}
+
+Output ONLY a JSON array like: ["Silicon Prophet", "The Perfectionist", ...]"""
+
+
+async def generate_persona_names(
+    persona_id: str,
+    real_name: str,
+    db: AsyncSession,
+) -> list[str]:
+    """After distillation, generate creative AI persona names."""
+    import json as _jsonx
+
+    result = await db.execute(
+        select(PersonaSoul)
+        .where(PersonaSoul.persona_id == persona_id, PersonaSoul.lang == "en")
+        .order_by(PersonaSoul.version.desc())
+    )
+    soul = result.scalars().first()
+    if not soul:
+        return []
+
+    try:
+        soul_data = _jsonx.loads(soul.soul_json)
+    except Exception:
+        return []
+
+    identity = soul_data.get("identity", {})
+    identity_summary = (
+        f"{identity.get('title', '')} / {identity.get('organization', '')}"
+    ).strip(" /")
+
+    traits = []
+    cog = soul_data.get("cognitive_architecture", {})
+    beliefs = cog.get("core_beliefs", []) or []
+    if isinstance(beliefs, list) and beliefs:
+        traits += [b.get("belief", str(b)) for b in beliefs[:3]]
+
+    emo = soul_data.get("emotional_map") or soul_data.get("emotional_reactive_system", {})
+    if isinstance(emo, dict):
+        triggers = emo.get("triggers", [])
+        if isinstance(triggers, list) and triggers:
+            t0 = triggers[0]
+            traits.append(t0.get("trigger", str(t0)) if isinstance(t0, dict) else str(t0))
+
+    voice = soul_data.get("voice") or soul_data.get("communication_profile", {})
+    if isinstance(voice, dict):
+        phrases = voice.get("phrases") or voice.get("signature_expressions", [])
+        if isinstance(phrases, list) and phrases:
+            traits.append(str(phrases[0]))
+
+    traits_summary = " | ".join(filter(None, traits[:5])) or "visionary thinker"
+
+    messages = [
+        {"role": "system", "content": "You are a creative naming specialist. Output JSON only."},
+        {"role": "user", "content": NAME_GEN_PROMPT.format(
+            real_name=real_name,
+            identity_summary=identity_summary or real_name,
+            traits_summary=traits_summary,
+        )},
+    ]
+
+    try:
+        names = await minimax_client.chat_json(messages, temperature=0.8, max_tokens=512)
+        if isinstance(names, list) and all(isinstance(n, str) for n in names):
+            return [n for n in names if n and n.lower() != real_name.lower()][:5]
+        return []
+    except Exception:
+        return []
+
 
 def _detect_version(soul_json: str) -> str:
     """Detect soul schema version from JSON string."""

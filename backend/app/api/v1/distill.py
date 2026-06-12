@@ -14,7 +14,7 @@ from app.models.schemas import (
     WebSearchRequest, WebSearchResultOut,
     DistillResponse, SoulOut, ManualInputCreate, ManualInputOut,
 )
-from app.services.distill_service import distill_persona, ensure_web_search_results
+from app.services.distill_service import distill_persona, ensure_web_search_results, generate_persona_names
 from app.services.web_search import search_web
 
 router = APIRouter(prefix="/personas/{persona_id}", tags=["Distill"])
@@ -191,8 +191,72 @@ async def run_distillation(
             except Exception:
                 pass  # Non-critical, don't fail distillation
 
+        # Generate AI persona name (after EN soul is ready)
+        display_name = ""
+        name_options = []
+        source_name = ""
+        if en_soul:
+            try:
+                # Get persona to extract original name
+                from sqlalchemy import select as _sel
+                from app.models.db_models import Persona
+                pr = await db.execute(_sel(Persona).where(Persona.id == persona_id))
+                persona = pr.scalar_one_or_none()
+                if persona:
+                    original_name = persona.name
+                    source_name = original_name
+                    # Only rename if this is the first distillation (no source_name set)
+                    if not persona.source_name:
+                        name_options = await generate_persona_names(persona_id, original_name, db)
+                        if name_options:
+                            display_name = name_options[0]
+                            await db.execute(
+                                update(Persona).where(Persona.id == persona_id).values(
+                                    name=display_name,
+                                    source_name=original_name,
+                                )
+                            )
+                            await db.commit()
+                            # Also update the soul _meta to reflect the new name
+                            from app.models.db_models import PersonaSoul
+                            for lang_key in souls:
+                                sr = await db.execute(
+                                    _sel(PersonaSoul).where(
+                                        PersonaSoul.persona_id == persona_id,
+                                        PersonaSoul.lang == lang_key,
+                                    ).order_by(PersonaSoul.version.desc())
+                                )
+                                sl = sr.scalars().first()
+                                if sl:
+                                    try:
+                                        sd = json.loads(sl.soul_json)
+                                        if "_meta" not in sd:
+                                            sd["_meta"] = {}
+                                        sd["_meta"]["source_person"] = original_name
+                                        sd["_meta"]["ai_persona_disclaimer"] = (
+                                            f"This AI persona is inspired by {original_name}'s public works. "
+                                            "It is an independent creation and does not represent the actual views of the original person."
+                                        )
+                                        sl.soul_json = json.dumps(sd, indent=2, ensure_ascii=False)
+                                        db.add(sl)
+                                    except Exception:
+                                        pass
+                            await db.commit()
+                        else:
+                            display_name = original_name
+                    else:
+                        display_name = persona.name
+                        source_name = persona.source_name or original_name
+            except Exception as e:
+                import traceback
+                print(f"[distill] naming failed: {e}", flush=True)
+                traceback.print_exc()
+
         return DistillResponse(
             persona_id=persona_id,
+            display_name=display_name or source_name,
+            name_options=name_options,
+            source_name=source_name,
             soul=souls.get("en", {}),
             souls=souls,
             version=version,

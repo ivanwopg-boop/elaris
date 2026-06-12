@@ -128,6 +128,7 @@ class PersonaOut(BaseModel):
     id: str
     name: str
     category: str | None = None
+    source_name: str | None = None  # original person name, if renamed
     description: str | None
     avatar_url: str | None
     created_at: datetime
@@ -200,6 +201,9 @@ class WebSearchResultOut(BaseModel):
 class DistillResponse(BaseModel):
     persona_id: str
     version: int
+    display_name: str = ""      # AI-generated persona name
+    name_options: list[str] = []  # 3-5 creative name candidates
+    source_name: str = ""        # original person name
     soul: dict = {}
     souls: dict = {}
     sources_used: int

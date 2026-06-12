@@ -133,6 +133,8 @@ async def list_personas(db: AsyncSession, user_id: str | None = None, include_pr
         out.append({
             "id": p.id,
             "name": p.name,
+            "category": p.category,
+            "source_name": p.source_name,
             "description": lang_desc,
             "avatar_url": p.avatar_url,
             "created_at": p.created_at,

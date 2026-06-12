@@ -107,6 +107,7 @@ export const translations: Record<Lang, Record<string, string>> = {
 
     // SoulCard
     not_distilled_soul: "Soul not yet forged",
+    inspired_by: "Inspired by the public works of",
 
     // ── V3 6-group collapsible panel titles ──
     soul_group_identity: "Identity & Origin",
@@ -508,6 +509,7 @@ clarity_vs_impress_label: "Clarity vs. Impress",
     chars: "字符",
 
     not_distilled_soul: "尚未锻造。上传文件后点击锻造灵魂",
+    inspired_by: "灵感来源于",
 
     // ── V3 6-group collapsible panel titles ──
     soul_group_identity: "身份与起源",

@@ -253,6 +253,8 @@ export const api = {
 export interface PersonaOut {
   id: string;
   name: string;
+  category: string | null;
+  source_name: string | null;
   description: string | null;
   avatar_url: string | null;
   created_at: string;
@@ -306,6 +308,9 @@ export interface WebSearchResultOut {
 export interface DistillResponse {
   persona_id: string;
   version: number;
+  display_name: string;
+  name_options: string[];
+  source_name: string;
   soul: any;
   sources_used: number;
 }
