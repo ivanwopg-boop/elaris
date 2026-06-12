@@ -110,14 +110,14 @@ export const translations: Record<Lang, Record<string, string>> = {
     inspired_by: "Inspired by the public works of",
 
     // ── Insight Card titles ──
-    insight_source: "Where this soul comes from",
+    insight_source: "Soul Origins",
     insight_perception: "How this persona perceives the world",
     insight_anchor: "What anchors this persona",
     insight_drive: "What drives this persona",
     insight_voice: "How this persona speaks",
     insight_shadow: "What haunts this persona",
     insight_arc: "How this persona evolves",
-    insight_archive: "Full DNA Archive",
+    insight_archive: "Technical Profile",
 
     // ── V3 6-group collapsible panel titles ──
     soul_group_identity: "Persona Identity",
@@ -522,14 +522,14 @@ clarity_vs_impress_label: "Clarity vs. Impress",
     inspired_by: "灵感来源于",
 
     // ── Insight Card titles ──
-    insight_source: "这个灵魂从哪里来",
+    insight_source: "灵魂来源",
     insight_perception: "它如何感知世界",
     insight_anchor: "什么锚定它",
     insight_drive: "什么驱动它",
     insight_voice: "它如何表达",
     insight_shadow: "什么困扰它",
     insight_arc: "它如何演变",
-    insight_archive: "完整 DNA 档案",
+    insight_archive: "技术档案",
 
     // ── V3 6-group collapsible panel titles ──
     soul_group_identity: "角色核心",

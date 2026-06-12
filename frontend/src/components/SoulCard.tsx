@@ -334,18 +334,13 @@ export function SoulCard({ soul, version, name }: SoulCardProps) {
         <div className="text-[10px] font-light text-[#C7C7CC] px-5 pt-5">v{version}</div>
       )}
 
-      {/* ── HEADER: AI Identity ── */}
-      <div className="px-5 pt-4 pb-3 border-b border-[rgba(0,0,0,0.04)]">
-        <p className="text-[10px] font-medium text-[#AEAEB2] tracking-[0.08em] uppercase">{t.tab_soul || "Soul"}</p>
-      </div>
-
       {/* ── SOURCE: Where this soul comes from ── */}
       {sourceName && (
-        <div className="mx-5 mb-1 px-4 py-3 rounded-2xl bg-[#F8F9FA] border border-[rgba(0,0,0,0.04)]">
-          <p className="text-[10px] font-medium text-[#AEAEB2] tracking-[0.08em] uppercase mb-1.5">
-            {t.insight_source || "Where this soul comes from"}
+        <div className="px-5 pt-5 pb-1">
+          <p className="text-[11px] font-medium text-[#AEAEB2] tracking-[0.06em] mb-2">
+            {t.insight_source || "Soul Origins"}
           </p>
-          <p className="text-[13px] font-light text-[#6E6E73] leading-relaxed">
+          <p className="text-[15px] font-light text-[#6E6E73] leading-relaxed">
             {sourceBio
               ? sourceBio
               : (lang === "zh-CN"
@@ -356,19 +351,23 @@ export function SoulCard({ soul, version, name }: SoulCardProps) {
         </div>
       )}
 
-      {/* ── INSIGHT CARDS: 6 Narrative Insights ── */}
-      {insights.map((ins, i) => (
-        <InsightCard key={i} icon={ins.icon} title={ins.title}>
-          {ins.paras.map((p, j) => (
-            <P key={j}>{p}</P>
+      {/* ── INSIGHT CARDS ── */}
+      {insights.length > 0 && (
+        <div className="mt-4">
+          {insights.map((ins, i) => (
+            <InsightCard key={i} icon={ins.icon} title={ins.title}>
+              {ins.paras.map((p, j) => (
+                <P key={j}>{p}</P>
+              ))}
+            </InsightCard>
           ))}
-        </InsightCard>
-      ))}
+        </div>
+      )}
 
-      {/* ── FULL DNA ARCHIVE (Collapsible) ── */}
+      {/* ── TECHNICAL PROFILE (Collapsible) ── */}
       <div className="px-5 pt-2 pb-4">
         <div className="border-t border-[rgba(0,0,0,0.06)] pt-3">
-          <ArchivePanel label={t.insight_archive || "Full DNA Archive"}>
+          <ArchivePanel label={t.insight_archive || "Technical Profile"}>
             <RawDNA s={soul} />
           </ArchivePanel>
         </div>
