@@ -411,71 +411,8 @@ async def _gather_materials(persona_id: str, db: AsyncSession) -> str:
     return "\n\n".join(parts) if parts else "[NO SEARCH RESULTS AVAILABLE - You MUST rely entirely on your training knowledge about the target. Use what you know.]"
 
 
-async def ensure_web_search_results(persona_id: str, db: AsyncSession) -> None:
-    """
-    Check if persona has web search results; if not, auto-generate queries
-    from name/title/company and run searches via AnySearch.
-    """
-    sr = await db.execute(
-        select(WebSearchResult).where(WebSearchResult.persona_id == persona_id)
-    )
-    existing = sr.scalars().all()
-    if existing:
-        return
-
-    result = await db.execute(select(Persona).where(Persona.id == persona_id))
-    persona = result.scalar_one_or_none()
-    if not persona:
-        return
-
-    mi_result = await db.execute(
-        select(PersonaManualInput).where(PersonaManualInput.persona_id == persona_id)
-    )
-    manual = {mi.field_key: mi.field_value for mi in mi_result.scalars().all()}
-
-    title = manual.get("title", "")
-    company = manual.get("company", "")
-    # Use source_name (real person) for web search, not persona.name (AI display name)
-    search_name = persona.source_name or persona.name
-
-    # V3: 25 search queries
-    queries = [f"{search_name} {q}" for q in [
-        "biography life story career", "early life childhood family background",
-        "achievements awards milestones", "education mentors influences",
-        "career timeline key events", "philosophy beliefs worldview",
-        "interview quotes thoughts opinions", "books reading recommendations",
-        "mental models thinking style", "intellectual influences heroes mentors",
-        "controversy criticism scandal", "failure low point comeback story",
-        "turning point life-changing moment", "conflict dispute rival opponent",
-        "dark side flaws weaknesses mistakes", "personality traits character habits",
-        "daily routine lifestyle work habits", "relationships friends family inner circle",
-        "aesthetic taste art music design style", "humor jokes funny stories personality",
-        "public opinion reception review", "peers colleagues opinion about them",
-        "critics analysis critique assessment", "legacy impact influence on field",
-        "fans community discussion Reddit Quora",
-    ]]
-
-    batch = str(uuid.uuid4())
-    now = datetime.now(timezone.utc)
-    all_results = []
-
-    for query in queries:
-        search_results = await search_web([query])
-        for sr_item in search_results:
-            for r in sr_item.get("results", [])[:6]:
-                ws = WebSearchResult(
-                    id=str(uuid.uuid4()),
-                    persona_id=persona_id,
-                    query=sr_item["query"],
-                    results_json=json.dumps([r], ensure_ascii=False),
-                    search_batch=batch,
-                    created_at=now,
-                )
-                db.add(ws)
-                all_results.append(r)
-
-    await db.commit()
-    return
+# ensure_web_search_results moved to web_search.py (uses AnySearch)
+# Import from there: from app.services.web_search import ensure_web_search_results
 
 def infer_category(title: str, org: str, domains: list) -> str:
     """Infer persona category from v2 identity/expertise data."""

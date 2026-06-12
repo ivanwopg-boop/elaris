@@ -14,8 +14,8 @@ from app.models.schemas import (
     WebSearchRequest, WebSearchResultOut,
     DistillResponse, SoulOut, ManualInputCreate, ManualInputOut,
 )
-from app.services.distill_service import distill_persona, ensure_web_search_results
-from app.services.web_search import search_web
+from app.services.distill_service import distill_persona
+from app.services.web_search import search_web, ensure_web_search_results
 
 router = APIRouter(prefix="/personas/{persona_id}", tags=["Distill"])
 
