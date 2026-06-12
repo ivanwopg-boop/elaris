@@ -235,8 +235,10 @@ async def run_distillation(
             sources_used=sources_used,
         )
     except ValueError as e:
+        await db.rollback()
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
+        await db.rollback()
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Distillation failed: {str(e)}")

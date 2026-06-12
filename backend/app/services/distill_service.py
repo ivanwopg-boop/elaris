@@ -174,8 +174,8 @@ async def distill_persona(persona_id: str, db: AsyncSession, lang: str = "en",
     )
     existing_soul = soul_result.scalars().first()
 
-    # 4. Build prompt
-    name = persona.name
+    # 4. Build prompt — use source_name (real person) so AI knows who to distill
+    name = persona.source_name or persona.name
     title_line = ""
     company_line = ""
 
@@ -250,6 +250,8 @@ async def distill_persona(persona_id: str, db: AsyncSession, lang: str = "en",
         raise ValueError(f"AI returned data format error: {e}\nRaw data: {str(soul_data)[:500]}")
 
     soul_json = profile.model_dump_json(indent=2, ensure_ascii=False)
+    # Sanitize: remove surrogate characters that break UTF-8 encoding in SQLite
+    soul_json = soul_json.encode("utf-8", errors="surrogateescape").decode("utf-8", errors="replace")
     try:
         _d = __import__("json").loads(soul_json)
         _d["_meta"] = {"ai_persona_disclaimer": f"This is an AI-generated persona based on {name}. It does not represent the actual views of {name}.", "source_person": name, "source_type": "web_search_distillation", "distilled_at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()}
@@ -390,10 +392,11 @@ async def ensure_web_search_results(persona_id: str, db: AsyncSession) -> None:
 
     title = manual.get("title", "")
     company = manual.get("company", "")
-    name = persona.name
+    # Use source_name (real person) for web search, not persona.name (AI display name)
+    search_name = persona.source_name or persona.name
 
     # V3: 25 search queries
-    queries = [f"{name} {q}" for q in [
+    queries = [f"{search_name} {q}" for q in [
         "biography life story career", "early life childhood family background",
         "achievements awards milestones", "education mentors influences",
         "career timeline key events", "philosophy beliefs worldview",

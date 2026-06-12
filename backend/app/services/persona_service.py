@@ -14,6 +14,7 @@ async def create_persona(data: PersonaCreate, db: AsyncSession, user_id: str | N
         id=str(uuid.uuid4()),
         user_id=user_id,
         name=data.name,
+        source_name=data.source_name,  # real person name for search
         description=data.description,
         avatar_url=data.avatar_url,
         category=data.category or "other",

@@ -85,7 +85,7 @@ export const api = {
   getPersona: (id: string) =>
     api.request<PersonaDetail>(`/personas/${id}`),
 
-  createPersona: (data: { name: string; description?: string; category?: string }) =>
+  createPersona: (data: { name: string; source_name?: string; description?: string; category?: string }) =>
     api.request<PersonaOut>("/personas", {
       method: "POST",
       body: JSON.stringify(data),

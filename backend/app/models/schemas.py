@@ -111,7 +111,8 @@ class PersonaProfile(BaseModel):
 
 # ── Persona CRUD ─────────────────────────────────────────
 class PersonaCreate(BaseModel):
-    name: str
+    name: str                # AI persona display name
+    source_name: str | None = None  # real person name for web search
     description: str | None = None
     avatar_url: str | None = None
     source_id: str | None = None  # If set, copy soul from this preset persona

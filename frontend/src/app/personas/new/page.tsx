@@ -14,19 +14,22 @@ export default function CreatePersonaPage() {
   const t = translations[lang];
   const [category, setCategory] = useState("other");
   const router = useRouter();
-  const [name, setName] = useState("");
+  const [sourceName, setSourceName] = useState("");  // real person for web search
+  const [displayName, setDisplayName] = useState("");  // AI persona name
   const [keywords, setKeywords] = useState("");
   const [stage, setStage] = useState<DistillStage>("idle");
   const [error, setError] = useState<string>("");
 
   const handleDistill = async () => {
-    if (!name.trim()) { alert(t.enter_name || "Please enter a name"); return; }
+    if (!sourceName.trim()) { alert(t.enter_name || "Please enter the real person's name"); return; }
+    if (!displayName.trim()) { alert(t.name_label || "Please enter a name for your AI persona"); return; }
+    if (displayName.trim().toLowerCase() === sourceName.trim().toLowerCase()) { alert("AI persona name must be different from the source person"); return; }
     if (!keywords.trim()) { alert(t.enter_keywords || "Please enter keywords to help AI search"); return; }
     setStage("searching");
     setError("");
     try {
-      // 1. Create persona with name
-      const persona = await api.createPersona({ name: name.trim(), category });
+      // 1. Create persona with AI display name + source name for search
+      const persona = await api.createPersona({ name: displayName.trim(), source_name: sourceName.trim(), category });
 
       // 2. Add keywords as background for web search query generation
       await api.addManualInput(persona.id, {
@@ -34,9 +37,8 @@ export default function CreatePersonaPage() {
         background: keywords.trim(),
       });
 
-      // 3. Trigger distillation — AI will auto-search using name+keywords
+      // 3. Trigger distillation — AI will auto-search using source name + keywords
       setStage("analyzing");
-      // Distill in both languages for bilingual support
       const otherLang = lang === "zh-CN" ? "en" : "zh-CN";
       await api.distill(persona.id, lang);
       await api.distill(persona.id, otherLang);
@@ -76,9 +78,18 @@ export default function CreatePersonaPage() {
 
       <div className="space-y-5">
         <Card>
-          <h3 className="text-xs font-light text-[#86868B] mb-3 tracking-wide">{t.name_label || "Name"} <span className="text-red-400">*</span></h3>
-          <input value={name} onChange={(e) => setName(e.target.value)}
+          <h3 className="text-xs font-light text-[#86868B] mb-3 tracking-wide">{t.field_name || "Who is this based on?"} <span className="text-red-400">*</span></h3>
+          <p className="text-xs text-[#86868B] font-light mb-2">The real person's name. Only used for web search.</p>
+          <input value={sourceName} onChange={(e) => setSourceName(e.target.value)}
             placeholder={t.name_placeholder || "E.g., Elon Musk, 张一鸣, 稻盛和夫"}
+            className="w-full bg-white border border-[rgba(0,0,0,0.08)] rounded-[10px] px-4 py-3 text-sm text-[#1D1D1F] placeholder-[#86868B] focus:outline-none focus:border-[#0071E3] font-light" />
+        </Card>
+
+        <Card>
+          <h3 className="text-xs font-light text-[#86868B] mb-3 tracking-wide">{t.name_label || "AI Persona Name"} <span className="text-red-400">*</span></h3>
+          <p className="text-xs text-[#86868B] font-light mb-2">Give your AI persona a unique name. Cannot be the same as the person above.</p>
+          <input value={displayName} onChange={(e) => setDisplayName(e.target.value)}
+            placeholder="E.g., Silicon Prophet, 算法诗人, Cosmic Thinker"
             className="w-full bg-white border border-[rgba(0,0,0,0.08)] rounded-[10px] px-4 py-3 text-sm text-[#1D1D1F] placeholder-[#86868B] focus:outline-none focus:border-[#0071E3] font-light" />
         </Card>
 
@@ -131,7 +142,7 @@ export default function CreatePersonaPage() {
           className="w-full"
           size="lg"
           onClick={handleDistill}
-          disabled={stage !== "idle" || !name.trim() || !keywords.trim()}
+          disabled={stage !== "idle" || !sourceName.trim() || !displayName.trim() || !keywords.trim()}
           loading={stage !== "idle" && stage !== "done" && stage !== "error"}
         >
           {stage === "idle" ? (t.start_distillation || "Start Distillation") : stageLabels[stage] || (t.processing || "Processing...")}

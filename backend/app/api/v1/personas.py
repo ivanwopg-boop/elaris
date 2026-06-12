@@ -94,6 +94,8 @@ async def create_persona(data: PersonaCreate, db: AsyncSession = Depends(get_db)
     return PersonaOut(
         id=persona.id,
         name=persona.name,
+        category=persona.category,
+        source_name=persona.source_name,
         description=persona.description,
         avatar_url=persona.avatar_url,
         created_at=persona.created_at,
@@ -191,6 +193,8 @@ async def update_persona(persona_id: str, data: PersonaUpdate, user = Depends(re
     return PersonaOut(
         id=persona.id,
         name=persona.name,
+        category=persona.category,
+        source_name=persona.source_name,
         description=persona.description,
         avatar_url=persona.avatar_url,
         created_at=persona.created_at,
