@@ -63,7 +63,8 @@ function Q({ text }: { text: string }) {
 }
 
 /* ── Generate insights from Soul data ── */
-function buildInsights(s: any, t: Record<string, string>, sourceName: string) {
+function buildInsights(s: any, t: Record<string, string>, sourceName: string, lang: string) {
+  const isZh = lang === "zh-CN";
   const v = s.schema_version;
   const isV3 = v === "3.0" || v === 3;
 
@@ -91,72 +92,66 @@ function buildInsights(s: any, t: Record<string, string>, sourceName: string) {
 
   const insights: { icon: string; title: string; paras: string[] }[] = [];
 
-  // 1. 如何感知世界 — Perceptual Lens
+  // 1. Perception
   {
     const lens = str(pick(per, "lens", "primary_lens"));
     const notice = str(pick(per, "notice"));
     const miss = str(pick(per, "miss"));
-    const beliefs = isV3
-      ? arr(cog.core_beliefs).map((b: any) => str(b.belief || b)).filter(Boolean).slice(0, 2)
-      : strs(cog.core_beliefs).slice(0, 2);
+    const beliefs = isV3 ? arr(cog.core_beliefs).map((b: any) => str(b.belief || b)).filter(Boolean).slice(0, 2) : strs(cog.core_beliefs).slice(0, 2);
     const paras: string[] = [];
-    if (lens) paras.push(`This persona perceives the world through a lens of ${lens.toLowerCase()}.`);
-    if (notice) paras.push(`It naturally notices ${notice.toLowerCase()}.`);
-    if (miss) paras.push(`It consistently overlooks ${miss.toLowerCase()}.`);
-    if (beliefs.length) paras.push(`Underlying this perspective: ${beliefs.map(b => `"${b}"`).join("; ")}.`);
-    if (paras.length) insights.push({ icon: "🌊", title: t.insight_perception || "How this persona perceives the world", paras });
+    if (lens) paras.push(isZh ? `这个角色透过「${lens}」的滤镜感知世界。` : `This persona perceives the world through a lens of ${lens}.`);
+    if (notice) paras.push(isZh ? `它天然会注意到${notice}。` : `It naturally notices ${notice}.`);
+    if (miss) paras.push(isZh ? `它常常忽略${miss}。` : `It consistently overlooks ${miss}.`);
+    if (beliefs.length) paras.push(isZh ? `底层信念：${beliefs.map(b => `「${b}」`).join("；")}。` : `Core beliefs: ${beliefs.map(b => `"${b}"`).join("; ")}.`);
+    if (paras.length) insights.push({ icon: "🌊", title: t.insight_perception || (isZh ? "它如何感知世界" : "How this persona perceives"), paras });
   }
 
-  // 2. 什么锚定它 — Identity & Values
+  // 2. Anchors
   {
-    const axioms = isV3 ? strs(cog.axioms).slice(0, 3) : strs(cog.axioms).slice(0, 3);
+    const axioms = strs(isV3 ? cog.axioms : cog.axioms).slice(0, 3);
     const title = str(s.identity?.title);
     const knownFor = str(s.identity?.what_they_are_known_for);
     const actual = str(s.identity?.what_they_actually_are);
     const paras: string[] = [];
-    if (title || knownFor) paras.push(`At its core, this persona embodies ${title || knownFor}${actual ? ` — ${actual}` : ""}.`);
-    if (axioms.length) paras.push(`Axioms that define it: ${axioms.map(a => `"${a}"`).join("; ")}.`);
-    if (!paras.length && sourceName) paras.push(`This persona's core was shaped by the thinking patterns of ${sourceName}.`);
-    if (paras.length) insights.push({ icon: "⚓", title: t.insight_anchor || "What anchors this persona", paras });
+    if (title || knownFor) paras.push(isZh ? `这个角色的核心是「${title || knownFor}」${actual ? "——" + actual : ""}。` : `At its core, this persona embodies ${title || knownFor}${actual ? " — " + actual : ""}.`);
+    if (axioms.length) paras.push(isZh ? `定义它的公理：${axioms.map(a => `「${a}」`).join("；")}。` : `Axioms that define it: ${axioms.map(a => `"${a}"`).join("; ")}.`);
+    if (!paras.length && sourceName) paras.push(isZh ? `这个角色的内核是由${sourceName}的思维模式塑造的。` : `Shaped by the thinking patterns of ${sourceName}.`);
+    if (paras.length) insights.push({ icon: "⚓", title: t.insight_anchor || (isZh ? "什么锚定它" : "What anchors this persona"), paras });
   }
 
-  // 3. 什么驱动它 — Desires & Motivation
+  // 3. Drive
   {
     const truly = str(pick(des, "truly"));
     const stated = str(pick(des, "stated"));
     const gap = str(pick(des, "gap"));
     const sacrifice = str(pick(des, "sacrifice"));
-    const triggers = isV3
-      ? arr(emo.triggers).map((tr: any) => str(tr.trigger || tr)).filter(Boolean).slice(0, 3)
-      : strs(emo.triggers).slice(0, 3);
+    const triggers = isV3 ? arr(emo.triggers).map((tr: any) => str(tr.trigger || tr)).filter(Boolean).slice(0, 3) : strs(emo.triggers).slice(0, 3);
     const paras: string[] = [];
-    if (truly) paras.push(`What it truly wants, beneath what it says: ${truly}.`);
-    if (stated && stated !== truly) paras.push(`What it says it wants: ${stated}.`);
-    if (gap) paras.push(`The gap between the two: ${gap}.`);
-    if (sacrifice) paras.push(`It would sacrifice almost anything for: ${sacrifice}.`);
-    if (triggers.length && !truly) paras.push(`Moved by: ${triggers.join(", ")}.`);
-    if (paras.length) insights.push({ icon: "🔥", title: t.insight_drive || "What drives this persona", paras });
+    if (truly) paras.push(isZh ? `它真正渴望的是：${truly}。` : `What it truly wants: ${truly}.`);
+    if (stated && stated !== truly) paras.push(isZh ? `它嘴上说的是：${stated}。` : `What it says it wants: ${stated}.`);
+    if (gap) paras.push(isZh ? `两者之间的落差：${gap}。` : `The gap: ${gap}.`);
+    if (sacrifice) paras.push(isZh ? `它愿意为${sacrifice}付出一切。` : `It would sacrifice everything for: ${sacrifice}.`);
+    if (triggers.length && !truly) paras.push(isZh ? `被以下事物驱动：${triggers.join("、")}。` : `Driven by: ${triggers.join(", ")}.`);
+    if (paras.length) insights.push({ icon: "🔥", title: t.insight_drive || (isZh ? "什么驱动它" : "What drives this persona"), paras });
   }
 
-  // 4. 它如何表达 — Voice & Expression
+  // 4. Voice
   {
     const sentence = str(pick(voice, "sentence_structure"));
     const phrases = (isV3 ? strs(voice.phrases) : strs(comm.signature_expressions)).slice(0, 4);
     const freq = strs(voice.high_freq).slice(0, 4);
-    const samples = isV3
-      ? (arr(voice.samples).length ? arr(voice.samples).map((x: any) => str(x)).slice(0, 2) : [])
-      : [str(vs.on_topic_they_love), str(vs.on_topic_they_resist)].filter(Boolean).slice(0, 2);
     const neverWords = strs(comm.words_they_hardenly_ever_use).slice(0, 4);
+    const samples = isV3 ? (arr(voice.samples).length ? arr(voice.samples).map((x: any) => str(x)).slice(0, 2) : []) : [str(vs.on_topic_they_love), str(vs.on_topic_they_resist)].filter(Boolean).slice(0, 2);
     const paras: string[] = [];
     if (sentence) paras.push(sentence);
-    if (phrases.length) paras.push(`Signature phrases: ${phrases.map(p => `"${p}"`).join(", ")}.`);
-    if (freq.length) paras.push(`Vocabulary markers: ${freq.join(", ")}.`);
-    if (neverWords.length) paras.push(`Words it almost never uses: ${neverWords.join(", ")}.`);
+    if (phrases.length) paras.push(isZh ? `标志性表达：${phrases.map(p => `「${p}」`).join("、")}。` : `Signature phrases: ${phrases.map(p => `"${p}"`).join(", ")}.`);
+    if (freq.length) paras.push(isZh ? `高频词汇：${freq.join("、")}。` : `Vocabulary markers: ${freq.join(", ")}.`);
+    if (neverWords.length) paras.push(isZh ? `几乎不用的词：${neverWords.join("、")}。` : `Words it rarely uses: ${neverWords.join(", ")}.`);
     if (samples.length) paras.push(samples.map(q => <P key=""><Q text={q} /></P>) as any);
-    if (paras.length) insights.push({ icon: "💬", title: t.insight_voice || "How this persona speaks", paras });
+    if (paras.length) insights.push({ icon: "💬", title: t.insight_voice || (isZh ? "它如何表达" : "How this persona speaks"), paras });
   }
 
-  // 5. 什么困扰它 — Shadows & Vulnerabilities
+  // 5. Shadows
   {
     const deepest = strs(fears.deepest).slice(0, 3);
     const ashamed = strs(fears.ashamed).slice(0, 3);
@@ -168,18 +163,18 @@ function buildInsights(s: any, t: Record<string, string>, sourceName: string) {
     const mistakes = strs(dark.mistakes).slice(0, 3);
     const conflicts = conf.map((c: any) => str(c.tension)).filter(Boolean).slice(0, 2);
     const paras: string[] = [];
-    if (deepest.length) paras.push(`Deepest fears: ${deepest.join(", ")}.`);
-    if (hide) paras.push(`It hides: ${hide}.`);
-    if (insecure) paras.push(`Insecure about: ${insecure}.`);
-    if (vulEmo) paras.push(`Emotionally vulnerable to: ${vulEmo}.`);
-    if (vulBreak) paras.push(`What could break it: ${vulBreak}.`);
-    if (darkHurt) paras.push(`How it hurts others: ${darkHurt}.`);
-    if (mistakes.length) paras.push(`Recurring mistakes: ${mistakes.join(", ")}.`);
-    if (conflicts.length) paras.push(`Inner conflicts: ${conflicts.map(c => `"${c}"`).join("; ")}.`);
-    if (paras.length) insights.push({ icon: "🌑", title: t.insight_shadow || "What haunts this persona", paras });
+    if (deepest.length) paras.push(isZh ? `最深的恐惧：${deepest.join("、")}。` : `Deepest fears: ${deepest.join(", ")}.`);
+    if (hide) paras.push(isZh ? `它隐藏的是：${hide}。` : `It hides: ${hide}.`);
+    if (insecure) paras.push(isZh ? `不安全感来源：${insecure}。` : `Insecure about: ${insecure}.`);
+    if (vulEmo) paras.push(isZh ? `情感上的脆弱点：${vulEmo}。` : `Emotional vulnerability: ${vulEmo}.`);
+    if (vulBreak) paras.push(isZh ? `可能击垮它的是：${vulBreak}。` : `What could break it: ${vulBreak}.`);
+    if (darkHurt) paras.push(isZh ? `它伤害别人的方式：${darkHurt}。` : `How it hurts others: ${darkHurt}.`);
+    if (mistakes.length) paras.push(isZh ? `反复犯的错：${mistakes.join("、")}。` : `Recurring mistakes: ${mistakes.join(", ")}.`);
+    if (conflicts.length) paras.push(isZh ? `内心冲突：${conflicts.map(c => `「${c}」`).join("；")}。` : `Inner conflicts: ${conflicts.map(c => `"${c}"`).join("; ")}.`);
+    if (paras.length) insights.push({ icon: "🌑", title: t.insight_shadow || (isZh ? "什么困扰它" : "What haunts this persona"), paras });
   }
 
-  // 6. 它如何演变 — Life Arc
+  // 6. Arc
   {
     const turningTexts = turning.map((tp: any) => str(tp.moment)).filter(Boolean).slice(0, 2);
     const peakTexts = peak.map((p: any) => str(p.moment)).filter(Boolean).slice(0, 1);
@@ -192,16 +187,16 @@ function buildInsights(s: any, t: Record<string, string>, sourceName: string) {
     const nextTrajectory = str(pick(next, "trajectory"));
     const howChanged = str(pick(tp, "how_they_changed_over_time"));
     const paras: string[] = [];
-    if (howChanged) { paras.push(howChanged); }
-    if (turningTexts.length) paras.push(`Pivotal moments: ${turningTexts.join("; ")}.`);
-    if (peakTexts.length) paras.push(`Peak: ${peakTexts[0]}.`);
-    if (rockWhat) paras.push(`At its lowest: ${rockWhat}.`);
-    if (rockClimb) paras.push(`How it climbed out: ${rockClimb}.`);
-    if (evoPhases.length) paras.push(`Evolution phases: ${evoPhases.join(" → ")}.`);
-    if (catalyst) paras.push(`Biggest catalyst for change: ${catalyst}.`);
-    if (unchanging) paras.push(`What never changed: ${unchanging}.`);
-    if (nextUnfinished || nextTrajectory) paras.push(`What lies ahead: ${[nextUnfinished, nextTrajectory].filter(Boolean).join(" ")}`);
-    if (paras.length) insights.push({ icon: "🌀", title: t.insight_arc || "How this persona evolves", paras });
+    if (howChanged) paras.push(howChanged);
+    if (turningTexts.length) paras.push(isZh ? `关键转折：${turningTexts.join("；")}。` : `Pivotal moments: ${turningTexts.join("; ")}.`);
+    if (peakTexts.length) paras.push(isZh ? `巅峰时刻：${peakTexts[0]}。` : `Peak: ${peakTexts[0]}.`);
+    if (rockWhat) paras.push(isZh ? `最低谷：${rockWhat}。` : `At its lowest: ${rockWhat}.`);
+    if (rockClimb) paras.push(isZh ? `如何爬出来：${rockClimb}。` : `How it climbed out: ${rockClimb}.`);
+    if (evoPhases.length) paras.push(isZh ? `演化阶段：${evoPhases.join(" → ")}。` : `Evolution: ${evoPhases.join(" → ")}.`);
+    if (catalyst) paras.push(isZh ? `最大的改变催化剂：${catalyst}。` : `Biggest catalyst: ${catalyst}.`);
+    if (unchanging) paras.push(isZh ? `从未改变的内核：${unchanging}。` : `Unchanging core: ${unchanging}.`);
+    if (nextUnfinished || nextTrajectory) paras.push(isZh ? `前方还有：${[nextUnfinished, nextTrajectory].filter(Boolean).join(" ")}` : `Ahead: ${[nextUnfinished, nextTrajectory].filter(Boolean).join(" ")}`);
+    if (paras.length) insights.push({ icon: "🌀", title: t.insight_arc || (isZh ? "它如何演变" : "How this persona evolves"), paras });
   }
 
   return insights;
@@ -333,7 +328,7 @@ export function SoulCard({ soul, version, name, avatar_url }: SoulCardProps) {
   const sourceBio = (soul._meta && soul._meta.source_bio) || "";
 
   // Build insights from soul data
-  const insights = buildInsights(soul, t, sourceName);
+  const insights = buildInsights(soul, t, sourceName, lang);
 
   return (
     <Card className="rounded-3xl border border-[rgba(0,0,0,0.06)] bg-white overflow-hidden">
@@ -369,7 +364,9 @@ export function SoulCard({ soul, version, name, avatar_url }: SoulCardProps) {
           <p className="text-[13px] font-light text-[#6E6E73] leading-relaxed">
             {sourceBio
               ? sourceBio
-              : `This persona's cognitive DNA was distilled from ${sourceName}${str(ident.life_arc) ? ` — ${str(ident.life_arc).slice(0, 200)}` : '.'}`
+              : (lang === "zh-CN"
+                ? `这个角色的认知DNA提炼自${sourceName}${str(ident.life_arc) ? "——" + str(ident.life_arc).slice(0, 200) : "。"}`
+                : `This persona's cognitive DNA was distilled from ${sourceName}${str(ident.life_arc) ? " — " + str(ident.life_arc).slice(0, 200) : '.'}`)
             }
           </p>
         </div>

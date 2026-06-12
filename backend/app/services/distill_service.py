@@ -21,27 +21,10 @@ from app.core.prompts import (
 from app.services.web_search import search_web
 
 
-def _build_source_bio(name: str, all_materials: str) -> str:
-    """Extract a short 1-2 sentence bio from search materials for the compliance layer."""
-    # Find the biography search result
-    bio_keywords = ["biography", "life story", "career", "简介", "生平"]
-    best_snippet = ""
-    for section in all_materials.split("### Web Search:"):
-        for kw in bio_keywords:
-            if kw.lower() in section.lower()[:80]:
-                # Extract first meaningful snippet
-                snippets = section.split('"snippet":')
-                for s in snippets[1:3]:
-                    snippet = s.split('"')[1] if '"' in s[:20] else s[:200]
-                    if len(snippet) > 40 and name[:2] not in snippet[:4]:
-                        best_snippet = snippet[:300]
-                        break
-                if best_snippet:
-                    break
-        if best_snippet:
-            break
-    if best_snippet:
-        return f"{name}: {best_snippet.strip()}"
+def _build_source_bio(name: str, identity_summary: str = "") -> str:
+    """Build a short source bio from soul identity fields, not search results."""
+    if identity_summary:
+        return f"{name}: {identity_summary[:300]}"
     return name
 
 # ── AI Persona Naming ────────────────────────────────────
@@ -138,7 +121,7 @@ def _detect_version(soul_json: str) -> str:
         return "1.0"
 
 
-def _get_distill_prompt(lang: str, name: str, title_line: str, company_line: str,
+def _get_distill_prompt(lang: str, name: str, display_name: str, title_line: str, company_line: str,
                        all_materials: str, existing_soul, use_v2: bool):
     """Select the right prompt template based on version."""
     if use_v2:
@@ -224,7 +207,7 @@ async def distill_persona(persona_id: str, db: AsyncSession, lang: str = "en",
             title_line = f"Title: {parts[0].strip()}\n"
 
     prompt, version_from = _get_distill_prompt(
-        lang, name, title_line, company_line, all_materials, existing_soul, use_v2)
+        lang, name, display_name, title_line, company_line, all_materials, existing_soul, use_v2)
 
     # 5. Call LLM API
     lang_instruction = "Output exclusively in Chinese (中文)." if lang == "zh-CN" else "Output exclusively in English."
@@ -284,8 +267,20 @@ async def distill_persona(persona_id: str, db: AsyncSession, lang: str = "en",
     # Sanitize: remove surrogate characters that break UTF-8 encoding in SQLite
     import re
     soul_json = re.sub(r'[\ud800-\udfff]', '', soul_json)
-    # Generate a concise source bio for the compliance layer
-    source_bio = _build_source_bio(name, all_materials)
+    # Generate a concise source bio from the distilled identity
+    id_summary = ""
+    try:
+        ident = soul_data.get("identity", {})
+        parts = []
+        for key in ["life_arc", "what_they_are_known_for", "title"]:
+            v = ident.get(key, "")
+            if v and v != ident.get("name", ""):
+                parts.append(str(v))
+                break
+        id_summary = ". ".join(parts[:2])
+    except:
+        pass
+    source_bio = _build_source_bio(name, id_summary)
     try:
         _d = __import__("json").loads(soul_json)
         _d["_meta"] = {"ai_persona_disclaimer": f"This is an original AI persona inspired by the public works and thinking patterns of {name}. It is not {name} and does not represent {name}'s actual views.", "source_person": name, "source_bio": source_bio, "source_type": "web_search_distillation", "distilled_at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()}

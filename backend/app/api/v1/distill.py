@@ -191,42 +191,36 @@ async def run_distillation(
             except Exception:
                 pass  # Non-critical, don't fail distillation
 
-        # After distillation, update persona.source_name to the original
-        # real-person name so we preserve it for transparency.
-        # The display name (persona.name) will be set by the user.
-        try:
-            from sqlalchemy import select as _selx
-            from app.models.db_models import Persona
-            pr = await db.execute(_selx(Persona).where(Persona.id == persona_id))
-            persona = pr.scalar_one_or_none()
-            if persona and not persona.source_name:
-                await db.execute(
-                    update(Persona).where(Persona.id == persona_id).values(
-                        source_name=persona.name,
-                    )
-                )
-                await db.commit()
-                source_name = persona.name
-        except Exception:
-            pass
-
-        # Collect display_name and source_name for response
+        # After distillation: collect response metadata
         display_name = ""
+        source_name = ""
         name_options: list[str] = []
         try:
-            from sqlalchemy import select as _selx2
+            from sqlalchemy import select as _selx, update
             from app.models.db_models import Persona
-            pr2 = await db.execute(_selx2(Persona).where(Persona.id == persona_id))
-            p2 = pr2.scalar_one_or_none()
-            if p2:
-                display_name = p2.name
-                source_name = p2.source_name or ""
-        except Exception:
-            pass
+            pr = await db.execute(_selx(Persona).where(Persona.id == persona_id))
+            p = pr.scalar_one_or_none()
+            if p:
+                display_name = p.name
+                source_name = p.source_name or ""
+                # Auto-set source_name on first distillation if not already set
+                if not p.source_name:
+                    try:
+                        await db.execute(
+                            update(Persona).where(Persona.id == persona_id).values(source_name=p.name)
+                        )
+                        await db.commit()
+                        source_name = p.name
+                    except Exception:
+                        pass  # Already set or concurrent update
+        except Exception as e:
+            import traceback
+            print(f"[distill] metadata collection error: {e}", flush=True)
+            traceback.print_exc()
 
         return DistillResponse(
             persona_id=persona_id,
-            display_name=display_name or source_name,
+            display_name=display_name,
             name_options=name_options,
             source_name=source_name,
             soul=souls.get("en", {}),
