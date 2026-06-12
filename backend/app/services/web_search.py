@@ -133,14 +133,16 @@ async def search_web(queries: list[str]) -> list[dict]:
     for results in all_raw:
         all_results.extend(results)
 
-    # If SearXNG returned basically nothing, fall back to DuckDuckGo
-    if len(all_results) < 3:
-        logger.info(f"[SEARCH] SearXNG returned only {len(all_results)} results, falling back to DDG")
-        ddg_tasks = [_duckduckgo_search(q) for q in queries]
+    # ALWAYS also search DuckDuckGo directly (SearXNG is unreliable)
+    # Run DDG in parallel with SearXNG dedup, not as fallback
+    try:
+        ddg_tasks = [asyncio.to_thread(_duckduckgo_search_sync, q) for q in queries]
         ddg_raw = await asyncio.gather(*ddg_tasks, return_exceptions=True)
         for ddg_results in ddg_raw:
             if isinstance(ddg_results, list):
                 all_results.extend(ddg_results)
+    except Exception:
+        pass
 
     merged = _deduplicate(all_results)
     merged.sort(key=lambda r: r.get("score", 0), reverse=True)
