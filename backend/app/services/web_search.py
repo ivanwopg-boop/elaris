@@ -1,8 +1,7 @@
-"""Self-hosted search aggregator: SearXNG + trafilatura.
+"""Search aggregator: SearXNG + DuckDuckGo fallback.
 
-- SearXNG: aggregates Google + Bing + DDG + Sogou + Baidu + Wikipedia
-- trafilatura: lightweight page content extraction (no browser needed)
-- Unlimited queries, no API keys, fully self-hosted
+- Primary: SearXNG (self-hosted aggregator, currently unreliable)
+- Fallback: DuckDuckGo direct API (duckduckgo_search library)
 """
 import asyncio
 import logging
@@ -79,6 +78,31 @@ def _deduplicate(results: list[dict]) -> list[dict]:
     return list(seen.values())
 
 
+def _duckduckgo_search_sync(query: str, max_results: int = 10) -> list[dict]:
+    """Direct DuckDuckGo search — reliable fallback when SearXNG fails."""
+    try:
+        from duckduckgo_search import DDGS
+        results = []
+        with DDGS() as ddgs:
+            for r in ddgs.text(query, max_results=max_results):
+                results.append({
+                    "title": r.get("title", ""),
+                    "url": r.get("href", ""),
+                    "snippet": r.get("body", ""),
+                    "engines": ["duckduckgo_direct"],
+                    "score": 0.5,
+                })
+        return results
+    except Exception as e:
+        logger.warning(f"[DDG] Search failed for '{query[:60]}': {e}")
+        return []
+
+
+async def _duckduckgo_search(query: str) -> list[dict]:
+    import asyncio
+    return await asyncio.to_thread(_duckduckgo_search_sync, query)
+
+
 async def _noop():
     return None
 
@@ -108,6 +132,15 @@ async def search_web(queries: list[str]) -> list[dict]:
     all_results = []
     for results in all_raw:
         all_results.extend(results)
+
+    # If SearXNG returned basically nothing, fall back to DuckDuckGo
+    if len(all_results) < 3:
+        logger.info(f"[SEARCH] SearXNG returned only {len(all_results)} results, falling back to DDG")
+        ddg_tasks = [_duckduckgo_search(q) for q in queries]
+        ddg_raw = await asyncio.gather(*ddg_tasks, return_exceptions=True)
+        for ddg_results in ddg_raw:
+            if isinstance(ddg_results, list):
+                all_results.extend(ddg_results)
 
     merged = _deduplicate(all_results)
     merged.sort(key=lambda r: r.get("score", 0), reverse=True)
