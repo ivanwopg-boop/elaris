@@ -1,7 +1,7 @@
 """SQLAlchemy ORM models."""
 
-from datetime import datetime, timezone
-from sqlalchemy import String, Text, Integer, Float, Boolean, DateTime, ForeignKey, JSON, UniqueConstraint
+from datetime import date, datetime, timezone
+from sqlalchemy import String, Text, Integer, Float, Boolean, Date, DateTime, ForeignKey, JSON, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
 
@@ -184,7 +184,9 @@ class User(Base):
     password_hash: Mapped[str | None] = mapped_column(String(256), nullable=True)
     name: Mapped[str | None] = mapped_column(String(128), nullable=True)
     avatar_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
-    tier: Mapped[str] = mapped_column(String(16), default="free")  # "free" | "premium" | "admin"
+    birth_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    age_verified: Mapped[bool] = mapped_column(Boolean, default=False)
+    tier: Mapped[str] = mapped_column(String(16), default="free")  # "free" | "premium" | "admin" | "restricted"
     provider: Mapped[str | None] = mapped_column(String(32), nullable=True)  # "google" | "twitter" | "email" | "invite"
     provider_id: Mapped[str | None] = mapped_column(String(256), nullable=True)  # OAuth sub
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)

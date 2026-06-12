@@ -262,7 +262,12 @@ export default function ChatPage() {
                       : `bg-[rgba(0,0,0,0.03)] text-[#1D1D1F] border border-[rgba(0,0,0,0.06)] rounded-bl-[4px] ${isSelected ? "ring-2 ring-[#0071E3] ring-offset-1" : ""} ${selectMode ? "cursor-pointer active:scale-[0.97] transition-transform duration-75" : ""}`
                   }`}
                 >
-                  {m.role === "user" ? m.content : <TypeText text={m.content} animate={false} />}
+                  {m.role === "user" ? m.content : (
+                    <>
+                      <TypeText text={m.content} animate={false} />
+                      <p className="text-[9px] text-[#ACACB2] mt-1 font-light italic opacity-60">AI-generated content</p>
+                    </>
+                  )}
                   {m.time && <p className={`text-[10px] mt-1 font-light ${m.role === "user" ? "opacity-40 text-white" : "text-[#ACACB2]"}`}>{ft(m.time)}</p>}
                   {selectMode && (
                     <div className={`absolute -top-2 -right-2 w-5 h-5 rounded-full flex items-center justify-center shadow-md transition-all ${

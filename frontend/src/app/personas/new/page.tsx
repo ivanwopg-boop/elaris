@@ -61,7 +61,7 @@ export default function CreatePersonaPage() {
     idle: "",
     searching: t.stage_searching || "Searching the web for information...",
     analyzing: t.stage_analyzing || "Analyzing search results and extracting cognitive traits...",
-    distilling: t.stage_distilling || "Generating bilingual souls...",
+    distilling: t.stage_distilling || "Forging soul in EN + ZH...",
     done: t.stage_done || "Persona created! Redirecting...",
     error: "",
   };

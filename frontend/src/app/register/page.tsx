@@ -14,6 +14,7 @@ function RegisterForm() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [birthDate, setBirthDate] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -28,13 +29,17 @@ function RegisterForm() {
       setError(t.invalid_email || "Please enter a valid email address");
       return;
     }
+    if (!birthDate) {
+      setError('Please enter your date of birth for age verification');
+      return;
+    }
     if (password.length < 6) {
       setError(t.password_min_6 || 'Password must be at least 6 characters');
       return;
     }
     setLoading(true);
     try {
-      const res = await api.register(name.trim(), email.trim(), password);
+      const res = await api.register(name.trim(), email.trim(), password, undefined, birthDate);
       setAuth(res.access_token, res.user);
       window.location.href = '/chats';
     } catch (err: any) {

@@ -17,6 +17,7 @@ from app.core.prompts import CHAT_SYSTEM_PROMPT
 from app.api.v1.chat_utils import needs_web_search
 from app.services.web_search import search_web
 from app.core.auth_deps import require_auth, require_auth_optional
+from app.core.safety_filter import check_input, check_output, check_restricted_output
 from app.core.auth import decode_token
 from app.models.db_models import User
 
@@ -156,6 +157,15 @@ async def chat_stream(persona_id: str, message: str, conv: str = None, request: 
         persona = pr.scalars().first()
         if not persona or persona.user_id is not None:
             raise HTTPException(status_code=403, detail="Login required for this persona")
+
+    # Safety filter: check input before processing
+    safety = check_input(message)
+    if not safety["safe"]:
+        async def _safety_gen():
+            yield f"event: chat_message\ndata: {json.dumps({"content": safety["message"]})}\n\n"
+            yield f"event: done\ndata: {json.dumps({})}\n\n"
+        return StreamingResponse(_safety_gen(), media_type="text/event-stream")
+
     info = await _get_soul(persona_id, db)
     # Always search (self-hosted, unlimited) — use multiple queries for better coverage
     search_context = ""
@@ -225,10 +235,19 @@ async def chat_stream(persona_id: str, message: str, conv: str = None, request: 
 
 
     import logging; logging.getLogger("uvicorn").info(f"[SEARCH_DEBUG] context_len={len(search_context)}, preview={repr(search_context[:150])}")
+    # Restricted mode: gentle session reminder
+    restricted_reminder = ""
+    if user_id:
+        from app.models.db_models import User as _UM
+        _ur2 = await db.execute(select(_UM).where(_UM.id == user_id))
+        _u2 = _ur2.scalars().first()
+        if _u2 and _u2.tier == "restricted":
+            restricted_reminder = "\n8. USER IS A MINOR (13-16): Keep responses age-appropriate. Avoid mature themes. Gently suggest breaks every so often."
+
     system_prompt = CHAT_SYSTEM_PROMPT.format(
             current_date=datetime.now().strftime("%Y-%m-%d"),
         name=info["name"],
-        search_context=search_context,
+        search_context=search_context + restricted_reminder,
         soul_json=json.dumps(info["soul"], indent=2, ensure_ascii=False),
     )
 
@@ -283,6 +302,19 @@ Please factor in the above information when responding."""
         try:
             reply = await minimax_client.chat(msgs, temperature=0.4, max_tokens=10000)
             reply = _sanitize_reply(reply)
+            # Safety filter: check output for boundary violations
+            out_check = check_output(reply)
+            if not out_check["safe"]:
+                reply = out_check["message"]
+            # Restricted mode: extra checks for 13-16 users
+            if user_id:
+                from app.models.db_models import User
+                _ur = await db.execute(select(User).where(User.id == user_id))
+                _u = _ur.scalars().first()
+                if _u and _u.tier == "restricted":
+                    _rc = check_restricted_output(reply)
+                    if not _rc["safe"]:
+                        reply = _rc["message"]
             assistant_msg_id = None
             if conv_id and user_id:
                 assistant_msg_id = await _save_message(conv_id, user_id, persona_id, "assistant", reply, db)
@@ -297,6 +329,11 @@ Please factor in the above information when responding."""
 # ── Blocking endpoints ────────────────────────────────────────
 
 async def _handle_mode(request: ChatRequest, user_id: str, db: AsyncSession) -> ChatResponse:
+    # Safety filter: check input
+    safety = check_input(request.message)
+    if not safety["safe"]:
+        return ChatResponse(message=safety["message"], sources=["safety"], style_match=0.0)
+
     info = await _get_soul(request.persona_id, db)
     search_context = ""
     try:
@@ -334,8 +371,17 @@ Please factor in the above information when responding."""
     conv_id = await _get_or_create_conversation(user_id, request.persona_id, db)
     await _save_message(conv_id, user_id, request.persona_id, "user", request.message, db)
     reply = await minimax_client.chat(messages, temperature=0.4, max_tokens=10000)
-    await _save_message(conv_id, user_id, request.persona_id, "assistant", reply, db)
     reply = _sanitize_reply(reply)
+    # Safety filter: check output for boundary violations
+    out_check = check_output(reply)
+    if not out_check["safe"]:
+        reply = out_check["message"]
+    # Restricted mode: extra checks
+    if user.tier == "restricted":
+        _rc = check_restricted_output(reply)
+        if not _rc["safe"]:
+            reply = _rc["message"]
+    await _save_message(conv_id, user_id, request.persona_id, "assistant", reply, db)
     return ChatResponse(message=reply, sources=["L3"], style_match=0.85)
 
 @router.post("/chat", response_model=ChatResponse)

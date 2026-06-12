@@ -41,8 +41,13 @@ export default function RootLayout({
           <ToastProvider>{children}</ToastProvider>
         </main>
         <HideOnChat><footer className="border-t border-[rgba(0,0,0,0.06)] py-8 mt-16">
-          <div className="max-w-7xl mx-auto px-6 text-center text-xs text-[#86868B] font-light tracking-wide">
-            Elaris
+          <div className="max-w-7xl mx-auto px-6 text-center text-xs text-[#86868B] font-light tracking-wide space-y-2">
+            <div className="flex items-center justify-center gap-6">
+              <a href="/safety" className="hover:text-[#1D1D1F] transition-colors">Safety</a>
+              <a href="/terms" className="hover:text-[#1D1D1F] transition-colors">Terms</a>
+              <a href="/privacy" className="hover:text-[#1D1D1F] transition-colors">Privacy</a>
+            </div>
+            <p>Elaris</p>
           </div>
         </footer></HideOnChat>
       </body>

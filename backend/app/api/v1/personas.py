@@ -19,6 +19,8 @@ router = APIRouter(prefix="/personas", tags=["Personas"])
 @router.post("", response_model=PersonaOut, status_code=status.HTTP_201_CREATED)
 async def create_persona(data: PersonaCreate, db: AsyncSession = Depends(get_db), user: User = Depends(require_auth)):
     if not user.id: raise HTTPException(status_code=400, detail="User ID is required")
+    if user.tier == "restricted":
+        raise HTTPException(status_code=403, detail="Persona creation is not available for restricted accounts. Please verify your age to unlock.")
     persona = await persona_service.create_persona(data, db, user_id=user.id)
     # Set default DiceBear avatar if none provided
     if not persona.avatar_url:

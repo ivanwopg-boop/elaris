@@ -24,7 +24,7 @@ export function DistillProgress({ status, error, version }: DistillProgressProps
           <div className="flex justify-center mb-3">
             <Loader2 size={28} strokeWidth={1.5} className="text-[#86868B] animate-spin" />
           </div>
-          <p className="text-[#1D1D1F] text-sm font-light">{t.distilling || "Distilling soul..."}</p>
+          <p className="text-[#1D1D1F] text-sm font-light">{t.distilling || "Forging soul..."}</p>
           <p className="text-xs text-[#86868B] mt-1 font-light">{t.analyzing_materials}</p>
         </div>
       )}

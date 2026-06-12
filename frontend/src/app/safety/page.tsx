@@ -1,0 +1,108 @@
+export default function SafetyPage() {
+  return (
+    <div className="min-h-screen bg-[#F5F5F7]">
+      {/* Header */}
+      <div className="bg-white border-b border-[rgba(0,0,0,0.06)] px-6 pt-12 pb-10 text-center">
+        <h1 className="text-2xl font-light text-[#1D1D1F] mb-2 tracking-wide">Safety & Trust Center</h1>
+        <p className="text-sm text-[#86868B] font-light">How we protect you and your experience</p>
+      </div>
+
+      <div className="max-w-2xl mx-auto px-6 py-10 space-y-12">
+        {/* Age Verification */}
+        <section>
+          <h2 className="text-lg font-medium text-[#1D1D1F] mb-4">Age Verification</h2>
+          <p className="text-sm text-[#6E6E73] leading-relaxed">
+            Elaris requires all users to provide their date of birth during registration. We use this to:
+          </p>
+          <ul className="mt-3 space-y-2 text-sm text-[#6E6E73] list-disc pl-5">
+            <li>Block registration for users under 13 years old (under 16 in the EU/UK)</li>
+            <li>Place users aged 13-16 in a restricted mode with additional safety protections</li>
+            <li>Provide age-appropriate experiences for all users</li>
+          </ul>
+          <div className="mt-4 bg-[#E8F5E9] border border-[#C8E6C9] rounded-xl px-4 py-3 text-sm text-[#2E7D32]">
+            We do not store or process government IDs. Age is verified through self-declaration with appropriate restrictions.
+          </div>
+        </section>
+
+        {/* Crisis Intervention */}
+        <section>
+          <h2 className="text-lg font-medium text-[#1D1D1F] mb-4">Crisis Intervention</h2>
+          <p className="text-sm text-[#6E6E73] leading-relaxed">
+            Our AI systems are designed to detect signs of self-harm, suicidal ideation, or violence in conversations. When detected:
+          </p>
+          <ul className="mt-3 space-y-2 text-sm text-[#6E6E73] list-disc pl-5">
+            <li>The AI response is immediately replaced with crisis resources</li>
+            <li>No conversation data is shared with third parties</li>
+            <li>The interaction is logged solely for safety auditing purposes</li>
+          </ul>
+          <div className="mt-4 p-4 bg-white rounded-xl border border-[rgba(0,0,0,0.08)]">
+            <p className="text-sm font-medium text-[#1D1D1F] mb-2">If you or someone you know is in crisis:</p>
+            <div className="space-y-1 text-sm text-[#6E6E73]">
+              <p>🇺🇸 US: 988 Suicide & Crisis Lifeline (call or text 988)</p>
+              <p>🇪🇺 EU: 112 (general emergency)</p>
+              <p>🇬🇧 UK: Samaritans 116 123</p>
+              <p>🌍 International: befrienders.org</p>
+            </div>
+          </div>
+        </section>
+
+        {/* AI Personality Boundaries */}
+        <section>
+          <h2 className="text-lg font-medium text-[#1D1D1F] mb-4">AI Personality Boundaries</h2>
+          <p className="text-sm text-[#6E6E73] leading-relaxed">
+            Every AI Persona on Elaris operates within clearly defined emotional and professional boundaries:
+          </p>
+          <ul className="mt-3 space-y-2 text-sm text-[#6E6E73] list-disc pl-5">
+            <li><strong>Identity clarity:</strong> AI Personas acknowledge they are AI simulations, not real people</li>
+            <li><strong>Emotional boundaries:</strong> Personas provide companionship and support, but do not simulate romantic relationships</li>
+            <li><strong>Dependency protection:</strong> When users show signs of unhealthy emotional dependency, Personas gently redirect toward real-world support</li>
+            <li><strong>Professional boundaries:</strong> Personas do not provide medical diagnoses, legal advice, or financial recommendations</li>
+          </ul>
+        </section>
+
+        {/* Content Safety */}
+        <section>
+          <h2 className="text-lg font-medium text-[#1D1D1F] mb-4">Content Safety</h2>
+          <p className="text-sm text-[#6E6E73] leading-relaxed">
+            We employ a multi-layered safety system to protect users from harmful content:
+          </p>
+          <ul className="mt-3 space-y-2 text-sm text-[#6E6E73] list-disc pl-5">
+            <li><strong>Input filtering:</strong> User messages are checked before processing</li>
+            <li><strong>Output filtering:</strong> AI-generated responses are checked before delivery</li>
+            <li><strong>Child safety:</strong> Any content related to child exploitation is immediately blocked and reported</li>
+            <li><strong>Restricted mode (ages 13-16):</strong> Additional protections against grooming, personal information sharing, and mature themes</li>
+          </ul>
+        </section>
+
+        {/* AI Content Labeling */}
+        <section>
+          <h2 className="text-lg font-medium text-[#1D1D1F] mb-4">AI-Generated Content</h2>
+          <p className="text-sm text-[#6E6E73] leading-relaxed">
+            In compliance with the EU Artificial Intelligence Act (Regulation 2024/1689), all content generated by AI Personas is clearly labeled. AI Personas are simulations and do not represent the actual views or opinions of any real person, living or deceased.
+          </p>
+        </section>
+
+        {/* Platform Philosophy */}
+        <section>
+          <h2 className="text-lg font-medium text-[#1D1D1F] mb-4">Our Philosophy</h2>
+          <p className="text-sm text-[#6E6E73] leading-relaxed">
+            Elaris is a tool — like a messaging app. We provide the technology for you to create and interact with AI Personas. 
+            You control what Personas you create and what you talk about. We provide the safety rails, not content policing.
+          </p>
+          <div className="mt-4 bg-[#FFF3E0] border border-[#FFE0B2] rounded-xl px-4 py-3 text-sm text-[#E65100]">
+            All AI Personas are AI-generated simulations. They are not real people and do not represent the views of any real individual.
+          </div>
+        </section>
+
+        {/* Legal Links */}
+        <section className="border-t border-[rgba(0,0,0,0.06)] pt-8">
+          <h2 className="text-lg font-medium text-[#1D1D1F] mb-4">Legal</h2>
+          <div className="space-y-3 text-sm">
+            <a href="/terms" className="block text-[#0071E3] hover:underline">Terms of Service</a>
+            <a href="/privacy" className="block text-[#0071E3] hover:underline">Privacy Policy</a>
+          </div>
+        </section>
+      </div>
+    </div>
+  )
+}

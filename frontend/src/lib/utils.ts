@@ -38,7 +38,7 @@ export function fileIcon(fileType: string): string {
 }
 
 export function soulVersion(persona: { soul_version: number | null }): string {
-  if (!persona.soul_version) return "Not yet distilled";
+  if (!persona.soul_version) return "Soul not forged";
   return `v${persona.soul_version}`;
 }
 

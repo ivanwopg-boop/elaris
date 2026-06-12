@@ -60,10 +60,10 @@ export const api = {
       body: JSON.stringify({ invite_code }),
     }),
 
-  register: (email: string, password: string, name?: string, invite_code?: string) =>
+  register: (email: string, password: string, name?: string, invite_code?: string, birth_date?: string) =>
     api.request<{ access_token: string; token_type: string; user: any }>("/auth/register", {
       method: "POST",
-      body: JSON.stringify({ email, password, name, invite_code }),
+      body: JSON.stringify({ email, password, name, invite_code, birth_date }),
     }),
 
   logout: () =>

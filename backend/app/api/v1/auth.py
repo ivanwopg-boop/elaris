@@ -2,7 +2,7 @@
 
 import uuid
 import secrets
-from datetime import datetime, timezone, timedelta
+from datetime import date, datetime, timezone, timedelta
 from fastapi import APIRouter, Depends, HTTPException, status, Response, Request, UploadFile, File
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -27,6 +27,7 @@ class RegisterRequest(BaseModel):
     password: str | None = None
     name: str | None = None
     invite_code: str | None = None
+    birth_date: str | None = None  # YYYY-MM-DD, required for age verification
 
 
 class LoginRequest(BaseModel):
@@ -87,6 +88,22 @@ async def register(data: RegisterRequest, db: AsyncSession = Depends(get_db)):
         tier = code.tier
         code.used_count += 1
 
+    # Age verification (required for all new registrations)
+    birth_date = None
+    if data.birth_date:
+        try:
+            birth_date = date.fromisoformat(data.birth_date)
+            today = date.today()
+            age = today.year - birth_date.year - ((today.month, today.day) < (birth_date.month, birth_date.day))
+            if age < 13:
+                raise HTTPException(status_code=400, detail="You must be at least 13 years old to use Elaris (16 in the EU/UK)")
+            if age < 16:
+                tier = "restricted"
+        except (ValueError, TypeError):
+            raise HTTPException(status_code=400, detail="Invalid birth date. Use YYYY-MM-DD format.")
+    else:
+        raise HTTPException(status_code=400, detail="Birth date is required for age verification.")
+
     # Create user
     user_id = str(uuid.uuid4())
     password_hash = hash_password(data.password) if data.password else None
@@ -95,6 +112,8 @@ async def register(data: RegisterRequest, db: AsyncSession = Depends(get_db)):
         email=data.email.lower().strip(),
         password_hash=password_hash,
         name=data.name or data.email.split("@")[0],
+        birth_date=birth_date,
+        age_verified=True,
         tier=tier,
         provider="email",
     )

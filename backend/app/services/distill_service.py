@@ -16,7 +16,7 @@ from app.core.minimax_client import minimax_client
 from app.core.prompts import (
     FIRST_DISTILL_PROMPT, FIRST_DISTILL_PROMPT_ZH_CN, FIRST_DISTILL_PROMPT_ZH_TW,
     UPDATE_DISTILL_PROMPT, SEARCH_ANALYSIS_PROMPT,
-    FIRST_DISTILL_PROMPT_V2, UPDATE_DISTILL_PROMPT_V2,
+    FIRST_DISTILL_PROMPT_V3, FIRST_DISTILL_PROMPT_V2, UPDATE_DISTILL_PROMPT_V2,
 )
 from app.services.web_search import search_web
 
@@ -35,12 +35,7 @@ def _get_distill_prompt(lang: str, name: str, title_line: str, company_line: str
     """Select the right prompt template based on version."""
     if use_v2:
         # v2 always uses fresh first-distillation prompt to avoid v1 structure bias
-        prompt = FIRST_DISTILL_PROMPT_V2.format(
-            name=name,
-            title_line=title_line,
-            company_line=company_line,
-            all_materials=all_materials,
-        )
+        prompt = FIRST_DISTILL_PROMPT_V3.format(name=name, all_materials=all_materials)
         version_from = existing_soul.version if existing_soul else None
         # zh-CN: enforce Chinese output since v2 prompt template is in English
         if lang == 'zh-CN':
@@ -142,7 +137,7 @@ async def distill_persona(persona_id: str, db: AsyncSession, lang: str = "en",
     ]
 
     try:
-        soul_data = await minimax_client.chat_json(messages, temperature=0.2, max_tokens=8192)
+        soul_data = await minimax_client.chat_json(messages, temperature=0.2, max_tokens=16384)
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -160,7 +155,10 @@ async def distill_persona(persona_id: str, db: AsyncSession, lang: str = "en",
             return obj
         soul_data = fix_floats(soul_data)
 
-        if use_v2:
+        if soul_data.get("schema_version") == "3.0":
+            # V3: bypass Pydantic, store raw
+            profile = type("V3Profile", (), {"model_dump_json": lambda s, **kw: __import__("json").dumps(soul_data, **kw), "model_dump": lambda s, **kw: soul_data})()
+        elif use_v2:
             profile = CognitiveProfileV2(**soul_data)
         else:
             profile = PersonaProfile(**soul_data)
@@ -168,6 +166,11 @@ async def distill_persona(persona_id: str, db: AsyncSession, lang: str = "en",
         raise ValueError(f"AI returned data format error: {e}\nRaw data: {str(soul_data)[:500]}")
 
     soul_json = profile.model_dump_json(indent=2, ensure_ascii=False)
+    try:
+        _d = __import__("json").loads(soul_json)
+        _d["_meta"] = {"ai_persona_disclaimer": f"This is an AI-generated persona based on {name}. It does not represent the actual views of {name}.", "source_person": name, "source_type": "web_search_distillation", "distilled_at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()}
+        soul_json = __import__("json").dumps(_d, indent=2, ensure_ascii=False)
+    except: pass
 
     # 7. Count sources
     fc = await db.scalar(
@@ -305,17 +308,22 @@ async def ensure_web_search_results(persona_id: str, db: AsyncSession) -> None:
     company = manual.get("company", "")
     name = persona.name
 
-    # Build search queries (max 5)
-    queries = []
-    if name:
-        queries.append(name)
-    if title and title not in queries:
-        queries.append(f"{name} {title}" if name else title)
-    if company and company not in queries:
-        queries.append(f"{name} {company}" if name else company)
-    if name and title and company:
-        queries.append(f"{name} {title} {company}")
-    queries = queries[:5]
+    # V3: 25 search queries
+    queries = [f"{name} {q}" for q in [
+        "biography life story career", "early life childhood family background",
+        "achievements awards milestones", "education mentors influences",
+        "career timeline key events", "philosophy beliefs worldview",
+        "interview quotes thoughts opinions", "books reading recommendations",
+        "mental models thinking style", "intellectual influences heroes mentors",
+        "controversy criticism scandal", "failure low point comeback story",
+        "turning point life-changing moment", "conflict dispute rival opponent",
+        "dark side flaws weaknesses mistakes", "personality traits character habits",
+        "daily routine lifestyle work habits", "relationships friends family inner circle",
+        "aesthetic taste art music design style", "humor jokes funny stories personality",
+        "public opinion reception review", "peers colleagues opinion about them",
+        "critics analysis critique assessment", "legacy impact influence on field",
+        "fans community discussion Reddit Quora",
+    ]]
 
     batch = str(uuid.uuid4())
     now = datetime.now(timezone.utc)
