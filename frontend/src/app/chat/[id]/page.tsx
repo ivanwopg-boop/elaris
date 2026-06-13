@@ -308,7 +308,7 @@ export default function ChatPage() {
             <button onClick={() => router.push(`/persona/${id}`)} className="shrink-0 active:scale-95 transition-transform" title="View profile">
               <Avatar name={persona?.name || "?"} url={persona?.avatar_url} size="sm" className="shrink-0" />
             </button>
-            <button onClick={() => router.push(`/persona/${id}`)} className="text-sm font-light truncate text-left hover:text-[#0071E3] transition-colors" title="View profile">{n}</button>
+            <button onClick={() => router.push(`/persona/${id}`)} className="text-sm font-light truncate text-left hover:text-[#0071E3] transition-colors" title="View profile">{n}</button><span className="text-[10px] text-[#AEAEB2] font-light shrink-0">AI persona</span>
             <div className="flex-1" />
           </div>
         )}
@@ -346,7 +346,7 @@ export default function ChatPage() {
                 onTouchCancel={handlePressEnd}
               >
                 {m.role !== "user" && (
-                  <Avatar name={persona?.name || "?"} url={persona?.avatar_url} size="sm" className="shrink-0 mr-2 self-end" />
+                  <button onClick={() => router.push(`/persona/${id}`)} className="shrink-0 self-end active:scale-95 transition-transform" title="View profile"><Avatar name={persona?.name || "?"} url={persona?.avatar_url} size="sm" className="shrink-0 mr-2" /></button>
                 )}
                 <div
                  
@@ -378,7 +378,7 @@ export default function ChatPage() {
           })}
           {liveContent && (
             <div className="flex justify-start mb-5">
-              <Avatar name={persona?.name || "?"} url={persona?.avatar_url} size="sm" className="shrink-0 mr-2 self-end" />
+              <button onClick={() => router.push(`/persona/${id}`)} className="shrink-0 self-end active:scale-95 transition-transform" title="View profile"><Avatar name={persona?.name || "?"} url={persona?.avatar_url} size="sm" className="shrink-0 mr-2" /></button>
               <div className="max-w-[78%] rounded-[14px] rounded-bl-[4px] px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap font-light bg-[rgba(0,0,0,0.03)] text-[#1D1D1F] border border-[rgba(0,0,0,0.06)]">
                 <TypeText text={liveContent} animate={true} />
               </div>

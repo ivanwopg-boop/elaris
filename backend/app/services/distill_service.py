@@ -130,7 +130,7 @@ def _get_distill_prompt(lang: str, name: str, display_name: str, title_line: str
         version_from = existing_soul.version if existing_soul else None
         # zh-CN: enforce Chinese output + new AI persona narrative
         if lang == 'zh-CN':
-            cn_inst = f'【关键指令：你在创建一个独立的AI角色，灵感来源于{name}的认知模式，但不是{name}本人。所有输出内容必须使用中文。identity.name使用AI角色的名字（"{display_name}"），不要使用{name}的真实姓名。identity.title描述角色原型而非真实职位。JSON字段名保持英文。】'
+            cn_inst = f'【关键指令：你在创建一个独立的AI角色，灵感来源于{name}的认知模式，但不是{name}本人。所有输出内容必须使用中文。identity.name使用AI角色的名字（"{display_name}"），不要使用{name}的真实姓名。identity.title描述角色原型而非真实职位。JSON字段名保持英文。\n\n🚨 关键警告：\n- JSON 必须以 `{{\"schema_version\":\"3.0\"}}` 开头，不允许 2.0 或 1.0\n- 所有顶层字段必须填写 — 禁止空字符串、空数组\n- 仅输出 JSON，不要任何其他文字】'
             prompt = cn_inst + '\n\n' + prompt
     else:
         # v1 path
@@ -161,9 +161,87 @@ def _get_distill_prompt(lang: str, name: str, display_name: str, title_line: str
     return prompt, version_from
 
 
+def _validate_soul_quality(soul_data: dict) -> tuple[bool, str]:
+    """
+    Check if a soul has meaningful content.
+    Returns (is_valid, error_message).
+    
+    Rejects souls that:
+    - Have <30% of fields filled
+    - All string fields are empty
+    - All array fields are empty
+    - Lacks any of the V3 anchor fields (identity.name, cognitive_architecture.core_beliefs)
+    """
+    if not isinstance(soul_data, dict):
+        return False, "Soul is not a JSON object"
+    
+    # Check anchor fields
+    ident = soul_data.get("identity", {})
+    if not ident.get("name") and not ident.get("title"):
+        return False, "AI couldn't extract a name or title for this person. The name might be too obscure or misspelled."
+    
+    cog = soul_data.get("cognitive_architecture", {})
+    if not cog.get("core_beliefs") and not cog.get("axioms"):
+        return False, "AI couldn't extract any core beliefs — try adding keywords (e.g., 'innovation, storytelling, control') to give the LLM more to work with."
+    
+    # Count filled string fields and array lengths
+    total = 0
+    filled = 0
+    def _walk(o):
+        nonlocal total, filled
+        if isinstance(o, dict):
+            for v in o.values():
+                _walk(v)
+        elif isinstance(o, list):
+            if o: filled += 1
+            total += 1
+        elif isinstance(o, str):
+            total += 1
+            if o.strip(): filled += 1
+        else:
+            total += 1
+            if o is not None and o != "": filled += 1
+    _walk(soul_data)
+    
+    fill_rate = filled / total if total else 0
+    if fill_rate < 0.30:
+        return False, f"AI returned an empty soul ({int(fill_rate*100)}% filled). This usually means the person is too obscure for the LLM to recall. Try adding keywords to give it more context."
+    
+    return True, ""
+
+
+async def _check_search_results_exist(persona_id: str, db) -> tuple[bool, int, str]:
+    """
+    Check if web search produced any results for this persona.
+    Returns (has_results, count, error_message).
+    """
+    result = await db.execute(
+        select(WebSearchResult).where(WebSearchResult.persona_id == persona_id)
+    )
+    searches = result.scalars().all()
+    if not searches:
+        return False, 0, "No web search has been run yet. Try refreshing the page."
+    total_results = 0
+    for s in searches:
+        try:
+            data = json.loads(s.results_json)
+            if isinstance(data, list):
+                total_results += len(data)
+        except:
+            pass
+    if total_results == 0:
+        return False, 0, "Web search returned 0 results. The person may be too obscure, misspelled, or not indexed in search engines. Try a different name or add more keywords."
+    return True, total_results, ""
+
+
 async def distill_persona(persona_id: str, db: AsyncSession, lang: str = "en",
                         use_v2: bool = False) -> dict:
     """Run distillation for a persona, returns the new soul."""
+    # 0. Check web search results exist (otherwise distillation will produce empty soul)
+    has_results, count, err = await _check_search_results_exist(persona_id, db)
+    if not has_results:
+        raise ValueError(err)
+    
     # 1. Load persona
     result = await db.execute(select(Persona).where(Persona.id == persona_id))
     persona = result.scalar_one_or_none()
@@ -242,6 +320,11 @@ async def distill_persona(persona_id: str, db: AsyncSession, lang: str = "en",
         raise RuntimeError(f"Distillation failed: {type(e).__name__}: {e}")
 
     # 6. Validate and parse
+    # Validate soul has content — reject empty results
+    is_valid, err_msg = _validate_soul_quality(soul_data)
+    if not is_valid:
+        raise ValueError(err_msg)
+    
     try:
         def fix_floats(obj, path=""):
             if isinstance(obj, dict):
@@ -434,3 +517,170 @@ def infer_category(title: str, org: str, domains: list) -> str:
     if any(w in text for w in world_kw): return "world"
     return "other"
 
+
+async def translate_soul_to_lang(soul_data: dict, target_lang: str) -> dict:
+    """
+    Translate a V3 soul to target_lang while preserving structure (1:1 correspondence).
+    Only string values are translated; keys stay in English. Arrays/objects structure preserved.
+
+    This is much cheaper than a full distillation (no 3000+ word generation, no fact-finding).
+    Used after primary distillation to produce the secondary language version.
+    """
+    if not isinstance(soul_data, dict):
+        return soul_data
+
+    # Skip these non-translatable keys
+    SKIP_KEYS = {"schema_version"}
+
+    target_name = {"en": "English", "zh-CN": "Simplified Chinese (简体中文)"}.get(target_lang, target_lang)
+
+    # Collect all translatable strings with their paths
+    paths = []
+    def _walk(o, path):
+        if isinstance(o, dict):
+            for k, v in o.items():
+                if k in SKIP_KEYS:
+                    continue
+                _walk(v, f"{path}.{k}")
+        elif isinstance(o, list):
+            for i, v in enumerate(o):
+                _walk(v, f"{path}[{i}]")
+        elif isinstance(o, str) and o.strip() and len(o.strip()) > 1:
+            paths.append((path, o))
+
+    _walk(soul_data, "")
+
+    if not paths:
+        return soul_data
+
+    # Build translation prompt — batch by content
+    # Limit to ~30 strings per call to stay fast
+    BATCH_SIZE = 30
+    translations = {}  # path -> translated text
+
+    for i in range(0, len(paths), BATCH_SIZE):
+        batch = paths[i:i+BATCH_SIZE]
+        items = "\n".join(f'[{j}] {p[1]}' for j, p in enumerate(batch))
+
+        prompt = f"""Translate the following strings to {target_name}. Preserve meaning, tone, and any names/quotes.
+Output a JSON array of {len(batch)} translated strings, in the same order, one per line.
+DO NOT translate JSON keys, field names, or schema markers. Only translate the VALUES.
+
+STRINGS:
+{items}
+
+OUTPUT FORMAT: JSON array like ["translation 1", "translation 2", ...]
+Output ONLY the JSON array."""
+
+        try:
+            result = await minimax_client.chat_json(
+                [
+                    {"role": "system", "content": f"You are a translator. Output only valid JSON."},
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.1,
+                max_tokens=8000,
+                timeout=120.0,
+            )
+            if isinstance(result, list) and len(result) == len(batch):
+                for j, (path, _) in enumerate(batch):
+                    translations[path] = result[j]
+            else:
+                # Fallback: keep original
+                for path, orig in batch:
+                    translations[path] = orig
+        except Exception as e:
+            print(f"[translate_soul] batch failed: {e}", flush=True)
+            for path, orig in batch:
+                translations[path] = orig
+
+    # Apply translations back
+    def _apply(o, path):
+        if isinstance(o, dict):
+            return {k: _apply(v, f"{path}.{k}") for k, v in o.items() if k not in SKIP_KEYS or k in o}
+        elif isinstance(o, list):
+            return [_apply(v, f"{path}[{i}]") for i, v in enumerate(o)]
+        elif isinstance(o, str):
+            return translations.get(path, o)
+        return o
+
+    return _apply(soul_data, "")
+
+
+def detect_primary_lang(name: str) -> str:
+    """Detect primary language from name. Chinese chars → zh-CN, else en."""
+    if not name:
+        return "en"
+    for ch in name:
+        if '\u4e00' <= ch <= '\u9fff' or '\u3400' <= ch <= '\u4dbf':
+            return "zh-CN"
+    return "en"
+
+
+async def distill_bilingual(persona_id: str, db, version_increment: int = 1) -> dict:
+    """
+    Distill once in primary language (auto-detected from name), then translate to the other.
+    Saves both versions to DB. Returns {"primary_lang": ..., "secondary_lang": ...,
+    "primary_soul": ..., "secondary_soul": ..., "version": int, "sources_used": int}
+    Used by both the distill endpoint and auto-distill background task.
+    """
+    from app.models.db_models import Persona, PersonaSoul
+    import re as _re, json as _json, uuid, datetime as _dt
+
+    pr = await db.execute(select(Persona).where(Persona.id == persona_id))
+    p_obj = pr.scalar_one_or_none()
+    if not p_obj:
+        raise ValueError(f"Persona {persona_id} not found")
+    src_name = p_obj.source_name or p_obj.name
+    primary_lang = detect_primary_lang(src_name)
+
+    # 1. Distill primary
+    result = await distill_persona(persona_id, db, lang=primary_lang, use_v2=True)
+    primary_soul = result["soul"].model_dump()
+    version = result["version"]
+    sources_used = result["sources_used"]
+
+    # 2. Translate to other language
+    other_langs = [l for l in ["en", "zh-CN"] if l != primary_lang]
+    secondary_soul = None
+    for other in other_langs:
+        try:
+            translated = await translate_soul_to_lang(primary_soul, other)
+            translated["_meta"] = {
+                "greeting": (translated.get("greeting_message", {}) or {}).get("text", "") if isinstance(translated.get("greeting_message"), dict) else str(translated.get("greeting_message", "")),
+                "ai_persona_disclaimer": f"This is an original AI persona inspired by the public works and thinking patterns of " + src_name + ". It is not them and does not represent their actual views.",
+                "source_person": src_name,
+                "source_bio": src_name,
+                "source_type": "web_search_distillation",
+                "distilled_at": _dt.datetime.now(_dt.timezone.utc).isoformat(),
+            }
+            is_valid, err_msg = _validate_soul_quality(translated)
+            if is_valid:
+                soul_json_str = _json.dumps(translated, indent=2, ensure_ascii=False)
+                soul_json_str = _re.sub(r"[\ud800-\udfff]", "", soul_json_str)
+                soul_row = PersonaSoul(
+                    id=str(uuid.uuid4()),
+                    persona_id=persona_id,
+                    version=version,
+                    soul_json=soul_json_str,
+                    distill_source_count=sources_used,
+                    distill_file_ids="[]",
+                    distill_search_ids="[]",
+                    created_at=_dt.datetime.now(_dt.timezone.utc),
+                    lang=other,
+                )
+                db.add(soul_row)
+                await db.flush()
+                secondary_soul = translated
+        except Exception as e:
+            print(f"[distill_bilingual] translate to {other} failed: {e}", flush=True)
+            import traceback; traceback.print_exc()
+
+    return {
+        "primary_lang": primary_lang,
+        "secondary_lang": other_langs[0] if other_langs else None,
+        "primary_soul": primary_soul,
+        "secondary_soul": secondary_soul,
+        "version": version,
+        "sources_used": sources_used,
+    }

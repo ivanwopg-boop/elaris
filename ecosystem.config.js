@@ -7,7 +7,7 @@ module.exports = {
     interpreter: '/opt/elaris/backend/venv/bin/python3',
     restart_delay: 5000,
     max_restarts: 10,
-    max_memory_restart: '300M',
+    max_memory_restart: '500M',
     env: { PYTHONPATH: '/opt/elaris/backend' }
   }, {
     name: 'elaris-frontend',
@@ -16,6 +16,6 @@ module.exports = {
     args: 'start -p 3000',
     restart_delay: 5000,
     max_restarts: 10,
-    max_memory_restart: '300M'
+    max_memory_restart: '500M'
   }]
 };

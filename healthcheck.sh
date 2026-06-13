@@ -1,24 +1,32 @@
 #!/bin/bash
 LOG=/opt/elaris/healthcheck.log
 FAIL_FILE=/tmp/elaris_fail_count
+MAX_LOG_LINES=1000
 
-echo "$(date): checking" >> $LOG
+[ -f "$LOG" ] && tail -n $MAX_LOG_LINES "$LOG" > "${LOG}.tmp" && mv "${LOG}.tmp" "$LOG"
+echo "$(date '+%Y-%m-%d %H:%M:%S'): checking" >> "$LOG"
 
-FE_OK=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000 2>/dev/null)
-BE_OK=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/docs 2>/dev/null)
+FE_OK=$(timeout 5 curl -s -o /dev/null -w '%{http_code}' http://localhost:3000 2>/dev/null || echo '000')
+BE_OK=$(timeout 5 curl -s -o /dev/null -w '%{http_code}' http://localhost:8000/health 2>/dev/null || echo '000')
 
-if [ "$FE_OK" != "200" ] && [ "$FE_OK" != "307" ]; then
-  FAILS=$(cat $FAIL_FILE 2>/dev/null || echo 0)
-  FAILS=$((FAILS+1))
-  echo "$FAILS" > $FAIL_FILE
-  echo "$(date): WARNING: $FAILS consecutive failures (frontend=$FE_OK backend=$BE_OK)" >> $LOG
+FE_VALID=false
+BE_VALID=false
+case "$FE_OK" in 200|307|304) FE_VALID=true ;; esac
+case "$BE_OK" in 200) BE_VALID=true ;; esac
+
+if $FE_VALID && $BE_VALID; then
+  rm -f "$FAIL_FILE"
+  echo "$(date '+%H:%M:%S'): OK (FE=$FE_OK BE=$BE_OK)" >> "$LOG"
 else
-  rm -f $FAIL_FILE
+  FAILS=$(cat "$FAIL_FILE" 2>/dev/null || echo 0)
+  FAILS=$((FAILS+1))
+  echo "$FAILS" > "$FAIL_FILE"
+  echo "$(date '+%Y-%m-%d %H:%M:%S'): WARNING: $FAILS failures (FE=$FE_OK BE=$BE_OK)" >> "$LOG"
 fi
 
-FAILS=$(cat $FAIL_FILE 2>/dev/null || echo 0)
-if [ "$FAILS" -ge 2 ]; then
-  echo "$(date): CRITICAL: $FAILS failures - restarting all" >> $LOG
-  rm -f $FAIL_FILE
-  pm2 restart all 2>&1 | tee -a $LOG
+FAILS=$(cat "$FAIL_FILE" 2>/dev/null || echo 0)
+if [ "$FAILS" -ge 3 ]; then
+  echo "$(date '+%Y-%m-%d %H:%M:%S'): CRITICAL: $FAILS failures - restarting all" >> "$LOG"
+  rm -f "$FAIL_FILE"
+  sudo pm2 restart all 2>&1 | tee -a "$LOG"
 fi

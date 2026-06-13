@@ -26,10 +26,23 @@ export default function CreatePersonaPage() {
       if (keywords.trim()) {
         try { await api.addManualInput(persona.id, { title: keywords.trim(), background: keywords.trim() }) } catch {}
       }
+      setStage("distilling");
+      await api.distill(persona.id, lang);
+      if (lang !== "en") {
+        try { await api.distill(persona.id, "en"); } catch {}
+      }
+      // Auto-add to contacts
+      try { await api.addContact(persona.id); } catch {}
       router.push("/chat/" + persona.id);
     } catch (e: any) {
       setStage("error");
-      setError(e.message || (t.distill_failed || "Something went wrong"));
+      // Extract useful error message from API error format
+      let msg = e._detail || e.message || (t.distill_failed || "Something went wrong");
+      if (typeof msg === 'string') {
+        // Strip "API error 500: " prefix and "Distillation failed: " prefix
+        msg = msg.replace(/^API error \d+:\s*/, '').replace(/^Distillation failed:\s*/, '').trim();
+      }
+      setError(msg);
     }
   };
 
@@ -39,10 +52,10 @@ export default function CreatePersonaPage() {
         {stage === "idle" && (
           <>
             <h1 className="text-xl font-light text-[#1D1D1F] tracking-[-0.01em] mb-2">
-              Invite someone to chat
+              Create new persona
             </h1>
             <p className="text-xs text-[#86868B] font-light mb-8 leading-relaxed">
-              An icon. A legend. Someone you are curious about.
+              An idol. A legend. Someone you are curious about.
             </p>
 
             <input
@@ -79,10 +92,10 @@ export default function CreatePersonaPage() {
         {(stage === "creating" || stage === "distilling") && (
           <div className="flex flex-col items-center gap-4">
             <div className="w-8 h-8 border-2 border-[#1D1D1F] border-t-transparent rounded-full animate-spin" />
-            <p className="text-sm text-[#1D1D1F] font-light">
+            <p className="text-sm text-[#86868B] font-light">
               {stage === "creating"
                 ? "Creating..."
-                : "Searching the web & building your conversation partner..."}
+                : "Preparing your conversation. Just a moment."}
             </p>
           </div>
         )}

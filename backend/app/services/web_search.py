@@ -90,7 +90,7 @@ def _parse_anysearch_markdown(text: str) -> list[dict]:
 def _duckduckgo_search_sync(query: str, max_results: int = 10) -> list[dict]:
     """Direct DuckDuckGo search via duckduckgo_search library."""
     try:
-        from duckduckgo_search import DDGS
+        from ddgs import DDGS
         results = []
         with DDGS() as ddgs:
             for r in ddgs.text(query, max_results=max_results):

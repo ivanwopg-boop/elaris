@@ -39,12 +39,10 @@ async def create_persona(data: PersonaCreate, db: AsyncSession = Depends(get_db)
             _log = logging.getLogger("uvicorn")
             try:
                 await ensure_web_search_results(persona.id, _db)
-                for lang, v2 in [("en", True), ("zh-CN", True)]:
-                    try:
-                        await distill_persona(persona.id, _db, lang=lang, use_v2=v2)
-                        await _db.commit()
-                    except Exception as le:
-                        _log.warning(f"Auto-distill {lang} failed for {persona.id}: {le}")
+                # Bilingual distill: primary + translate. Guarantees 1:1 correspondence.
+                from app.services.distill_service import distill_bilingual
+                await distill_bilingual(persona.id, _db)
+                await _db.commit()
                 _log.info(f"Auto-distill complete for {persona.id}")
             except Exception as e:
                 _log.error(f"Auto-distill failed for {persona.id}: {e}")

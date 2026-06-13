@@ -647,7 +647,7 @@ function ChatsContent() {
                   </div>
                   <div className="text-left flex-1">
                     <p className="text-sm font-medium text-[#1D1D1F]">{t.invite_chat || "Invite someone to chat"}</p>
-                    <p className="text-xs text-[#86868B] font-light">An icon. A legend. Anyone.</p>
+                    <p className="text-xs text-[#86868B] font-light">An idol. A legend. Anyone.</p>
                   </div>
                 </button>
                 <button

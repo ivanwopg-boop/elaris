@@ -44,7 +44,7 @@ export default function AboutPage() {
           <h2 className="text-xs font-medium text-[#86868B] uppercase tracking-[0.15em] mb-4">What we are</h2>
           <p className="text-base font-light text-[#1D1D1F] leading-[1.7]">
             A tool. Not a content platform. We provide the technology — you decide what to do with it.
-            Every conversation is between you and an AI persona. We do not create personas of private
+            Every conversation is between you and an AI persona. All personas on Elaris are AI-generated simulations — not real people. We do not create personas of private
             individuals, and we do not use your conversations to train models.
           </p>
         </section>

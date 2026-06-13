@@ -56,6 +56,7 @@ function RegisterForm() {
       <div className="bg-white border-b border-[rgba(0,0,0,0.06)] px-6 pt-12 pb-10 text-center">
         <h1 className="text-2xl font-light text-[#1D1D1F] mb-2 tracking-wide">{t.create_account || 'Create Account'}</h1>
         <p className="text-sm text-[#86868B] font-light">{t.join_elaris || 'Join Elaris and start chatting'}</p>
+        <p className="text-xs text-[#AEAEB2] font-light mt-2">All personas on Elaris are AI-generated simulations.</p>
       </div>
 
       <div className="flex-1 flex flex-col items-center px-6 pt-8">

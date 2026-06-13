@@ -5,16 +5,12 @@ import { useParams, useRouter } from "next/navigation";
 import { useToast } from "@/components/Toast";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { FileUploader } from "@/components/FileUploader";
-import { ManualInputForm } from "@/components/ManualInputForm";
-import { WebSearchPanel } from "@/components/WebSearchPanel";
 import { SoulCard } from "@/components/SoulCard";
 import { DistillProgress } from "@/components/DistillProgress";
 import { Avatar } from "@/components/Avatar";
 import { api, PersonaDetail, FileOut } from "@/lib/api";
 import { useLangStore, translations } from "@/lib/i18n";
 import { useAuthStore } from "@/lib/auth-store";
-import { formatDate, fileIcon } from "@/lib/utils";
 
 export default function PersonaDetailPage() {
   const params = useParams();
@@ -179,6 +175,7 @@ if (loading) {
           </div>
           <div>
             <h1 className="text-2xl sm:text-3xl font-medium tracking-tight">{persona.name}</h1>
+            <p className="text-xs text-[#AEAEB2] font-light mt-0.5">AI persona · Not the real person</p>
             {persona.description && !soul && <p className="text-sm text-[#86868B] font-light mt-1 hidden">{persona.description}</p>}
           </div>
         </div>
@@ -187,115 +184,20 @@ if (loading) {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-4 sm:gap-6 border-b border-[rgba(0,0,0,0.06)] mb-8">
-        {[
-          { key: "soul" as const, label: t.tab_blueprint },
-          { key: "files" as const, label: `${t.tab_files} (${files.length})` },
-          { key: "search" as const, label: t.tab_search },
-        ].map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
-            className={`pb-3 text-sm font-light transition-colors border-b-2 ${
-              activeTab === tab.key
-                ? "text-[#1D1D1F] border-[#1D1D1F]"
-                : "text-[#86868B] border-transparent hover:text-[#6E6E73]"
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+      {/* Blueprint */}
+      <div className="max-w-2xl mx-auto space-y-5">
+        <SoulCard soul={soul} version={soulVersion ?? undefined} name={persona?.name} />
+        {persona.user_id && (
+          <>
+            <DistillProgress status={distillStatus} error={distillError} version={soulVersion ?? undefined} onNameConfirm={handleNameConfirm} defaultName={persona?.name} />
+            <div className="flex gap-2">
+              <Button onClick={handleDistill} loading={distillStatus === "distilling"}>
+                {soul ? t.redistill : t.start_distillation}
+              </Button>
+            </div>
+          </>
+        )}
       </div>
-
-      {/* Tab: Soul */}
-      {activeTab === "soul" && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 space-y-4 sm:space-y-5">
-            <SoulCard soul={soul} version={soulVersion ?? undefined} name={persona?.name} />
-            {persona.user_id && (
-              <>
-                <DistillProgress status={distillStatus} error={distillError} version={soulVersion ?? undefined} onNameConfirm={handleNameConfirm} defaultName={persona?.name} />
-                <div className="flex gap-2">
-                  <Button onClick={handleDistill} loading={distillStatus === "distilling"}>
-                    {soul ? t.redistill : t.start_distillation}
-                  </Button>
-                </div>
-              </>
-            )}
-          </div>
-
-          <div className="space-y-5">
-            {persona.user_id && (
-              <>
-                <ManualInputForm onSave={handleManualInput} />
-                <FileUploader onFilesSelected={(files) => handleUploadFiles(files, [])} />
-                {uploadStatus !== "idle" && (
-                  <div className={`text-xs text-center py-2 rounded-[8px] font-light ${
-                    uploadStatus === "done" ? "text-green-600 bg-green-50" : uploadStatus === "error" ? "text-red-500 bg-red-50" : "text-[#86868B]"
-                  }`}>
-                    {uploadStatus === "uploading" ? t.uploading : uploadMsg}
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Tab: Files */}
-      {activeTab === "files" && (
-        <div>
-          {persona.user_id && (
-            <FileUploader onFilesSelected={(files) => handleUploadFiles(files, [])} className="mb-5" />
-          )}
-          {uploadStatus !== "idle" && (
-            <div className={`text-xs text-center py-2 rounded-[8px] mb-4 font-light ${
-              uploadStatus === "done" ? "text-green-600 bg-green-50" : uploadStatus === "error" ? "text-red-500 bg-red-50" : "text-[#86868B]"
-            }`}>
-              {uploadStatus === "uploading" ? t.uploading : uploadMsg}
-            </div>
-          )}
-
-          {files.length === 0 ? (
-            <p className="text-center text-[#86868B] text-xs font-light py-12">{t.no_files || "No files"}</p>
-          ) : (
-            <div className="space-y-2">
-              {files.map((f) => (
-                <Card key={f.id} className="p-4 flex items-center justify-between">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <span className="text-sm text-[#86868B]">{fileIcon(f.file_type)}</span>
-                    <div className="min-w-0">
-                      <p className="text-sm font-light text-[#1D1D1F] truncate">{f.file_name}</p>
-                      <p className="text-xs text-[#86868B] font-light">
-                        {formatDate(f.created_at)}
-                        {f.parsed_content && ` · ${f.parsed_content.length} ${t.chars}`}
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => handleDeleteFile(f.id)}
-                    className="text-[#86868B] hover:text-red-500 text-xs font-light shrink-0"
-                  >
-                    Delete
-                  </button>
-                </Card>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Tab: Search */}
-      {activeTab === "search" && (
-        <WebSearchPanel
-          personaId={id}
-          onSearch={async (queries) => {
-            await api.triggerWebSearch(id, queries);
-          }}
-          results={[]}
-        />
-      )}
     </div>
   );
 }
