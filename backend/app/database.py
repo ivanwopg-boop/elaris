@@ -74,3 +74,5 @@ async def init_db() -> None:
     """Create all tables (MVP: use SQLAlchemy create_all)."""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+async_session_factory = async_sessionmaker(engine, expire_on_commit=False)

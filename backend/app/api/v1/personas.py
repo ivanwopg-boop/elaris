@@ -4,7 +4,7 @@ import asyncio
 
 import os, uuid
 from pathlib import Path
-from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File
+from fastapi import Request, APIRouter, Depends, HTTPException, status, Query, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -289,3 +289,19 @@ async def get_intimacy(
         "message_count": mem.message_count or 0,
         "next_level": LEVEL_NAMES[level] if level < len(LEVEL_NAMES) else None,
     }
+
+# ── Phase 3: Proactive Outreach ─────────────────────────
+@router.post("/proactive/trigger")
+async def trigger_proactive_messages(
+
+    db: AsyncSession = Depends(get_db),
+):
+    """Trigger proactive outreach check. Called by cron job every 30 min."""
+    from app.core.minimax_client import minimax_client
+    from app.services.proactive_service import run_proactive_check
+
+    try:
+        results = await run_proactive_check(minimax_client, limit=5)
+        return {"success": True, "sent": len(results), "details": results}
+    except Exception as e:
+        return {"success": False, "error": str(e)}

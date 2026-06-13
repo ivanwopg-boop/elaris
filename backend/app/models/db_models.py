@@ -277,3 +277,19 @@ class PersonaUserMemory(Base):
     __table_args__ = (
         UniqueConstraint("persona_id", "user_id", name="uq_persona_user_memory"),
     )
+
+# ── ProactiveLog (Phase 3: Proactive Outreach) ──────────
+class ProactiveLog(Base):
+    __tablename__ = "proactive_log"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    persona_id: Mapped[str] = mapped_column(String(36), ForeignKey("personas.id", ondelete="CASCADE"), nullable=False)
+    user_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    trigger_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    conversation_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    sent_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+    __table_args__ = (
+        UniqueConstraint("persona_id", "user_id", "trigger_type", "sent_at", name="uq_proactive_log_dedup"),
+    )
