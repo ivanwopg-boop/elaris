@@ -47,6 +47,7 @@ export default function ChatPage() {
   const [liveContent, setLiveContent] = useState("");
   const ref = useRef<HTMLDivElement>(null);
   const esRef = useRef<EventSource | null>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const liveRef = useRef("");
 
   // Selection mode
@@ -66,6 +67,15 @@ export default function ChatPage() {
   }, [id, router, convId]);
 
   useEffect(() => { ref.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs.length, liveContent, sending]);
+
+  // Auto-focus input on mount & after AI finishes (unless in select mode)
+  useEffect(() => {
+    if (!sending && !selectMode) {
+      // small delay so mobile keyboards don't jump on page load
+      const t = setTimeout(() => inputRef.current?.focus(), 100);
+      return () => clearTimeout(t);
+    }
+  }, [sending, selectMode]);
   useEffect(() => { liveRef.current = liveContent; }, [liveContent]);
 
   const send = () => {
@@ -115,17 +125,58 @@ export default function ChatPage() {
     };
   };
 
-  // ── Click-to-select (tap message to enter multi-select) ──
-  const handleMessageClick = (msgId: string) => {
+  // ── Selection model ──
+  //  - Desktop: double-click to enter select mode (single click = no-op)
+  //  - Mobile: long-press (~500ms) to enter select mode (tap = no-op)
+  //  - In select mode: any click toggles selection
+  const enterSelectMode = (msgId: string) => {
     if (selectMode) {
       toggleSelect(msgId);
     } else {
-      // Enter select mode and select this message
       window.history.pushState({ selectMode: true }, '');
-      if (navigator.vibrate) navigator.vibrate(5);
+      if (navigator.vibrate) navigator.vibrate(8);
+      inputRef.current?.blur();
       setSelectMode(true);
       toggleSelect(msgId);
     }
+  };
+
+  // Long-press detection (mobile)
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressTriggered = useRef(false);
+
+  const handlePressStart = (msgId: string) => {
+    longPressTriggered.current = false;
+    longPressTimer.current = setTimeout(() => {
+      longPressTriggered.current = true;
+      enterSelectMode(msgId);
+    }, 500);
+  };
+  const handlePressEnd = () => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  };
+
+  const handleClick = (msgId: string) => {
+    // Desktop single click does nothing — no more accidental select mode
+    if (longPressTriggered.current) {
+      longPressTriggered.current = false;
+      return;
+    }
+    if (selectMode) {
+      toggleSelect(msgId);
+    }
+    // else: desktop single click = no-op (use double-click)
+  };
+  const handleDoubleClick = (msgId: string) => {
+    if (!selectMode) enterSelectMode(msgId);
+    else toggleSelect(msgId);
+  };
+  const handleContextMenu = (e: React.MouseEvent, msgId: string) => {
+    e.preventDefault();
+    enterSelectMode(msgId);
   };
 
   const toggleSelect = (msgId: string) => {
@@ -256,8 +307,12 @@ export default function ChatPage() {
               <div
                 key={m.id}
                 className={`flex mb-5 ${m.role === "user" ? "justify-end" : "justify-start"}`}
-                onClick={() => handleMessageClick(m.id)}
-                onContextMenu={(e) => { e.preventDefault(); handleMessageClick(m.id); }}
+                onClick={() => handleClick(m.id)}
+                onDoubleClick={() => handleDoubleClick(m.id)}
+                onContextMenu={(e) => handleContextMenu(e, m.id)}
+                onTouchStart={() => handlePressStart(m.id)}
+                onTouchEnd={handlePressEnd}
+                onTouchCancel={handlePressEnd}
               >
                 {m.role !== "user" && (
                   <Avatar name={persona?.name || "?"} url={persona?.avatar_url} size="sm" className="shrink-0 mr-2 self-end" />
@@ -311,7 +366,7 @@ export default function ChatPage() {
                   <span className="w-1.5 h-1.5 rounded-full bg-[#6E6E73] animate-bounce [animation-delay:200ms]" />
                   <span className="w-1.5 h-1.5 rounded-full bg-[#6E6E73] animate-bounce [animation-delay:400ms]" />
                 </span>
-                {n} Thinking...
+                {tl.thinking || "Thinking..."}
               </div>
             </div>
           )}
@@ -346,11 +401,27 @@ export default function ChatPage() {
       ) : (
         <footer className="shrink-0 border-t border-[rgba(0,0,0,0.06)] bg-white/95" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
           <div className="max-w-3xl mx-auto px-4 py-4 flex gap-2">
-            <input value={input} onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && send()}
+            <textarea
+              ref={inputRef}
+              value={input}
+              onChange={(e) => {
+                setInput(e.target.value);
+                // Auto-resize: reset then grow to scrollHeight (1-4 lines)
+                const el = e.currentTarget;
+                el.style.height = "auto";
+                el.style.height = Math.min(el.scrollHeight, 144) + "px";
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  send();
+                }
+              }}
               placeholder={tl.input_placeholder}
-              className="flex-1 bg-white border border-[rgba(0,0,0,0.08)] rounded-[10px] px-4 py-3 text-base text-[#1D1D1F] placeholder-[#86868B] focus:outline-none focus:border-[#0071E3] font-light" style={{ fontSize: "16px" }}
-              disabled={sending} />
+              rows={1}
+              className="flex-1 resize-none bg-white border border-[rgba(0,0,0,0.08)] rounded-[10px] px-4 py-3 text-base text-[#1D1D1F] placeholder-[#86868B] focus:outline-none focus:border-[#0071E3] font-light leading-snug" style={{ fontSize: "16px", maxHeight: "144px" }}
+              disabled={sending}
+            />
             <Button onClick={send} loading={sending} disabled={!input.trim()}>{tl.send}</Button>
           </div>
         </footer>

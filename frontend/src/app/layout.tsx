@@ -12,6 +12,7 @@ import "./globals.css";
 import Navbar from "@/components/Navbar";
 import { ToastProvider } from "@/components/Toast";
 import HideOnChat from "@/components/HideOnChat";
+import { PwaInstallPrompt } from "@/components/PwaInstallPrompt";
 
 export const metadata: Metadata = {
   title: "Elaris",
@@ -40,6 +41,7 @@ export default function RootLayout({
         <main className="flex-1">
           <ToastProvider>{children}</ToastProvider>
         </main>
+        <PwaInstallPrompt />
         <HideOnChat><footer className="border-t border-[rgba(0,0,0,0.06)] py-8 mt-16">
           <div className="max-w-7xl mx-auto px-6 text-center text-xs text-[#86868B] font-light tracking-wide space-y-2">
             <div className="flex items-center justify-center gap-6">

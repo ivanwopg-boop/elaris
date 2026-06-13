@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { Eye, EyeOff } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuthStore } from '@/lib/auth-store';
 import { useLangStore, translations } from '@/lib/i18n';
@@ -17,6 +18,7 @@ function RegisterForm() {
   const [birthDate, setBirthDate] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleEmailRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,7 +66,7 @@ function RegisterForm() {
                 {error}
               </div>
             )}
-            <input
+            <div className="relative"><input
               type="text"
               value={name}
               onChange={e => setName(e.target.value)}
@@ -81,13 +83,13 @@ function RegisterForm() {
               autoComplete="email"
             />
             <input
-              type="password"
+              type={showPassword ? "text" : "password"}
               value={password}
               onChange={e => setPassword(e.target.value)}
-              className="w-full bg-white border border-[rgba(0,0,0,0.1)] rounded-xl px-4 py-3.5 text-sm text-[#1D1D1F] placeholder-[#86868B] focus:outline-none focus:border-[#1D1D1F] transition-colors font-light"
+              className="pr-12 w-full bg-white border border-[rgba(0,0,0,0.1)] rounded-xl px-4 py-3.5 text-sm text-[#1D1D1F] placeholder-[#86868B] focus:outline-none focus:border-[#1D1D1F] transition-colors font-light"
               placeholder={t.password || 'Password'}
               autoComplete="new-password"
-            />
+            /><button type="button" onClick={() => setShowPassword(s => !s)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#86868B] hover:text-[#1D1D1F] p-1" tabIndex={-1}>{showPassword ? <EyeOff size={16} strokeWidth={1.5} /> : <Eye size={16} strokeWidth={1.5} />}</button></div>
             <button
               type="submit"
               disabled={loading}

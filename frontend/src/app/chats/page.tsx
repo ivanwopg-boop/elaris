@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useRouter } from 'next/navigation';
 import { MessageSquare, Compass, User, LogOut, ChevronRight, Plus, Users, Sparkles, Settings, HelpCircle, Info } from 'lucide-react';
@@ -83,7 +83,7 @@ interface ConversationItem {
 
 // ── Chat Tab (Conversation List) ─────────────────────────────
 
-function ChatTab({ tabStrings, conversations, setConversations, onNavigate }: { tabStrings: Record<string, string>; conversations: ConversationItem[]; setConversations: any; onNavigate: () => void }) {
+function ChatTab({ tabStrings, conversations, setConversations, onNavigate, lastVisit }: { tabStrings: Record<string, string>; conversations: ConversationItem[]; setConversations: any; onNavigate: () => void; lastVisit: number }) {
   const { toast } = useToast();
   const { lang } = useLangStore() as { lang: Lang };
   const router = useRouter();
@@ -175,7 +175,10 @@ function ChatTab({ tabStrings, conversations, setConversations, onNavigate }: { 
 
   return (
     <div className="bg-white">
-      {conversations.map((conv) => (
+      {conversations.map((conv) => {
+          const lastTs = conv.updated_at ? new Date(conv.updated_at).getTime() : 0;
+          const isUnread = lastTs > lastVisit;
+          return (
         <SwipeableRow
           key={conv.id}
           onDelete={() => handleDelete(conv)}
@@ -183,11 +186,14 @@ function ChatTab({ tabStrings, conversations, setConversations, onNavigate }: { 
           deleting={deletingId === conv.id}
         >
           <div
-            className="flex items-center gap-3 px-4 py-4 border-b border-[rgba(0,0,0,0.04)] active:bg-[rgba(0,0,0,0.02)] active:scale-[0.98] transition-all cursor-pointer"
+            className="flex items-center gap-3 px-4 py-4 border-b border-[rgba(0,0,0,0.04)] active:bg-[rgba(0,0,0,0.02)] active:scale-[0.98] transition-all cursor-pointer relative"
             style={{ minHeight: '64px' }}
             onClick={() => router.push(conv.type === 'group' ? `/group-chat/${conv.id}` : `/chat/${conv.persona_id}?conv=${conv.id}`)}
             onContextMenu={(e) => { e.preventDefault(); handleDelete(conv); }}
           >
+            {isUnread && (
+              <div className="absolute left-1.5 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-[#0071E3]" aria-label="Unread" />
+            )}
             {conv.type === 'group' ? (
               <div className="w-10 h-10 rounded-full bg-[rgba(0,0,0,0.04)] flex items-center justify-center shrink-0">
                 <Users size={18} className="text-[#86868B]" strokeWidth={1.5} />
@@ -207,7 +213,8 @@ function ChatTab({ tabStrings, conversations, setConversations, onNavigate }: { 
             </div>
           </div>
         </SwipeableRow>
-      ))}
+          );
+        })}
     </div>
   );
 }
@@ -310,7 +317,7 @@ function ContactsTab({ isActive, onNavigate, tabStrings, contacts, setContacts, 
           deleting={deletingId === p.id}
         >
           <div
-            className="flex items-center gap-3 px-4 py-4 border-b border-[rgba(0,0,0,0.04)] active:bg-[rgba(0,0,0,0.02)] active:scale-[0.98] transition-all cursor-pointer"
+className="flex items-center gap-3 px-4 py-4 border-b border-[rgba(0,0,0,0.04)] active:bg-[rgba(0,0,0,0.02)] active:scale-[0.98] transition-all cursor-pointer"
             style={{ minHeight: '64px' }}
             onClick={() => window.location.href = `/persona/${p.id}`}
             onContextMenu={(e) => { e.preventDefault(); handleDeleteContact(p.id); }}
@@ -327,7 +334,7 @@ function ContactsTab({ isActive, onNavigate, tabStrings, contacts, setContacts, 
             </div>
           </div>
         </SwipeableRow>
-      ))}
+        ))}
     </div>
   );
 }
@@ -572,6 +579,14 @@ function ChatsContent() {
   const t = translations[lang];
   const initialTab = (searchParams.get('tab') as TabKey) || 'chat';
   const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
+  // Remember scroll position per tab so switching doesn't reset to top.
+  const mainRef = useRef<HTMLDivElement | null>(null);
+  const scrollPositions = useRef<Record<string, number>>({});
+  // Last visit timestamp for "unread" dot on conversations list.
+  const [lastVisit, setLastVisit] = useState<number>(() => {
+    if (typeof window === 'undefined') return Date.now();
+    return parseInt(localStorage.getItem('chats-last-visit') || '0', 10) || Date.now();
+  });
   // contactsRefresh removed
   // Pre-compute all tab-specific strings
   const TAB_STRINGS = {
@@ -657,14 +672,20 @@ function ChatsContent() {
       />
 
       <main
+        ref={mainRef}
         className="flex-1 overflow-y-auto pb-[calc(56px+env(safe-area-inset-bottom,0px))]"
         style={{ overscrollBehavior: 'contain' }}
+        onScroll={() => {
+          if (mainRef.current) {
+            scrollPositions.current[activeTab] = mainRef.current.scrollTop;
+          }
+        }}
       >
         {loading ? (
           <LoadingSpinner />
         ) : (
           <>
-            {activeTab === 'chat' && <ChatTab tabStrings={TAB_STRINGS} conversations={conversations} setConversations={setConversations} onNavigate={handleNavigateToDiscover} />}
+            {activeTab === 'chat' && <ChatTab tabStrings={TAB_STRINGS} conversations={conversations} setConversations={setConversations} onNavigate={handleNavigateToDiscover} lastVisit={lastVisit} />}
             {activeTab === 'contacts' && <ContactsTab isActive={activeTab === 'contacts'} onNavigate={handleNavigateToDiscover} tabStrings={TAB_STRINGS} contacts={contacts} setContacts={setContacts} token={token} />}
             {activeTab === 'discover' && <DiscoverTab tabStrings={TAB_STRINGS} onContactAdded={(p) => { window.dispatchEvent(new CustomEvent('contact-added', { detail: p })); }} />}
             {activeTab === 'me' && <MeTab tabStrings={TAB_STRINGS} />}

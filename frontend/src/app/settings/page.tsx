@@ -5,11 +5,11 @@ import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/lib/auth-store";
 import { useLangStore, translations } from "@/lib/i18n";
 import { api } from "@/lib/api";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, Eye, EyeOff } from "lucide-react";
 
 export default function SettingsPage() {
   const router = useRouter();
-  const { user, setAuth } = useAuthStore();
+  const { user, token, setAuth } = useAuthStore();
   const { lang } = useLangStore();
   const t = translations[lang];
 
@@ -20,6 +20,7 @@ export default function SettingsPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleSaveName = async () => {
     if (!name.trim()) { setError(t.please_fill_all || "Please fill all fields"); return; }
@@ -27,7 +28,7 @@ export default function SettingsPage() {
     setError("");
     try {
       const res = await api.updateProfile({ name: name.trim() });
-      setAuth(useAuthStore.getState().token || "", { ...(user || {}), name: name.trim() } as any);
+      setAuth(token || "", { ...(user as any), name: name.trim() });
       setSuccess(t.saved || "Saved!");
       setTimeout(() => setSuccess(""), 2000);
     } catch (err: any) {
@@ -106,15 +107,15 @@ export default function SettingsPage() {
           <form onSubmit={handleChangePassword} className="space-y-3">
             <div>
               <label className="block text-xs text-[#86868B] font-light mb-1">{t.current_password || "Current Password"}</label>
-              <input type="password" value={oldPassword} onChange={e => setOldPassword(e.target.value)} className="w-full bg-[#F5F5F7] border border-[rgba(0,0,0,0.06)] rounded-xl px-4 py-3 text-sm text-[#1D1D1F] placeholder-[#86868B] focus:outline-none focus:border-[#1D1D1F] transition-colors font-light" placeholder={t.current_password || "Current password"} />
+              <div className="relative"><input type={showPassword ? "text" : "password"} value={oldPassword} onChange={e => setOldPassword(e.target.value)} className="pr-12 w-full bg-[#F5F5F7] border border-[rgba(0,0,0,0.06)] rounded-xl px-4 py-3 text-sm text-[#1D1D1F] placeholder-[#86868B] focus:outline-none focus:border-[#1D1D1F] transition-colors font-light" placeholder={t.current_password || "Current password"} /><button type="button" onClick={() => setShowPassword(s => !s)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#86868B] hover:text-[#1D1D1F] p-1" tabIndex={-1}>{showPassword ? <EyeOff size={16} strokeWidth={1.5} /> : <Eye size={16} strokeWidth={1.5} />}</button></div>
             </div>
             <div>
               <label className="block text-xs text-[#86868B] font-light mb-1">{t.new_password || "New Password"}</label>
-              <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} className="w-full bg-[#F5F5F7] border border-[rgba(0,0,0,0.06)] rounded-xl px-4 py-3 text-sm text-[#1D1D1F] placeholder-[#86868B] focus:outline-none focus:border-[#1D1D1F] transition-colors font-light" placeholder={t.new_password || "New password"} />
+              <div className="relative"><input type={showPassword ? "text" : "password"} value={newPassword} onChange={e => setNewPassword(e.target.value)} className="pr-12 w-full bg-[#F5F5F7] border border-[rgba(0,0,0,0.06)] rounded-xl px-4 py-3 text-sm text-[#1D1D1F] placeholder-[#86868B] focus:outline-none focus:border-[#1D1D1F] transition-colors font-light" placeholder={t.new_password || "New password"} /><button type="button" onClick={() => setShowPassword(s => !s)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#86868B] hover:text-[#1D1D1F] p-1" tabIndex={-1}>{showPassword ? <EyeOff size={16} strokeWidth={1.5} /> : <Eye size={16} strokeWidth={1.5} />}</button></div>
             </div>
             <div>
               <label className="block text-xs text-[#86868B] font-light mb-1">{t.confirm_password || "Confirm Password"}</label>
-              <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="w-full bg-[#F5F5F7] border border-[rgba(0,0,0,0.06)] rounded-xl px-4 py-3 text-sm text-[#1D1D1F] placeholder-[#86868B] focus:outline-none focus:border-[#1D1D1F] transition-colors font-light" placeholder={t.confirm_password || "Confirm password"} />
+              <div className="relative"><input type={showPassword ? "text" : "password"} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="pr-12 w-full bg-[#F5F5F7] border border-[rgba(0,0,0,0.06)] rounded-xl px-4 py-3 text-sm text-[#1D1D1F] placeholder-[#86868B] focus:outline-none focus:border-[#1D1D1F] transition-colors font-light" placeholder={t.confirm_password || "Confirm password"} /><button type="button" onClick={() => setShowPassword(s => !s)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#86868B] hover:text-[#1D1D1F] p-1" tabIndex={-1}>{showPassword ? <EyeOff size={16} strokeWidth={1.5} /> : <Eye size={16} strokeWidth={1.5} />}</button></div>
             </div>
             <button type="submit" disabled={loading} className="w-full py-3.5 rounded-xl bg-[#1D1D1F] text-white text-sm font-light hover:bg-[#3C3C3E] active:bg-[#000] disabled:opacity-40 transition-colors mt-2">
               {loading ? (t.changing_password || "Changing...") : (t.change_password || "Change Password")}

@@ -130,6 +130,78 @@ async def group_chat_sse(chat_id: str, message: str, user: User = Depends(requir
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 
+@router.get("/{chat_id}/listen")
+async def group_chat_listen(
+    chat_id: str,
+    user: User = Depends(require_auth),
+    db: AsyncSession = Depends(get_db),
+):
+    """Long-lived SSE: pushes new messages as they appear in this group chat.
+
+    Client opens once on page mount, server streams 'message' events for any
+    new row inserted into group_chat_messages. Replaces 1s polling.
+    """
+    # Verify ownership
+    result = await db.execute(select(GroupChat).where(GroupChat.id == chat_id, GroupChat.user_id == user.id))
+    chat = result.scalar_one_or_none()
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+
+    last_id_seen = None
+    last_msg_q = await db.execute(
+        select(GroupChatMessage.id).where(GroupChatMessage.chat_id == chat_id)
+        .order_by(GroupChatMessage.created_at.desc()).limit(1)
+    )
+    last_row = last_msg_q.first()
+    if last_row:
+        last_id_seen = last_row[0]
+
+    async def event_generator():
+        nonlocal last_id_seen
+        try:
+            yield await _sse_event("ready", {"last_id": last_id_seen})
+        except Exception:
+            return
+        last_ping = asyncio.get_event_loop().time()
+        while True:
+            try:
+                if last_id_seen is None:
+                    q = await db.execute(
+                        select(GroupChatMessage).where(GroupChatMessage.chat_id == chat_id)
+                        .order_by(GroupChatMessage.created_at.asc())
+                    )
+                else:
+                    q = await db.execute(
+                        select(GroupChatMessage).where(
+                            GroupChatMessage.chat_id == chat_id,
+                            GroupChatMessage.id > last_id_seen
+                        ).order_by(GroupChatMessage.created_at.asc())
+                    )
+                new_msgs = q.scalars().all()
+                for m in new_msgs:
+                    last_id_seen = m.id
+                    yield await _sse_event("message", {
+                        "id": m.id,
+                        "chat_id": m.chat_id,
+                        "sender_type": m.sender_type,
+                        "sender_id": m.sender_id,
+                        "sender_name": m.sender_name,
+                        "content": m.content,
+                        "created_at": m.created_at.isoformat() if m.created_at else None,
+                    })
+                now = asyncio.get_event_loop().time()
+                if now - last_ping > 25:
+                    yield ": keepalive\n\n"
+                    last_ping = now
+                await asyncio.sleep(0.5)
+            except asyncio.CancelledError:
+                break
+            except Exception:
+                break
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
 @router.post("/{chat_id}/invite")
 async def group_chat_invite(
     chat_id: str,

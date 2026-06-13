@@ -66,3 +66,12 @@ a, button {
   from { opacity: 0; transform: translateY(12px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* PWA install banner animation */
+@keyframes pwa-slide-up {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.pwa-install-banner {
+  animation: pwa-slide-up 0.3s cubic-bezier(0.25, 0.1, 0.25, 1.0);
+}

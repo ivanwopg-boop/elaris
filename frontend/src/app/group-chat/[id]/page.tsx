@@ -10,7 +10,7 @@ import { useAuthStore } from "@/lib/auth-store";
 
 const COLORS = ["#0071E3","#7c3aed","#22c55e","#eab308","#ec4899","#06b6d4"];
 
-function TypeText({ text, speed = 35, animate = false }: { text: string; speed?: number; animate?: boolean }) {
+function TypeText({ text, speed = 20, animate = false }: { text: string; speed?: number; animate?: boolean }) {
   const [d, setD] = useState(animate ? "" : text);
   const doneRef = useRef(false);
   useEffect(() => {
@@ -72,7 +72,6 @@ export default function GroupChatRoom() {
   const [mentionFilter, setMentionFilter] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const ref = useRef<HTMLDivElement>(null);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastCount = useRef(0);
 
   // Current logged-in user (for user-bubble avatar)
@@ -112,6 +111,63 @@ export default function GroupChatRoom() {
     }).catch(() => router.push("/chats")).finally(() => setLoading(false));
   }, [id, router]);
 
+
+  // Long-lived SSE listener for new group-chat messages.
+  // Replaces the previous 1s polling interval — now event-driven, no waste.
+  const esRef = useRef<EventSource | null>(null);
+
+  const startListening = useCallback(() => {
+    if (esRef.current) return; // already listening
+    const es = new EventSource(`/api/v1/group-chat/${id}/listen`);
+    esRef.current = es;
+
+    const applyNew = (m: any) => {
+      setFreshIds((prev) => { const next = new Set(prev); next.add(m.id); return next; });
+      setAllMsgs((prev) => {
+        if (prev.some((x: any) => x.id === m.id)) return prev;
+        return [...prev, m];
+      });
+      lastCount.current = (lastCount.current || 0) + 1;
+      if (m.sender_type === "persona" && m.sender_id && m.sender_name) {
+        setPersonaNameMap((prev) => {
+          const next = { ...prev };
+          const existing = next[m.sender_id];
+          next[m.sender_id] = { name: m.sender_name, avatar_url: existing?.avatar_url };
+          return next;
+        });
+      }
+      setThinking(null);
+    };
+
+    es.addEventListener("ready", () => { /* connected */ });
+    es.addEventListener("message", (e) => {
+      try { applyNew(JSON.parse(e.data)); } catch {}
+    });
+    es.onerror = () => {
+      // Auto-reconnect after 3s if connection drops
+      es.close();
+      esRef.current = null;
+      setTimeout(() => { if (id) startListening(); }, 3000);
+    };
+  }, [id]);
+
+  const stopListening = useCallback(() => {
+    if (esRef.current) {
+      esRef.current.close();
+      esRef.current = null;
+    }
+  }, []);
+
+  // Pause SSE when tab is hidden — saves bandwidth on mobile
+  useEffect(() => {
+    const onVis = () => {
+      if (document.hidden) stopListening();
+      else startListening();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, [startListening, stopListening]);
+
   const handleInputChange = useCallback((value: string) => {
     setInput(value);
     const cursorPos = inputRef.current?.selectionStart || value.length;
@@ -149,55 +205,25 @@ export default function GroupChatRoom() {
     );
 
   // Scroll to bottom on initial load and when messages change
+
+
   useEffect(() => { ref.current?.scrollIntoView({ behavior: "smooth" }); }, [allMsgs.length, thinking]);
   // Scroll to bottom on initial history load
   useEffect(() => { if (allMsgs.length > 0) { setTimeout(() => ref.current?.scrollIntoView(), 50); } }, []);
 
-  const startPolling = () => {
-    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
-    const intervalId = setInterval(async () => {
-      try {
-        const d = await api.getGroupChat(id);
-        if (d.messages.length > lastCount.current) {
-          const newMsgs = d.messages.slice(lastCount.current);
-          lastCount.current = d.messages.length;
-          setFreshIds((prev) => { const next = new Set(prev); newMsgs.forEach((m: any) => next.add(m.id)); return next; });
-          setAllMsgs((prev) => {
-            const existingIds = new Set(prev.map((m: any) => m.id));
-            const unique = newMsgs.filter((m: any) => !existingIds.has(m.id));
-            return [...prev, ...unique];
-          });
-          setPersonaNameMap((prev) => { const next = { ...prev }; newMsgs.forEach((m: any) => { if (m.sender_type === "persona" && m.sender_id && m.sender_name) { const existing = next[m.sender_id]; next[m.sender_id] = { name: m.sender_name, avatar_url: existing?.avatar_url }; } }); return next; });
-          setThinking(null);
-        }
-      } catch {}
-    }, 1000);
-    pollRef.current = intervalId;
-  };
+
 
   const send = async () => {
     if (!input.trim() || sending) return;
     const text = input.trim(); setInput(""); setSending(true); setThinking(t.waiting);
-    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
     lastCount.current += 1;
-    setAllMsgs((p) => [...p, { id: `u-${Date.now()}`, sender_type: "user", sender_name: "Me", content: text }]);
-    startPolling();
+    setAllMsgs((p) => [...p, { id: `u-${Date.now()}`, sender_type: "user", sender_name: userName, content: text }]);
     try {
+      // Listen handles new messages; send-blocking waits for the orchestrator to finish.
       await fetch(`/api/v1/group-chat/${id}/send-blocking`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: text }),
       });
-      const updated = await api.getGroupChat(id);
-      if (updated.messages.length > lastCount.current) {
-        const newMsgs = updated.messages.slice(lastCount.current);
-        lastCount.current = updated.messages.length;
-        setAllMsgs((prev) => {
-          const existingIds = new Set(prev.map((m: any) => m.id));
-          const unique = newMsgs.filter((m: any) => !existingIds.has(m.id));
-          return [...prev, ...unique];
-        });
-      }
-      if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
     } catch {}
     setSending(false); setThinking(null);
   };
@@ -315,13 +341,17 @@ export default function GroupChatRoom() {
             return <Bubble key={m.id} name={m.sender_name} content={m.content} ci={ci >= 0 ? ci : 0} avatarUrl={personaNameMap[m.sender_id]?.avatar_url} isFresh={fresh} />;
           })}
           {thinking && (
-            <div className="flex items-center gap-2 py-4 pl-1">
-              <span className="text-sm text-[#86868B] italic font-light">{thinking}</span>
+            <div className="flex items-center gap-2.5 py-3 pl-1">
               <div className="flex gap-0.5">
-                <div className="w-1.5 h-1.5 rounded-full bg-[#6E6E73] animate-bounce [animation-delay:0ms]" />
-                <div className="w-1.5 h-1.5 rounded-full bg-[#6E6E73] animate-bounce [animation-delay:200ms]" />
-                <div className="w-1.5 h-1.5 rounded-full bg-[#6E6E73] animate-bounce [animation-delay:400ms]" />
+                <div className="w-1.5 h-1.5 rounded-full bg-[#6E6E73] animate-bounce" style={{ animationDelay: "0ms" }} />
+                <div className="w-1.5 h-1.5 rounded-full bg-[#6E6E73] animate-bounce" style={{ animationDelay: "200ms" }} />
+                <div className="w-1.5 h-1.5 rounded-full bg-[#6E6E73] animate-bounce" style={{ animationDelay: "400ms" }} />
               </div>
+              <span className="text-sm text-[#86868B] italic font-light">
+                {(chat?.persona_ids?.length || 0) > 1
+                  ? `${chat?.persona_ids?.length} personas thinking...`
+                  : (thinking || "Thinking...")}
+              </span>
             </div>
           )}
           <div ref={ref} />
