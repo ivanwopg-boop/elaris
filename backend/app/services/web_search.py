@@ -139,3 +139,30 @@ async def ensure_web_search_results(persona_id: str, db) -> None:
             db.add(ws)
 
     await db.commit()
+
+# ── Full-page content scraping ───────────────────────────
+
+async def scrape_top_results(results: list[dict], max_pages: int = 3) -> str:
+    """Fetch full content from top search results. Returns formatted text."""
+    import trafilatura
+    full_texts = []
+    for r in results[:max_pages]:
+        try:
+            url = r.get("url", "")
+            if not url or any(d in url for d in ["passport.weibo", "xiaohongshu.com"]):
+                continue
+            async with httpx.AsyncClient(timeout=5) as client:
+                resp = await client.get(url, follow_redirects=True,
+                    headers={"User-Agent": "Mozilla/5.0 ElarisSearch/1.0"})
+                text = trafilatura.extract(resp.text)
+                if text and len(text) > 200:
+                    title = r.get("title", "")[:80]
+                    full_texts.append(f"### {title}\n{text[:2000]}")
+        except Exception:
+            pass
+        if len(full_texts) >= 2:
+            break
+
+    if full_texts:
+        return "\n\n### Full article content (auto-scraped):\n" + "\n---\n".join(full_texts)
+    return ""
