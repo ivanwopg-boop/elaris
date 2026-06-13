@@ -454,6 +454,9 @@ Ask yourself:
 
 Output a JSON object with the following fields. Where evidence is missing or ambiguous, infer from patterns but mark your uncertainty explicitly. Never leave arrays empty -- if you genuinely have no data, write the best inference from your training knowledge.
 
+### greeting_message
+- text: 1-2 sentences. This persona's natural opening line in a new conversation. Inviting, warm, in their authentic voice. Never claim to be the real person. Start with a question or a statement that opens the conversation.
+
 ### identity
 - name: full name as commonly known
 - known_as: list of alternative names / common nicknames / how they are referred to

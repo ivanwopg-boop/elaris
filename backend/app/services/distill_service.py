@@ -283,7 +283,8 @@ async def distill_persona(persona_id: str, db: AsyncSession, lang: str = "en",
     source_bio = _build_source_bio(name, id_summary)
     try:
         _d = __import__("json").loads(soul_json)
-        _d["_meta"] = {"ai_persona_disclaimer": f"This is an original AI persona inspired by the public works and thinking patterns of {name}. It is not {name} and does not represent {name}'s actual views.", "source_person": name, "source_bio": source_bio, "source_type": "web_search_distillation", "distilled_at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()}
+        greeting_msg = _d.get("greeting_message", {}).get("text", "") if isinstance(_d.get("greeting_message"), dict) else str(_d.get("greeting_message", ""))
+        _d["_meta"] = {"greeting": greeting_msg or "", "ai_persona_disclaimer": f"This is an original AI persona inspired by the public works and thinking patterns of {name}. It is not {name} and does not represent {name}'s actual views.", "source_person": name, "source_bio": source_bio, "source_type": "web_search_distillation", "distilled_at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()}
         soul_json = __import__("json").dumps(_d, indent=2, ensure_ascii=False)
         # Double-sanitize after _meta merge (re-sub applied above but _dumps may reintroduce)
         soul_json = __import__("re").sub(r'[\ud800-\udfff]', '', soul_json)

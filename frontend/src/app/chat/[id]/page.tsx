@@ -76,7 +76,9 @@ export default function ChatPage() {
               clearInterval(poll);
               setPersona(pp);
               setBuilding(false);
-              setMsgs([]);
+              // Show greeting as first message if available
+              const greet = pp.soul?._meta?.greeting || pp.souls_by_lang?.[lang]?.soul?._meta?.greeting || "";
+              setMsgs(greet ? [{ role: "assistant", content: greet, id: `greeting-${Date.now()}`, time: Date.now() }] : []);
             }
           }).catch(() => {});
         }, 3000);
@@ -315,7 +317,8 @@ export default function ChatPage() {
       {/* Messages */}
       <div className={`flex-1 overflow-y-auto px-4 py-6 ${selectMode ? "pb-32" : ""}`}>
         <div className="max-w-3xl mx-auto">
-          {msgs.length === 0 && !liveContent && !building && (
+          {msgs.length === 0 && !liveContent && !building && persona?.soul?._meta?.greeting && (() => { setMsgs([{ role: "assistant", content: persona.soul._meta.greeting, id: "greeting-" + Date.now(), time: Date.now() }]); return null; })()}
+          {msgs.length === 0 && !liveContent && !building && !persona?.soul?._meta?.greeting && (
             <div className="text-center pt-24">
               <p className="text-sm text-[#86868B] font-light">Start a conversation with {n}</p>
             </div>
