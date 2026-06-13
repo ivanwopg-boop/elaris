@@ -440,7 +440,7 @@ function MeTab({ tabStrings }: { tabStrings: Record<string, string> }) {
 
   const menuItems = [
     { label: tabStrings.my_personas, onClick: () => window.location.href = '/personas', icon: <User size={20} strokeWidth={1.5} /> },
-    { label: tabStrings.create_persona, onClick: () => window.location.href = '/personas/new', icon: <Sparkles size={20} strokeWidth={1.5} /> },
+    { label: tabStrings.add_ai_friend || "Add AI Friend", onClick: () => window.location.href = '/personas/new', icon: <Sparkles size={20} strokeWidth={1.5} /> },
     { label: tabStrings.account_settings, onClick: () => window.location.href = '/settings', icon: <Settings size={20} strokeWidth={1.5} /> },
     { label: tabStrings.help_feedback, onClick: () => window.location.href = 'mailto:support@elaris.ai', icon: <HelpCircle size={20} strokeWidth={1.5} /> },
     { label: tabStrings.about, onClick: () => window.location.href = '/about', icon: <Info size={20} strokeWidth={1.5} /> },
