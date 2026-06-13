@@ -639,6 +639,18 @@ function ChatsContent() {
               <p className="text-center text-sm font-light text-[#86868B] mb-4">{t.choose_action || "Choose an action"}</p>
               <div className="space-y-2">
                 <button
+                  onClick={() => { setShowActionSheet(false); router.push('/personas/new'); }}
+                  className="w-full flex items-center gap-4 px-4 py-4 rounded-xl bg-[#F5F5F7] hover:bg-[#EDEDED] active:bg-[#E5E5E5] transition-colors"
+                >
+                  <div className="w-10 h-10 rounded-full bg-[#1D1D1F] flex items-center justify-center">
+                    <Sparkles size={20} strokeWidth={1.5} className="text-white" />
+                  </div>
+                  <div className="text-left flex-1">
+                    <p className="text-sm font-medium text-[#1D1D1F]">{t.create_persona || "New Chat"}</p>
+                    <p className="text-xs text-[#86868B] font-light">Enter a name — anyone you can think of</p>
+                  </div>
+                </button>
+                <button
                   onClick={() => { setShowActionSheet(false); router.push('/group-chat/new'); }}
                   className="w-full flex items-center gap-4 px-4 py-4 rounded-xl bg-[#F5F5F7] hover:bg-[#EDEDED] active:bg-[#E5E5E5] transition-colors"
                 >
