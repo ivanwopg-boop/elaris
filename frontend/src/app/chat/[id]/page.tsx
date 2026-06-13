@@ -6,7 +6,7 @@ import { useLangStore, translations } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/Avatar";
 import { api, PersonaDetail } from "@/lib/api";
-import { ChevronLeft, Copy, Trash2, X, Check, ClipboardCheck } from "lucide-react";
+import { ChevronLeft, Copy, Trash2, X, Check, ClipboardCheck, Share2 } from "lucide-react";
 
 function ft(t: number) {
   if (!t) return "";
@@ -228,6 +228,7 @@ export default function ChatPage() {
     });
   };
 
+  const shareSelected = async () => { const sel = msgs.filter(m => selectedIds.has(m.id)); if (!sel.length) return; const n = persona?.name || "AI"; const t = sel.map(m => m.content.slice(0, 200)).join(" | "); const text = n + ": " + t + " - Chat at elaris.ai"; if (navigator.share) { try { await navigator.share({ text }); return; } catch(e) {} } try { await navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch(e) {} };
   const selectAll = () => {
     const allIds = msgs.map(m => m.id);
     setSelectedIds(new Set(allIds));
@@ -313,6 +314,7 @@ export default function ChatPage() {
             <span className="text-sm font-light text-[#1D1D1F]">selected</span>
             <div className="flex-1" />
             <button onClick={selectAll} className="text-xs text-[#0071E3] font-light px-2 py-1 rounded-md hover:bg-[rgba(0,113,227,0.06)] transition-colors">Select All</button>
+            <button onClick={shareSelected} className="text-xs text-[#0071E3] font-light px-2 py-1 rounded-md hover:bg-[rgba(0,113,227,0.06)] transition-colors flex items-center gap-1"><Share2 size={14} strokeWidth={1.5}/>Share</button>
           </div>
         ) : (
           <div className="max-w-3xl mx-auto px-4 h-14 flex items-center gap-3">
