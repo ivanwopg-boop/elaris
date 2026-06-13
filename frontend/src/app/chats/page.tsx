@@ -479,6 +479,8 @@ function DiscoverTab({ tabStrings, onContactAdded }: { tabStrings: Record<string
 // ── Me Tab ────────────────────────────────────────────────────
 
 function MeTab({ tabStrings }: { tabStrings: Record<string, string> }) {
+  const { lang } = useLangStore();
+  const t = translations[lang];
   const router = useRouter();
   const { user, token, clearAuth, setAuth } = useAuthStore();
 
@@ -517,7 +519,7 @@ function MeTab({ tabStrings }: { tabStrings: Record<string, string> }) {
           }} />
         </label>
         <div className="flex-1 min-w-0">
-          <p className="text-lg font-medium text-[#1D1D1F]">{user?.name || tabStrings.guest}</p>
+          <p className="text-lg font-medium text-[#1D1D1F]">{user?.name || t.sign_in}</p>
           {user?.email && (
             <p className="text-sm text-[#86868B] font-light mt-0.5 truncate">{user.email}</p>
           )}
@@ -579,7 +581,6 @@ function ChatsContent() {
     add_failed: t.add_failed,
     add_to_contacts: t.add_to_contacts,
     start_chat: t.start_chat,
-    guest: t.guest,
     not_logged_in: t.not_logged_in,
     logout: t.logout,
     my_personas: t.my_personas,
