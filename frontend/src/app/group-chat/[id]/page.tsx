@@ -362,8 +362,14 @@ export default function GroupChatRoom() {
             <footer className="fixed bottom-0 left-0 right-0 z-30 border-t border-[rgba(0,0,0,0.06)] bg-white/95" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
         <div className="max-w-3xl mx-auto px-4 py-3 flex gap-2 items-end">
           <div className="flex-1 relative">
-            {showMentions && filteredMentions.length > 0 && (
+            {showMentions && (filteredMentions.length > 0 || mentionFilter.length === 0) && (
               <div className="absolute bottom-full mb-2 left-0 w-48 bg-white border border-[rgba(0,0,0,0.06)] rounded-[10px] overflow-hidden shadow-[0_4px_16px_rgba(0,0,0,0.06)] z-20">
+                {mentionFilter.length === 0 && (
+                  <button onClick={() => insertMention("@all")}
+                    className="w-full px-3 py-2 text-left text-sm hover:bg-[rgba(0,0,0,0.02)] transition-colors font-medium text-[#0071E3] border-b border-[rgba(0,0,0,0.04)]">
+                    📢 @all
+                  </button>
+                )}
                 {filteredMentions.slice(0, 5).map((n: string, i: number) => (
                   <button key={n} onClick={() => insertMention(n)}
                     className={`w-full px-3 py-2 text-left text-sm hover:bg-[rgba(0,0,0,0.02)] transition-colors font-light ${i === mentionIdx ? 'text-[#0071E3]' : 'text-[#1D1D1F]'}`}>
