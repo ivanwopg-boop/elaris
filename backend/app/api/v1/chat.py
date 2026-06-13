@@ -654,6 +654,23 @@ async def delete_conversation(conversation_id: str, user: User = Depends(require
     await db.execute(delete(ConvTable).where(ConvTable.id == conversation_id))
     await db.flush()
 
+@router.post("/conversations/{conversation_id}/mark-read")
+async def mark_conversation_read(conversation_id: str, user: User = Depends(require_auth), db: AsyncSession = Depends(get_db)):
+    """Mark latest proactive message as read when user opens a chat."""
+    result = await db.execute(
+        select(ConversationMessage).where(
+            ConversationMessage.conversation_id == conversation_id,
+            ConversationMessage.is_proactive == 1,
+        ).order_by(ConversationMessage.created_at.desc()).limit(1)
+    )
+    msg = result.scalar_one_or_none()
+    if msg:
+        msg.is_proactive = 0
+        await db.commit()
+        return {"ok": True, "marked": True}
+    return {"ok": True, "marked": False}
+
+
 @router.get("/conversations/{conversation_id}/messages")
 async def get_conversation_messages(
     conversation_id: str,

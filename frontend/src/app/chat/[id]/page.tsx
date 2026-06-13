@@ -68,6 +68,11 @@ export default function ChatPage() {
         .then((data) => setMsgs(data.map((m: any) => ({ role: m.role, content: m.content, id: m.id || m.role + "-" + Date.now(), time: m.created_at ? new Date(m.created_at).getTime() : undefined }))))
         .catch(() => {});
     }
+    // Mark conversation as read when opened
+    const urlConvId = new URLSearchParams(window.location.search).get("conv");
+    if (urlConvId) {
+      api.request(`/conversations/${urlConvId}/mark-read`, { method: "POST" }).catch(() => {});
+    }
     api.getPersona(id).then((p) => {
       setPersona(p);
       if (!p.has_soul) {
