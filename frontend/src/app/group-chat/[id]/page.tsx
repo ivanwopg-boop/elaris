@@ -375,11 +375,7 @@ export default function GroupChatRoom() {
                 <div className="w-1.5 h-1.5 rounded-full bg-[#6E6E73] animate-bounce" style={{ animationDelay: "200ms" }} />
                 <div className="w-1.5 h-1.5 rounded-full bg-[#6E6E73] animate-bounce" style={{ animationDelay: "400ms" }} />
               </div>
-              <span className="text-sm text-[#86868B] italic font-light">
-                {(chat?.persona_ids?.length || 0) > 1
-                  ? `${chat?.persona_ids?.length} personas thinking...`
-                  : (thinking || "Thinking...")}
-              </span>
+              <span className="text-sm text-[#86868B] italic font-light">{thinking}</span>
             </div>
           )}
           <div ref={ref} />
