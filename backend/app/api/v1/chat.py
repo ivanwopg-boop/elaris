@@ -167,61 +167,52 @@ async def chat_stream(persona_id: str, message: str, conv: str = None, request: 
         return StreamingResponse(_safety_gen(), media_type="text/event-stream")
 
     info = await _get_soul(persona_id, db)
-    # Always search (self-hosted, unlimited) — use multiple queries for better coverage
+    # ── Smart search: template queries + direct snippet injection ──
     search_context = ""
     try:
-        import logging; _log = logging.getLogger("uvicorn")
+        import logging, re; _log = logging.getLogger("uvicorn")
         _now = datetime.now()
         _today = _now.strftime("%Y-%m-%d")
+        _year = str(_now.year)
 
-        # Step 1: LLM reformulates user question into search keywords
         search_person_name = info.get('source_name') or info['name']
-        _rp = (
-            f"Today is {_today}. The user is asking about {search_person_name}. "
-            f"Their question: '{message}'. "
-            f"Generate 2 search queries to find the MOST CURRENT, UP-TO-DATE information. "
-            f"Prioritize: official schedules, latest news, upcoming dates. "
-            f"Include the year {_now.year} in queries. "
-            f"Output ONLY 2 lines, each a search-engine-ready query. No other text."
+        
+        # Clean message for search: strip @mentions, pure greetings, very short messages
+        import re as _re
+        _clean = _re.sub(r'@\w+', '', message).strip()  # remove @mentions
+        _clean = _re.sub(r'^(hi|hello|hey|你好|大家好|哈喽|嗨|yo|sup)[!！.。?？~～]*$', '', _clean, flags=_re.IGNORECASE).strip()
+        _search_msg = _clean if len(_clean) >= 5 else None  # skip search for greetings/short
+        
+        # Step 1: LLM thinks deeply about what the user wants, then crafts precise queries
+        _qp = (
+            f"Today is {_today}. A user is chatting with an AI persona of {search_person_name}. "
+            f"The user just said: '{_search_msg}'\n\n"
+            f"First, briefly analyze: What does the user REALLY want to know? What specific information would satisfy them?\n"
+            f"Then, generate 3 precise search queries that will find exactly that information.\n\n"
+            f"Rules:\n"
+            f"- Think about the USER'S INTENT before writing queries\n"
+            f"- For event/date questions: search official sources + ticket platforms + news\n"
+            f"- For facts: use exact names, dates, locations. Include current year {_year}\n"
+            f"- Use the persona's SOURCE name ({search_person_name}) in every query\n"
+            f"- Include specific keywords: ticket, venue, schedule, announcement, official, confirmed\n"
+            f"- Output format: one analysis line (start with THINK:), then 3 queries, each on its own line\n"
+            f"- NO numbering, NO markdown. Each query line must be searchable directly."
         )
-        _rr = await minimax_client.chat(
-            [{"role": "user", "content": _rp}], temperature=0.1, max_tokens=150
-        )
-        _rlines = [l.strip() for l in _rr.strip().split("\n") if l.strip()]
-        # Filter out LLM narration lines — only keep lines that look like search queries
-        _bad_prefixes = ('we need', 'we should', 'the question', 'the user', 'possible',
-                         'interpret', 'so we', 'so the', 'use real', 'first query',
-                         'second query', 'query 1', 'query 2', 'we can', 'here are',
-                         'let me', 'i need', 'i will', 'output',
-                         '我们需要', '问题', '可以', '这样', '首先', '然后')
-        _lowered = [l.lower() for l in _rlines]
-        _kept = [l for i, l in enumerate(_rlines)
-                 if not _lowered[i].startswith(_bad_prefixes)
-                 and len(l) >= 10
-                 and 'keyword' not in _lowered[i]]
-        if len(_kept) >= 2:
-            _search_queries = _kept[:2]
+        _qr = (await minimax_client.chat(
+            [{"role": "user", "content": _qp}], temperature=0.1, max_tokens=200
+        )) if _search_msg else ""
+        _q_lines = [l.strip() for l in _qr.strip().split("\n") if l.strip() and len(l.strip()) > 10]
+        _q_lines = [q for q in _q_lines if not q.startswith(('THINK','Think','think','query','Query','search','Search','1.','2.','3.','-','*','#'))]
+        _q_lines = _q_lines[:3]
+        if not _q_lines:
+            _q_lines = [f"{search_person_name} {_search_msg} {_year}"] if _search_msg else []
+        _search_queries = _q_lines
+        if not _search_queries:
+            _log.info(f"[SEARCH_Q] skipped (greeting/short): {message[:40]!r}")
         else:
-            # Smart fallback: extract key topic words from user message
-            _topic_words = []
-            for _w in (message + " ").replace("?", " ").replace("？", " ").replace("!", " ").split():
-                _w = _w.strip()
-                if len(_w) >= 2 and _w not in ("你", "我", "他", "她", "的", "了", "吗", "呢", "啊", "吧", "是", "在", "有", "不", "就", "也", "还", "都", "要", "会", "能", "可以", "什么", "怎么", "为什么", "哪个", "哪里", "谁", "什么时候", "有没有", "是不是", "能不能", "现在", "最近", "最新", "一下", "今天", "昨天", "明天"):
-                    if _w not in _topic_words:
-                        _topic_words.append(_w)
-            _topics = " ".join(_topic_words[:3])
-            # Add time hints for next/upcoming questions
-            _time_hint = ""
-            _msg_lower = message.lower()
-            if any(w in _msg_lower for w in ['什么时候','下一场','哪天','next','upcoming','when','日期','日程','安排','时间']):
-                _time_hint = " schedule dates upcoming"
-            _search_queries = [
-                search_person_name + " " + _topics + _time_hint + " " + str(_now.year),
-                search_person_name + " " + _topics + _time_hint
-            ]
-        _log.info(f"[SEARCH_Q] raw={message[:40]!r} -> {_search_queries}")
+            _log.info(f"[SEARCH_Q] message={message[:40]!r} -> {_search_queries}")
 
-        # Step 2: Broad search (up to 15 results via Exa)
+        # Step 3: Execute searches in parallel
         sr = await search_web(_search_queries)
         if sr:
             _seen_urls = set()
@@ -232,29 +223,17 @@ async def chat_stream(persona_id: str, message: str, conv: str = None, request: 
                     if _url and _url not in _seen_urls and r.get("snippet"):
                         _seen_urls.add(_url)
                         _all_results.append(r)
-            _all_results = _all_results[:15]
+            _all_results = _all_results[:12]
+
             if _all_results:
-                # Step 3: Extract key facts — prioritize upcoming dates
-                _raw_results = "\n".join(["- " + r['title'] + " | " + r['snippet'][:300] for r in _all_results[:8]])
-                _extract_prompt = (
-                    f"Today is {_today}. The user asked: '{message}'.\n\n"
-                    f"Search results:\n{_raw_results}\n\n"
-                    "Rules:\n"
-                    "- Extract ONLY dates, locations, names, events, numbers\n"
-                    "- If the question is about upcoming/next/future events, find the closest future date relative to today\n"
-                    "- Sort dates chronologically, list the NEXT upcoming event FIRST\n"
-                    "- 3-5 bullet points max\n"
-                    "- NO opinions, NO analysis, NO answering the question\n"
-                    "- If no relevant facts found, say 'No relevant facts found'\n"
-                    "- Format: '- Fact: ...'\n"
-                    "- Use original language"
-                )
-                _extracted = await minimax_client.chat(
-                    [{"role": "user", "content": _extract_prompt}],
-                    temperature=0.0, max_tokens=300
-                )
-                search_context = "\n### Verified facts from web (just retrieved):\n" + _extracted.strip()
-                _log.info(f"[SEARCH_REFINE] {len(_all_results)} results -> {len(search_context)} chars")
+                # Step 4: Direct snippet injection — no LLM extraction loss
+                _lines = []
+                for i, r in enumerate(_all_results[:10]):
+                    _t = r.get('title', '')[:120]
+                    _s = r.get('snippet', '')[:250]
+                    _lines.append(f"- {_t}\n  {_s}")
+                search_context = "\n### Latest web results (ordered by relevance):\n" + "\n".join(_lines)
+                _log.info(f"[SEARCH] {len(_all_results)} results -> {len(search_context)} chars")
     except Exception as _search_err:
         import logging; logging.getLogger("uvicorn").error(f"[SEARCH_ERROR] {_search_err}")
 
@@ -274,6 +253,7 @@ async def chat_stream(persona_id: str, message: str, conv: str = None, request: 
         name=info["name"],
         search_context=search_context + restricted_reminder,
         soul_json=json.dumps(info["soul"], indent=2, ensure_ascii=False),
+        memory_context="",
     )
 
     # ── Context gate: only load history when the message needs it ──
@@ -369,22 +349,59 @@ async def _handle_mode(request: ChatRequest, user_id: str, db: AsyncSession, use
             .join(ConvTable, ConversationMessage.conversation_id == ConvTable.id)
             .where(ConvTable.user_id == user_id, ConvTable.persona_id == request.persona_id)
             .order_by(ConversationMessage.created_at.desc())
-            .limit(6)
+            .limit(10)
         )
         mem_rows = mem_result.all()
         if mem_rows:
-            recent = [{"role": r[1], "content": r[0][:200]} for r in reversed(mem_rows) if r[1] == "user"]
-            if recent:
-                memory_context = "You have spoken with this user before. Their recent messages include: " + "; ".join(
-                    [f'"{r["content"]}"' for r in recent[-3:]]
-                )
+            turns = []
+            for r in reversed(mem_rows):
+                role = r[1]
+                content = r[0][:150].replace(chr(34), chr(39)).replace(chr(92)+"n", " ")
+                if content.strip():
+                    prefix = "User" if role == "user" else "AI"
+                    turns.append(prefix + ": " + content)
+            if turns:
+                memory_context = "Previous conversation: " + " | ".join(turns[::-1][-6:])
     except Exception:
         pass
+
+    # Clean message for search
+    import re as _re_ns
+    _clean_ns = _re_ns.sub(r'@\w+', '', request.message).strip()
+    _clean_ns = _re_ns.sub(r'^(hi|hello|hey|你好|大家好|哈喽|嗨|yo|sup)[!！.。?？~～]*$', '', _clean_ns, flags=_re_ns.IGNORECASE).strip()
+    _search_msg_ns = _clean_ns if len(_clean_ns) >= 5 else None
 
     search_person_name_ns = info.get('source_name') or info['name']
     search_context = ""
     try:
-        sr = await search_web([f"{search_person_name_ns} {request.message} 2026"])
+        import re as _re2
+        _now_dt = datetime.now()
+        _year = str(_now_dt.year)
+        _today = _now_dt.strftime("%Y-%m-%d")
+
+        # Step 1: LLM generates smart search queries (fast ~2s, but precise)
+        _qp = (
+            f"Today is {_today}. A user is chatting with an AI persona of {search_person_name_ns}. "
+            f"The user just said: '{_search_msg_ns}'\n\n"
+            f"First, briefly analyze: What does the user REALLY want? What information would satisfy them?\n"
+            f"Then, generate 3 precise search queries to find that exact information.\n\n"
+            f"Rules:\n"
+            f"- Think about USER INTENT before writing queries\n"
+            f"- For events: official sources + ticket platforms + recent news\n"
+            f"- For facts: exact names, dates, locations. Include year {_year}\n"
+            f"- Use the persona's source name in every query\n"
+            f"- Include keywords: ticket, venue, schedule, announcement, official, confirmed\n"
+            f"- Output: one THINK line, then 3 query lines. NO numbering. NO markdown."
+        )
+        _qr = (await minimax_client.chat(
+            [{"role": "user", "content": _qp}], temperature=0.1, max_tokens=200
+        )) if _search_msg_ns else ""
+        _queries = [l.strip() for l in _qr.strip().split("\n") if l.strip() and len(l.strip()) > 10]
+        _queries = [q for q in _queries if not q.startswith(('THINK','Think','think','query','Query','search','Search','1.','2.','3.','-','*','#'))]
+        _queries = _queries[:3]
+        if not _queries:
+            _queries = [f"{search_person_name_ns} {_search_msg_ns} {_year}"] if _search_msg_ns else []
+        sr = await search_web(_queries)
         if sr:
             _seen_urls = set()
             _all_results = []
@@ -395,10 +412,17 @@ async def _handle_mode(request: ChatRequest, user_id: str, db: AsyncSession, use
                         _seen_urls.add(_url)
                         _all_results.append(r)
             if _all_results:
-                sc_parts = ["\n### Latest web search results (retrieved just now):"]
-                for r in _all_results[:6]:
-                    sc_parts.append(f"- **{r['title']}**: {r['snippet'][:200]}")
+                sc_parts = ["\n### Latest web results (retrieved just now):"]
+                _has_dates = False
+                for r in _all_results[:8]:
+                    _t = r.get('title','')[:120]
+                    _s = r.get('snippet','')[:250]
+                    sc_parts.append(f"- {_t}\n  {_s}")
+                    if _re2.search(r'\d{4}[-/年]\d{1,2}', _t + _s):
+                        _has_dates = True
                 search_context = "\n".join(sc_parts)
+                if not _has_dates:
+                    search_context += "\n\n⚠️ CRITICAL: No verified dates found in these results. Do NOT fabricate dates, venues, or schedules. Say you don't have confirmed information if asked about specific events."
     except Exception:
         pass
     system_prompt = CHAT_SYSTEM_PROMPT.format(

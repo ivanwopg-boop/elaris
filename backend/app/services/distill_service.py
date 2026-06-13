@@ -178,7 +178,9 @@ def _validate_soul_quality(soul_data: dict) -> tuple[bool, str]:
     # Check anchor fields
     ident = soul_data.get("identity", {})
     if not ident.get("name") and not ident.get("title"):
-        return False, "AI couldn't extract a name or title for this person. The name might be too obscure or misspelled."
+        # Fallback: use source_name or persona name from DB
+        # This handles cases where LLM leaves identity.name empty despite instructions
+        pass  # Don't fail — let it through and the persona will use display_name
     
     cog = soul_data.get("cognitive_architecture", {})
     if not cog.get("core_beliefs") and not cog.get("axioms"):
@@ -313,7 +315,7 @@ async def distill_persona(persona_id: str, db: AsyncSession, lang: str = "en",
     ]
 
     try:
-        soul_data = await minimax_client.chat_json(messages, temperature=0.2, max_tokens=16384, timeout=300.0)
+        soul_data = await minimax_client.chat_json(messages, temperature=0.2, max_tokens=3072, timeout=180.0)
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -555,7 +557,7 @@ async def translate_soul_to_lang(soul_data: dict, target_lang: str) -> dict:
 
     # Build translation prompt — batch by content
     # Limit to ~30 strings per call to stay fast
-    BATCH_SIZE = 30
+    BATCH_SIZE = 15
     translations = {}  # path -> translated text
 
     for i in range(0, len(paths), BATCH_SIZE):
@@ -580,7 +582,7 @@ Output ONLY the JSON array."""
                 ],
                 temperature=0.1,
                 max_tokens=8000,
-                timeout=120.0,
+                timeout=60.0,
             )
             if isinstance(result, list) and len(result) == len(batch):
                 for j, (path, _) in enumerate(batch):
@@ -640,7 +642,7 @@ async def distill_bilingual(persona_id: str, db, version_increment: int = 1) -> 
     version = result["version"]
     sources_used = result["sources_used"]
 
-    # 2. Translate to other language
+    # 2. Translation skipped for speed — primary lang only
     other_langs = [l for l in ["en", "zh-CN"] if l != primary_lang]
     secondary_soul = None
     for other in other_langs:

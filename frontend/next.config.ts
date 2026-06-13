@@ -23,6 +23,7 @@ const nextConfig: NextConfig = {
   },
 
   // Increase超时 for long-running API requests (e.g. distillation)
+
   experimental: {
     proxyTimeout: 120 * 1000, // 120 seconds
   },

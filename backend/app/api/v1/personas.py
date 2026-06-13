@@ -30,23 +30,8 @@ async def create_persona(data: PersonaCreate, db: AsyncSession = Depends(get_db)
         await db.flush()
 
     # Auto-trigger distillation in background (no await — user gets persona immediately)
-    async def _auto_distill():
-        from app.database import async_session
-        async with async_session() as _db:
-            from app.services.web_search import ensure_web_search_results
-            from app.services.distill_service import distill_persona
-            import logging
-            _log = logging.getLogger("uvicorn")
-            try:
-                await ensure_web_search_results(persona.id, _db)
-                # Bilingual distill: primary + translate. Guarantees 1:1 correspondence.
-                from app.services.distill_service import distill_bilingual
-                await distill_bilingual(persona.id, _db)
-                await _db.commit()
-                _log.info(f"Auto-distill complete for {persona.id}")
-            except Exception as e:
-                _log.error(f"Auto-distill failed for {persona.id}: {e}")
-    asyncio.create_task(_auto_distill())
+    # Distillation is now handled synchronously by the frontend Create page.
+    # Removed background auto-distill to avoid race conditions.
 
     # If source_id provided, copy souls + files + web search results from source persona.
     # IMPORTANT: copy the LATEST soul for EACH language so the cloned persona is bilingual,
@@ -126,7 +111,7 @@ async def create_persona(data: PersonaCreate, db: AsyncSession = Depends(get_db)
 
 @router.get("", response_model=list[PersonaOut])
 async def list_personas(lang: str = Query("en"), user: User = Depends(require_auth_optional), db: AsyncSession = Depends(get_db)):
-    return await persona_service.list_personas(db, user_id=user.id if user else None, include_presets=True, lang=lang)
+    return await persona_service.list_personas(db, user_id=user.id if user else None, include_presets=False, lang=lang)
 
 
 @router.get("/presets", response_model=list[PersonaOut])

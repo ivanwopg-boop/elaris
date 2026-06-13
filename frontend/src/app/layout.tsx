@@ -5,6 +5,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   viewportFit: "cover",
+  themeColor: "#FAFAFA",
 };
 
 
@@ -19,7 +20,6 @@ export const metadata: Metadata = {
   description: "An interactive tool for conversations with AI personas",
   icons: [{url: "/pwa-192.png", sizes: "192x192"}, {url: "/pwa-512.png", sizes: "512x512"}],
   appleWebApp: { capable: true, title: "Elaris", statusBarStyle: "default" },
-  themeColor: "#FAFAFA",
 };
 
 export default function RootLayout({

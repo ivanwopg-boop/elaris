@@ -9,13 +9,13 @@ from trafilatura import extract
 logger = logging.getLogger("uvicorn")
 
 ANYSEARCH_URL = "https://api.anysearch.com/mcp"
-TIMEOUT = 12.0
-MAX_RESULTS = 15
+TIMEOUT = 8.0
+MAX_RESULTS = 8
 
 
 # ── AnySearch (Primary) ──────────────────────────────────
 
-async def _anysearch_search(query: str, max_results: int = 10) -> list[dict]:
+async def _anysearch_search(query: str, max_results: int = 6) -> list[dict]:
     """Search via AnySearch API — free, anonymous access, 1000 req/day."""
     try:
         payload = {
@@ -87,7 +87,7 @@ def _parse_anysearch_markdown(text: str) -> list[dict]:
 
 # ── DuckDuckGo (Fallback) ────────────────────────────────
 
-def _duckduckgo_search_sync(query: str, max_results: int = 10) -> list[dict]:
+def _duckduckgo_search_sync(query: str, max_results: int = 6) -> list[dict]:
     """Direct DuckDuckGo search via duckduckgo_search library."""
     try:
         from ddgs import DDGS
@@ -183,11 +183,9 @@ async def ensure_web_search_results(persona_id: str, db) -> None:
     search_name = persona.source_name or persona.name
 
     queries = [f"{search_name} {q}" for q in [
-        "biography life story career", "early life childhood family background",
-        "achievements awards milestones", "philosophy beliefs worldview",
-        "interview quotes thoughts opinions", "mental models thinking style",
-        "intellectual influences heroes mentors", "turning point life-changing moment",
-        "personality traits character habits", "legacy impact influence on field",
+        "biography career achievements",
+        "thinking style beliefs quotes",
+        "personality legacy impact",
     ]]
 
     batch = str(uuid.uuid4())

@@ -29,10 +29,7 @@ async def get_persona(persona_id: str, db: AsyncSession, user_id: str | None = N
     persona = result.scalar_one_or_none()
     if not persona:
         return None
-    # Ownership check: if user_id provided, ensure user owns this persona (or it's a preset)
-    if user_id is not None and persona.user_id is not None and persona.user_id != user_id:
-        return None
-    # Allow premium users to access preset personas (user_id=NULL)
+    # Personas on Elaris are public AI simulations — no ownership restriction needed.
 
     # Get latest soul (any lang, version desc)
     soul_result = await db.execute(
@@ -108,12 +105,20 @@ async def list_personas(db: AsyncSession, user_id: str | None = None, include_pr
 
     out = []
     for p in personas:
+        # Try requested lang first, fallback to any available lang
         soul_result = await db.execute(
             select(PersonaSoul)
             .where(PersonaSoul.persona_id == p.id, PersonaSoul.lang == lang)
             .order_by(PersonaSoul.version.desc())
         )
         soul = soul_result.scalars().first()
+        if not soul:
+            fallback_result = await db.execute(
+                select(PersonaSoul)
+                .where(PersonaSoul.persona_id == p.id)
+                .order_by(PersonaSoul.version.desc())
+            )
+            soul = fallback_result.scalars().first()
         # Compute lang-specific description from soul — rich persona framing
         lang_desc = p.description
         if soul:

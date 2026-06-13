@@ -44,7 +44,7 @@ export default function PersonaListPage() {
           </div>
           <p className="text-lg font-medium text-[#1D1D1F] mb-2">{t.no_personas || "No personas yet"}</p>
           <p className="text-sm text-[#86868B] font-light mb-10 leading-relaxed max-w-[240px]">{t.create_first_persona || "Create your first AI persona to start chatting"}</p>
-          <Button onClick={() => router.push("/personas/new")} className="active:scale-[0.98] transition-transform">Create Your First Persona</Button>
+          <Button onClick={() => router.push("/personas/new")} className="active:scale-[0.98] transition-transform">{t.create_first_btn || "Create Your First Persona"}</Button>
         </div>
       )}
 

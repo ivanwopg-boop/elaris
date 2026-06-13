@@ -138,7 +138,7 @@ function ChatTab({ tabStrings, conversations, setConversations, lastVisit }: { t
         </div>
         <p className="text-lg font-medium text-[#1D1D1F] mb-2">{tabStrings.no_chats}</p>
         <p className="text-sm text-[#86868B] font-light mb-10 leading-relaxed max-w-[240px]">{tabStrings.chat_with_them}</p>
-        
+        <button onClick={() => router.push('/personas/new')} className="px-6 py-3 rounded-xl bg-[#1D1D1F] text-white text-sm font-light hover:bg-[#3C3C3E] active:scale-[0.98] transition-all">{tabStrings.invite_chat || "Create new persona"}</button>
       </div>
 
     );
@@ -521,6 +521,17 @@ function ChatsContent() {
     if (typeof window === 'undefined') return Date.now();
     return parseInt(localStorage.getItem('chats-last-visit') || '0', 10) || Date.now();
   });
+
+  // Detect back navigation and refresh to prevent stale router cache
+  useEffect(() => {
+    const onPageShow = (e: PageTransitionEvent) => {
+      if (e.persisted) {
+        router.refresh();
+      }
+    };
+    window.addEventListener('pageshow', onPageShow);
+    return () => window.removeEventListener('pageshow', onPageShow);
+  }, []);
   // contactsRefresh removed
   // Pre-compute all tab-specific strings
   const TAB_STRINGS = {
@@ -534,7 +545,7 @@ function ChatsContent() {
     not_logged_in: t.not_logged_in,
     logout: t.logout,
     my_personas: t.my_personas,
-    invite: t.invite_chat,
+    invite_chat: t.invite_chat,
     account_settings: t.account_settings,
     help_feedback: t.help_feedback,
     about: t.about,
