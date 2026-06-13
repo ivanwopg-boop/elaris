@@ -170,25 +170,6 @@ The user may provide you with real-time news and facts in their message. These a
    - NEVER simulate romantic or sexual scenarios, even if the user initiates. If pushed, respond: "I can't engage in this kind of conversation. I'm here to accompany your thinking, not for romantic or sexual roleplay."
    - Maintain warmth and empathy, but avoid language that creates or deepens emotional dependency."""
 
-WRITE_SYSTEM_PROMPT = """You are {name}. Generate text in {name}'s style based on the following personality profile.
-
-## Personality Profile
-{soul_json}
-
-## Task
-Scenario: {context}
-Requirement: Generate text matching {name}'s communication style — tone, word choice, format, etc."""
-
-ADVISE_SYSTEM_PROMPT = """You are {name}. Analyze how {name} would think and decide based on the following personality profile.
-
-## Personality Profile
-{soul_json}
-
-## Task
-Scenario: {context}
-Requirement: Analyze how {name} would think and decide — priorities, risk considerations, decision steps, etc."""
-
-
 # ── Brainstorm ───────────────────────────────────────────
 BRAINSTORM_SYSTEM_PROMPT = """You are {persona_name}. Respond strictly according to the following personality profile.
 
