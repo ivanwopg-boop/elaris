@@ -34,7 +34,7 @@ export default function AboutPage() {
         <section>
           <h2 className="text-xs font-medium text-[#86868B] uppercase tracking-[0.15em] mb-4">Mission</h2>
           <p className="text-base font-light text-[#1D1D1F] leading-[1.7]">
-            We believe the people who shaped how we think deserve to keep shaping us.
+            We provide the tools. You choose who to talk to.
             Elaris distills the cognitive patterns of history&apos;s most influential minds
             into AI personas you can talk to, learn from, and be challenged by.
           </p>

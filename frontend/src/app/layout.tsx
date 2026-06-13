@@ -16,7 +16,7 @@ import { PwaInstallPrompt } from "@/components/PwaInstallPrompt";
 
 export const metadata: Metadata = {
   title: "Elaris",
-  description: "Turn any person's wisdom into a reusable AI persona",
+  description: "An interactive tool for conversations with AI personas",
   icons: [{url: "/pwa-192.png", sizes: "192x192"}, {url: "/pwa-512.png", sizes: "512x512"}],
   appleWebApp: { capable: true, title: "Elaris", statusBarStyle: "default" },
   themeColor: "#FAFAFA",
