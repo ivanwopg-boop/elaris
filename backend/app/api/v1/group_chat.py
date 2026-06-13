@@ -1,5 +1,6 @@
 """Group chat API routes — multi-persona conversation."""
 
+import asyncio
 import json
 import uuid
 from datetime import datetime, timezone
@@ -148,24 +149,40 @@ async def group_chat_listen(
         raise HTTPException(status_code=404, detail="Chat not found")
 
     last_id_seen = None
+    last_ts_seen = None
     last_msg_q = await db.execute(
-        select(GroupChatMessage.id).where(GroupChatMessage.chat_id == chat_id)
+        select(GroupChatMessage.id, GroupChatMessage.created_at).where(GroupChatMessage.chat_id == chat_id)
         .order_by(GroupChatMessage.created_at.desc()).limit(1)
     )
     last_row = last_msg_q.first()
     if last_row:
         last_id_seen = last_row[0]
+        last_ts_seen = last_row[1]
 
     async def event_generator():
-        nonlocal last_id_seen
+        nonlocal last_id_seen, last_ts_seen
+        # Yield ready first so client knows connection is live
         try:
             yield await _sse_event("ready", {"last_id": last_id_seen})
         except Exception:
             return
+        # Capture current max so we don't replay history on (re)connect
+        try:
+            cur = await db.execute(
+                select(GroupChatMessage.id, GroupChatMessage.created_at).where(GroupChatMessage.chat_id == chat_id)
+                .order_by(GroupChatMessage.created_at.desc()).limit(1)
+            )
+            cur_row = cur.first()
+            if cur_row:
+                last_id_seen = cur_row[0]
+                last_ts_seen = cur_row[1]
+        except Exception:
+            pass
         last_ping = asyncio.get_event_loop().time()
         while True:
             try:
-                if last_id_seen is None:
+                # Query by created_at (UUIDs aren't time-ordered, can't use id >)
+                if last_ts_seen is None:
                     q = await db.execute(
                         select(GroupChatMessage).where(GroupChatMessage.chat_id == chat_id)
                         .order_by(GroupChatMessage.created_at.asc())
@@ -174,12 +191,13 @@ async def group_chat_listen(
                     q = await db.execute(
                         select(GroupChatMessage).where(
                             GroupChatMessage.chat_id == chat_id,
-                            GroupChatMessage.id > last_id_seen
+                            GroupChatMessage.created_at > last_ts_seen
                         ).order_by(GroupChatMessage.created_at.asc())
                     )
                 new_msgs = q.scalars().all()
                 for m in new_msgs:
                     last_id_seen = m.id
+                    last_ts_seen = m.created_at
                     yield await _sse_event("message", {
                         "id": m.id,
                         "chat_id": m.chat_id,
@@ -196,7 +214,9 @@ async def group_chat_listen(
                 await asyncio.sleep(0.5)
             except asyncio.CancelledError:
                 break
-            except Exception:
+            except Exception as e:
+                import logging
+                logging.getLogger("sse").error(f"listener loop error: {type(e).__name__}: {e}")
                 break
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
