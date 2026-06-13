@@ -1,14 +1,14 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { MessageSquare, Users, Compass, User } from 'lucide-react';
+import { MessageSquare, Users, BookUser, User } from 'lucide-react';
 import { useLangStore, translations } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 
 const tabs = [
   { key: 'chat', labelKey: 'tab_chat', icon: (s: number) => <MessageSquare size={s} strokeWidth={1.5} /> },
-  { key: 'contacts', labelKey: 'tab_contacts', icon: (s: number) => <Users size={s} strokeWidth={1.5} /> },
-  { key: 'discover', labelKey: 'tab_discover', icon: (s: number) => <Compass size={s} strokeWidth={1.5} /> },
+  { key: 'groups', labelKey: 'tab_groups', icon: (s: number) => <Users size={s} strokeWidth={1.5} /> },
+  { key: 'contacts', labelKey: 'tab_contacts', icon: (s: number) => <BookUser size={s} strokeWidth={1.5} /> },
   { key: 'me', labelKey: 'tab_me', icon: (s: number) => <User size={s} strokeWidth={1.5} /> },
 ];
 

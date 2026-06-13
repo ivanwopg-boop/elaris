@@ -23,7 +23,7 @@ interface PersonaSummary {
   category?: string | null;
 }
 
-type TabKey = 'chat' | 'contacts' | 'discover' | 'me';
+type TabKey = 'chat' | 'groups' | 'contacts' | 'me';
 
 
 const PRESET_CATEGORIES = [
@@ -83,7 +83,7 @@ interface ConversationItem {
 
 // ── Chat Tab (Conversation List) ─────────────────────────────
 
-function ChatTab({ tabStrings, conversations, setConversations, onNavigate, lastVisit }: { tabStrings: Record<string, string>; conversations: ConversationItem[]; setConversations: any; onNavigate: () => void; lastVisit: number }) {
+function ChatTab({ tabStrings, conversations, setConversations, lastVisit }: { tabStrings: Record<string, string>; conversations: ConversationItem[]; setConversations: any; lastVisit: number }) {
   const { toast } = useToast();
   const { lang } = useLangStore() as { lang: Lang };
   const router = useRouter();
@@ -92,27 +92,8 @@ function ChatTab({ tabStrings, conversations, setConversations, onNavigate, last
 
   const loadConversations = async () => {
     try {
-      const [data, groupData] = await Promise.all([
-        api.listConversations(),
-        api.listGroupChats().catch(() => []),
-      ]);
-      // Convert group chats to ConversationItem format
-      const groupItems: ConversationItem[] = groupData.map((g: any) => ({
-        id: g.id,
-        persona_id: g.persona_ids?.[0] || '',
-        persona_name: g.title || 'Group Chat',
-        persona_avatar: null,
-        last_message: null,
-        updated_at: g.created_at,
-        type: 'group' as const,
-        name: g.title,
-        participant_ids: g.persona_ids,
-      }));
-      // Merge and sort by updated_at desc
-      const merged = [...data, ...groupItems].sort((a, b) =>
-        new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
-      );
-      setConversations(merged as ConversationItem[]);
+      const data = await api.listConversations();
+      setConversations(data as ConversationItem[]);
     } catch {
       setConversations([]);
     } finally {
@@ -125,11 +106,7 @@ function ChatTab({ tabStrings, conversations, setConversations, onNavigate, last
   const handleDelete = async (conv: ConversationItem) => {
     setDeletingId(conv.id);
     try {
-      if (conv.type === 'group') {
-        await api.deleteGroupChat(conv.id);
-      } else {
-        await api.deleteConversation(conv.id);
-      }
+      await api.deleteConversation(conv.id);
       setConversations((prev: ConversationItem[]) => prev.filter((c: ConversationItem) => c.id !== conv.id));
     } catch (err: any) {
       toast(tabStrings.delete_failed || "Delete failed", "error");
@@ -161,13 +138,7 @@ function ChatTab({ tabStrings, conversations, setConversations, onNavigate, last
         </div>
         <p className="text-lg font-medium text-[#1D1D1F] mb-2">{tabStrings.no_chats}</p>
         <p className="text-sm text-[#86868B] font-light mb-10 leading-relaxed max-w-[240px]">{tabStrings.chat_with_them}</p>
-        <button
-          onClick={onNavigate}
-          className="px-10 py-3.5 rounded-full bg-[#1D1D1F] text-white text-sm font-medium hover:bg-[#3C3C3E] active:bg-[#000] active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-lg shadow-black/10"
-        >
-          {tabStrings.go_discover}
-          <ChevronRight size={16} strokeWidth={1.5} />
-        </button>
+        
       </div>
 
     );
@@ -188,19 +159,13 @@ function ChatTab({ tabStrings, conversations, setConversations, onNavigate, last
           <div
             className="flex items-center gap-3 px-4 py-4 border-b border-[rgba(0,0,0,0.04)] active:bg-[rgba(0,0,0,0.02)] active:scale-[0.98] transition-all cursor-pointer relative"
             style={{ minHeight: '64px' }}
-            onClick={() => router.push(conv.type === 'group' ? `/group-chat/${conv.id}` : `/chat/${conv.persona_id}?conv=${conv.id}`)}
+            onClick={() => router.push(`/chat/${conv.persona_id}?conv=${conv.id}`)}
             onContextMenu={(e) => { e.preventDefault(); handleDelete(conv); }}
           >
             {isUnread && (
               <div className="absolute left-1.5 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-[#0071E3]" aria-label="Unread" />
             )}
-            {conv.type === 'group' ? (
-              <div className="w-10 h-10 rounded-full bg-[rgba(0,0,0,0.04)] flex items-center justify-center shrink-0">
-                <Users size={18} className="text-[#86868B]" strokeWidth={1.5} />
-              </div>
-            ) : (
-              <Avatar name={getLocalizedPresetName(conv.persona_name, lang)} url={conv.persona_avatar} size="md" />
-            )}
+            <Avatar name={getLocalizedPresetName(conv.persona_name, lang)} url={conv.persona_avatar} size="md" />
             <div className="flex-1 min-w-0">
               <p className="text-base font-medium text-[#1D1D1F] truncate">{getLocalizedPresetName(conv.persona_name, lang)}</p>
               {conv.last_message && (
@@ -222,7 +187,7 @@ function ChatTab({ tabStrings, conversations, setConversations, onNavigate, last
 
 // ── Contacts Tab ──────────────────────────────────────────────
 
-function ContactsTab({ isActive, onNavigate, tabStrings, contacts, setContacts, token }: { isActive?: boolean; onNavigate: () => void; tabStrings: Record<string, string>; contacts?: any[]; setContacts?: any; token?: string | null }) {
+function ContactsTab({ tabStrings, contacts, setContacts, token }: { tabStrings: Record<string, string>; contacts?: any[]; setContacts?: any; token?: string | null }) {
   const { lang } = useLangStore();
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const loading = false; // ChatsContent handles fetching
@@ -296,12 +261,6 @@ function ContactsTab({ isActive, onNavigate, tabStrings, contacts, setContacts, 
         </div>
         <p className="text-lg font-medium text-[#1D1D1F] mb-2">{tabStrings.no_contacts}</p>
         <p className="text-sm text-[#86868B] font-light mb-10 leading-relaxed max-w-[240px]">{tabStrings.add_contacts_hint}</p>
-        <button
-          onClick={onNavigate}
-          className="px-10 py-3.5 rounded-full bg-[#1D1D1F] text-white text-sm font-medium hover:bg-[#3C3C3E] active:bg-[#000] active:scale-[0.98] transition-all shadow-lg shadow-black/10"
-        >
-          {tabStrings.go_discover}
-        </button>
       </div>
 
     );
@@ -341,153 +300,109 @@ className="flex items-center gap-3 px-4 py-4 border-b border-[rgba(0,0,0,0.04)] 
 
 // ── Discover Tab ──────────────────────────────────────────────
 
-const FEATURED_IDS = ["338103d3-2555-4e17-9bb6-2801521d5e36",
-    "c5effabc-cfd0-4bdb-8222-6baa7b5e365c",
-    "65b2c442-d15c-42bb-8f2d-c4d8e25ca3fe",
-    "254072df-98f4-437d-bfd6-bdb64db5ea52",
-    "2acdfdd2-9b03-4cc7-8fb5-0438ead2dc05"];
 
-function DiscoverTab({ tabStrings, onContactAdded }: { tabStrings: Record<string, string>; onContactAdded?: (p?: any) => void }) {
-  const { lang } = useLangStore();
-  const CATEGORIES = [
-    { key: "all", label: lang === "zh-CN" ? "全部" : "All" },
-    { key: "tech", label: lang === "zh-CN" ? "科技" : "Tech" },
-    { key: "business", label: lang === "zh-CN" ? "商业" : "Business" },
-    { key: "entertainment", label: lang === "zh-CN" ? "文艺" : "Arts" },
-    { key: "sports", label: lang === "zh-CN" ? "体育" : "Sports" },
-    { key: "politics", label: lang === "zh-CN" ? "政界" : "Politics" },
-    { key: "science", label: lang === "zh-CN" ? "科学" : "Science" },
-    { key: "other", label: lang === "zh-CN" ? "其他" : "Other" },
-  ];
-  const router = useRouter();
-  const token = useAuthStore((s) => s.token);
+
+
+
+// ── Groups Tab ──────────────────────────────────────────────
+
+function GroupTab({ tabStrings }: { tabStrings: Record<string, string> }) {
   const { toast } = useToast();
-  const [presets, setPresets] = useState<PersonaSummary[]>([]);
+  const { lang } = useLangStore() as { lang: Lang };
+  const router = useRouter();
+  const [groups, setGroups] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeCat, setActiveCat] = useState("all");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  useEffect(() => {
-    api.listPresets(lang)
-      .then((all) => {
-        // Guests (no token): only show 5 featured. Logged-in: show all.
-        const list = !token ? all.filter((p: any) => FEATURED_IDS.includes(p.id)) : all;
-        setPresets(list);
-      })
-      .catch(() => setPresets([]))
-      .finally(() => setLoading(false));
-  }, [token]);
+  const loadGroups = async () => {
+    try {
+      const data = await api.listGroupChats();
+      setGroups(data);
+    } catch {
+      setGroups([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { loadGroups(); }, []);
+
+  const handleDelete = async (id: string) => {
+    setDeletingId(id);
+    try {
+      await api.deleteGroupChat(id);
+      setGroups((prev) => prev.filter((g) => g.id !== id));
+    } catch (err: any) {
+      toast(tabStrings.delete_failed || "Delete failed", "error");
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const formatTime = (iso: string) => {
+    if (!iso) return "";
+    const d = new Date(iso.endsWith("Z") || iso.includes("+") ? iso : iso.replace(" ", "T") + "Z");
+    const now = new Date();
+    const diff = now.getTime() - d.getTime();
+    if (diff < 86400000) return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    if (diff < 604800000) return d.toLocaleDateString([], { weekday: "short" });
+    return d.toLocaleDateString([], { month: "short", day: "numeric" });
+  };
 
   if (loading) return <LoadingSpinner />;
 
-  if (presets.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
-        <div className="w-24 h-24 rounded-3xl bg-gradient-to-br from-[#E8E8ED] to-[#F5F5F7] flex items-center justify-center mb-6">
-          <Sparkles size={40} strokeWidth={1} className="text-[#86868B]" />
-        </div>
-        <p className="text-lg font-medium text-[#1D1D1F] mb-2">{tabStrings.no_presets}</p>
-        <p className="text-sm text-[#86868B] font-light leading-relaxed max-w-[240px]">{tabStrings.check_back_later}</p>
-      </div>
-
-    );
-  }
-
-  const handleAddToContacts = async (e: React.MouseEvent, p: PersonaSummary) => {
-    e.stopPropagation();
-    if (!token) {
-      window.location.href = '/login';
-      return;
-    }
-    try {
-      await api.addContact(p.id);
-      if (onContactAdded) onContactAdded(p);
-      toast((p.name || '') + " " + (tabStrings.added_to_contacts || "added to contacts"), "success");
-    } catch {
-      toast(tabStrings.add_failed || "Add to contacts failed", "error");
-    }
-  };
-
-  const handleDeletePreset = async (p: PersonaSummary) => {
-    if (!token) {
-      // Not logged in → prompt sign in instead of failing silently
-      if (window.confirm(tabStrings.continue_as_guest_login || 'Sign in to delete personas. Go to login?')) {
-        window.location.href = '/login';
-      }
-      return;
-    }
-    try {
-      await api.deletePreset(p.id);
-      setPresets(prev => prev.filter(x => x.id !== p.id));
-    } catch (err: any) {
-      toast(tabStrings.delete_failed || 'Delete failed', 'error');
-    }
-  };
-  const handleSwipeDelete = (p: PersonaSummary) => {
-    handleDeletePreset(p);
-  };
-
-  const filtered = activeCat === "all" ? presets : presets.filter((p) => (p.category || "other") === activeCat);
-
   return (
-    <div>
-      <div className="flex gap-2 px-4 py-3 overflow-x-auto border-b border-[rgba(0,0,0,0.04)]">
-        {CATEGORIES.map((cat) => (
-          <button
-            key={cat.key}
-            onClick={() => setActiveCat(cat.key)}
-            className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-light transition-all active:scale-[0.98] ${activeCat === cat.key ? 'bg-[#0071E3] text-white' : 'bg-[#F5F5F7] text-[#86868B]'}`}
-          >
-            {cat.label}
-          </button>
-        ))}
-      </div>
-      <div className="p-4 grid grid-cols-1 gap-3">
-        {filtered.map((p) => (
-          <SwipeableRow
-            key={p.id}
-            onDelete={() => handleSwipeDelete(p)}
-            deleteLabel={tabStrings.delete || "Delete"}
-          >
-            <div key={p.id} className="rounded-3xl border border-[rgba(0,0,0,0.06)] bg-white overflow-hidden">
-            <button
-              onClick={() => window.location.href = `/persona/${p.id}`}
-              className="w-full text-left p-4 active:bg-[rgba(0,0,0,0.02)] active:scale-[0.98] transition-all"
-            >
-              <div className="flex items-start gap-4">
-                <Avatar name={getLocalizedPresetName(p.name, lang)} url={p.avatar_url} size="lg" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-base font-medium text-[#1D1D1F] mb-1">{getLocalizedPresetName(p.name, lang)}</p>
-                  {p.description && (
-                    <p className="text-sm text-[#86868B] font-light leading-relaxed line-clamp-2">{p.description}</p>
-                  )}
-                </div>
-              </div>
-            </button>
-            <div className="px-4 pb-4 flex gap-2">
-              {token && (
-                <button
-                  onClick={(e) => handleAddToContacts(e, p)}
-                  className="flex-1 py-2.5 rounded-full border border-[rgba(0,0,0,0.12)] text-sm font-light text-[#1D1D1F] bg-white active:bg-[rgba(0,0,0,0.04)] active:scale-[0.98] transition-all"
-                >
-                  {tabStrings.add_to_contacts}
-                </button>
-              )}
-              <button
-                onClick={() => token ? window.location.href = `/chat/${p.id}` : window.location.href = '/login'}
-                className="flex-1 py-2.5 rounded-full bg-[#1D1D1F] text-white text-sm font-light active:bg-[#3C3C3E] active:scale-[0.98] transition-all"
-              >
-                {tabStrings.start_chat}
-              </button>
-            </div>
+    <div className="bg-white">
+      {groups.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
+          <div className="w-24 h-24 rounded-3xl bg-gradient-to-br from-[#E8E8ED] to-[#F5F5F7] flex items-center justify-center mb-6">
+            <Users size={40} strokeWidth={1} className="text-[#86868B]" />
           </div>
+          <p className="text-lg font-medium text-[#1D1D1F] mb-2">{tabStrings.no_group_chats || "No group chats"}</p>
+          <button
+            onClick={() => router.push("/group-chat/new")}
+            className="px-10 py-3.5 rounded-full bg-[#1D1D1F] text-white text-sm font-medium hover:bg-[#3C3C3E] active:bg-[#000] active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-lg shadow-black/10"
+          >
+            <Plus size={16} strokeWidth={1.5} />
+            {tabStrings.create_group_chat || "New Group"}
+          </button>
+        </div>
+      ) : (
+        groups.map((g: any) => (
+          <SwipeableRow
+            key={g.id}
+            onDelete={() => handleDelete(g.id)}
+            deleteLabel={tabStrings.delete || "Delete"}
+            deleting={deletingId === g.id}
+          >
+            <div
+              className="flex items-center gap-3 px-4 py-4 border-b border-[rgba(0,0,0,0.04)] active:bg-[rgba(0,0,0,0.02)] active:scale-[0.98] transition-all cursor-pointer"
+              style={{ minHeight: "64px" }}
+              onClick={() => router.push(`/group-chat/${g.id}`)}
+            >
+              <div className="w-10 h-10 rounded-full bg-[rgba(0,0,0,0.04)] flex items-center justify-center shrink-0">
+                <Users size={18} className="text-[#86868B]" strokeWidth={1.5} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-base font-medium text-[#1D1D1F] truncate">{g.title || "Group Chat"}</p>
+                <p className="text-sm text-[#86868B] font-light truncate mt-0.5">
+                  {(g.persona_ids?.length || 0)} members{(g.message_count != null) ? ` · ${g.message_count} messages` : ""}
+                </p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-xs text-[#AEAEB2] font-light">{formatTime(g.created_at)}</span>
+                <ChevronRight size={18} className="text-[#C7C7CC]" strokeWidth={1.5} />
+              </div>
+            </div>
           </SwipeableRow>
-        ))}
-      </div>
+        ))
+      )}
     </div>
   );
 }
 
 // ── Me Tab ────────────────────────────────────────────────────
+
 // ── Me Tab ────────────────────────────────────────────────────
 
 function MeTab({ tabStrings }: { tabStrings: Record<string, string> }) {
@@ -610,12 +525,8 @@ function ChatsContent() {
   // Pre-compute all tab-specific strings
   const TAB_STRINGS = {
     no_chats: t.no_chats,
-    chat_with_them: t.chat_with_them,
-    go_discover: t.go_discover,
     no_contacts: t.no_contacts,
     add_contacts_hint: t.add_contacts_hint,
-    no_presets: t.no_presets,
-    check_back_later: t.check_back_later,
     added_to_contacts: t.added_to_contacts,
     add_failed: t.add_failed,
     add_to_contacts: t.add_to_contacts,
@@ -627,11 +538,15 @@ function ChatsContent() {
     account_settings: t.account_settings,
     help_feedback: t.help_feedback,
     about: t.about,
+    saved: t.saved,
+    upload_failed: t.upload_failed,
+    delete: t.delete,
+    delete_failed: t.delete_failed,
   };
   const TAB_TITLES: Record<TabKey, string> = {
     chat: t.tab_chat,
+    groups: t.tab_groups,
     contacts: t.tab_contacts,
-    discover: t.tab_discover,
     me: t.tab_me,
   };
   const [myPersonas, setMyPersonas] = useState<PersonaSummary[]>([]);
@@ -664,7 +579,7 @@ function ChatsContent() {
 
   useEffect(() => { loadMyPersonas(); }, [token]);
 
-  const handleNavigateToDiscover = () => setActiveTab('discover');
+  
 
   return (
     <div
@@ -678,7 +593,7 @@ function ChatsContent() {
       <AppBar
         title={TAB_TITLES[activeTab]}
         action={
-          (activeTab === 'chat' || activeTab === 'contacts') ? (
+          (activeTab === 'chat' || activeTab === 'groups') ? (
             <button
               onClick={() => setShowActionSheet(true)}
               className="w-7 h-7 rounded-full bg-[#1D1D1F] text-white flex items-center justify-center hover:bg-[#3C3C3E] active:bg-[#000] transition-colors"
@@ -704,9 +619,9 @@ function ChatsContent() {
           <LoadingSpinner />
         ) : (
           <>
-            {activeTab === 'chat' && <ChatTab tabStrings={TAB_STRINGS} conversations={conversations} setConversations={setConversations} onNavigate={handleNavigateToDiscover} lastVisit={lastVisit} />}
-            {activeTab === 'contacts' && <ContactsTab isActive={activeTab === 'contacts'} onNavigate={handleNavigateToDiscover} tabStrings={TAB_STRINGS} contacts={contacts} setContacts={setContacts} token={token} />}
-            {activeTab === 'discover' && <DiscoverTab tabStrings={TAB_STRINGS} onContactAdded={(p) => { window.dispatchEvent(new CustomEvent('contact-added', { detail: p })); }} />}
+            {activeTab === 'chat' && <ChatTab tabStrings={TAB_STRINGS} conversations={conversations} setConversations={setConversations} lastVisit={lastVisit} />}
+            {activeTab === 'contacts' && <ContactsTab tabStrings={TAB_STRINGS} contacts={contacts} setContacts={setContacts} token={token} />}
+            {activeTab === 'groups' && <GroupTab tabStrings={TAB_STRINGS} />}
             {activeTab === 'me' && <MeTab tabStrings={TAB_STRINGS} />}
           </>
         )}
@@ -733,18 +648,6 @@ function ChatsContent() {
                   <div className="text-left flex-1">
                     <p className="text-sm font-medium text-[#1D1D1F]">{t.create_group_chat || "Create Group Chat"}</p>
                     <p className="text-xs text-[#86868B] font-light">{t.chat_with_multi || "Chat with multiple personas"}</p>
-                  </div>
-                </button>
-                <button
-                  onClick={() => { setShowActionSheet(false); router.push('/personas/new'); }}
-                  className="w-full flex items-center gap-4 px-4 py-4 rounded-xl bg-[#F5F5F7] hover:bg-[#EDEDED] active:bg-[#E5E5E5] transition-colors"
-                >
-                  <div className="w-10 h-10 rounded-full bg-[#1D1D1F] flex items-center justify-center">
-                    <Sparkles size={20} strokeWidth={1.5} className="text-white" />
-                  </div>
-                  <div className="text-left flex-1">
-                    <p className="text-sm font-medium text-[#1D1D1F]">{t.create_persona || "Create Persona"}</p>
-                    <p className="text-xs text-[#86868B] font-light">{t.distill_twin || "Distill your own AI twin"}</p>
                   </div>
                 </button>
               </div>
