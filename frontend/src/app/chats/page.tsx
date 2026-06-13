@@ -164,14 +164,7 @@ function ChatTab({ tabStrings, conversations, setConversations, lastVisit }: { t
             onContextMenu={(e) => { e.preventDefault(); handleDelete(conv); }}
           >
 
-            <div className="relative shrink-0">
-              <Avatar name={getLocalizedPresetName(conv.persona_name, lang)} url={conv.persona_avatar} size="md" />
-              {isUnread && (
-                <div className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full bg-[#FF3B30] flex items-center justify-center ring-2 ring-white">
-                  <span className="text-[10px] font-medium text-white leading-none px-1">1</span>
-                </div>
-              )}
-            </div>
+            <Avatar name={getLocalizedPresetName(conv.persona_name, lang)} url={conv.persona_avatar} size="md" />
             <div className="flex-1 min-w-0">
               <p className="text-base font-medium text-[#1D1D1F] truncate">{getLocalizedPresetName(conv.persona_name, lang)}</p>
               {conv.last_message && (
@@ -179,7 +172,14 @@ function ChatTab({ tabStrings, conversations, setConversations, lastVisit }: { t
               )}
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              <span className="text-xs text-[#AEAEB2] font-light">{formatTime(conv.updated_at)}</span>
+              {isUnread && (
+                <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full bg-[#FF3B30] px-1">
+                  <span className="text-[10px] font-medium text-white leading-none">1</span>
+                </span>
+              )}
+              {!isUnread && (
+                <span className="text-xs text-[#AEAEB2] font-light">{formatTime(conv.updated_at)}</span>
+              )}
               <ChevronRight size={18} className="text-[#C7C7CC]" strokeWidth={1.5} />
             </div>
           </div>
