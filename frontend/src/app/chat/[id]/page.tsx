@@ -6,7 +6,7 @@ import { useLangStore, translations } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/Avatar";
 import { api, PersonaDetail } from "@/lib/api";
-import { ChevronLeft, Copy, Trash2, X, Check, ClipboardCheck, Share2 } from "lucide-react";
+import { ChevronLeft, Copy, Trash2, X, Check, ClipboardCheck } from "lucide-react";
 
 function ft(t: number) {
   if (!t) return "";
@@ -29,11 +29,13 @@ function TypeText({ text, speed = 20, animate = false }: { text: string; speed?:
     }, speed);
     return () => window.clearInterval(t);
   }, [text, speed, animate]);
-  return <span>{d}</span>;
-}
 
-const LEVEL_LABEL = ["", "Lv1", "Lv2", "Lv3", "Lv4", "Lv5"];
-const LEVEL_COLOR = ["", "#86868B", "#6B7FD6", "#D676A6", "#E8913A", "#E04A3A"];
+
+  useEffect(() => {
+    if (!id) return;
+    api.getIntimacy(id as string).then(setIntimacy).catch(() => {});
+  }, [id]);  return <span>{d}</span>;
+}
 
 export default function ChatPage() {
   const params = useParams();
@@ -68,11 +70,6 @@ export default function ChatPage() {
         .then((data) => setMsgs(data.map((m: any) => ({ role: m.role, content: m.content, id: m.id || m.role + "-" + Date.now(), time: m.created_at ? new Date(m.created_at).getTime() : undefined }))))
         .catch(() => {});
     }
-    // Mark conversation as read when opened
-    const urlConvId = new URLSearchParams(window.location.search).get("conv");
-    if (urlConvId) {
-      api.request(`/conversations/${urlConvId}/mark-read`, { method: "POST" }).catch(() => {});
-    }
     api.getPersona(id).then((p) => {
       setPersona(p);
       if (!p.has_soul) {
@@ -95,11 +92,6 @@ export default function ChatPage() {
       }
     }).catch(() => router.push("/"));
   }, [id, router, convId]);
-
-  useEffect(() => {
-    if (!id) return;
-    api.getIntimacy(id as string).then(setIntimacy).catch(() => {});
-  }, [id]);
 
   useEffect(() => { ref.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs.length, liveContent, sending]);
 
@@ -228,7 +220,6 @@ export default function ChatPage() {
     });
   };
 
-  const shareSelected = async () => { const sel = msgs.filter(m => selectedIds.has(m.id)); if (!sel.length) return; const n = persona?.name || "AI"; const t = sel.map(m => m.content.slice(0, 200)).join(" | "); const text = n + ": " + t + " - Chat at elaris.ai"; if (navigator.share) { try { await navigator.share({ text }); return; } catch(e) {} } try { await navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch(e) {} };
   const selectAll = () => {
     const allIds = msgs.map(m => m.id);
     setSelectedIds(new Set(allIds));
@@ -314,7 +305,6 @@ export default function ChatPage() {
             <span className="text-sm font-light text-[#1D1D1F]">selected</span>
             <div className="flex-1" />
             <button onClick={selectAll} className="text-xs text-[#0071E3] font-light px-2 py-1 rounded-md hover:bg-[rgba(0,113,227,0.06)] transition-colors">Select All</button>
-            <button onClick={shareSelected} className="text-xs text-[#0071E3] font-light px-2 py-1 rounded-md hover:bg-[rgba(0,113,227,0.06)] transition-colors flex items-center gap-1"><Share2 size={14} strokeWidth={1.5}/>Share</button>
           </div>
         ) : (
           <div className="max-w-3xl mx-auto px-4 h-14 flex items-center gap-3">
@@ -325,7 +315,7 @@ export default function ChatPage() {
               <Avatar name={persona?.name || "?"} url={persona?.avatar_url} size="sm" className="shrink-0" />
             </button>
             <button onClick={() => router.push(`/persona/${id}`)} className="text-sm font-light truncate text-left hover:text-[#0071E3] transition-colors" title="View profile">{n}</button><span className="text-[10px] text-[#AEAEB2] font-light shrink-0">AI persona</span>
-            {intimacy && intimacy.message_count > 0 && <span className="text-[11px] font-light shrink-0 px-1.5 py-0.5 rounded-full" style={{backgroundColor:LEVEL_COLOR[intimacy.level]||LEVEL_COLOR[1],color:"#fff"}} title={intimacy.level_name}>{LEVEL_LABEL[intimacy.level]||""}</span>}
+            {intimacy && intimacy.message_count > 0 && <span className="text-[11px] font-light shrink-0 px-1.5 py-0.5 rounded-full" style={{backgroundColor:LEVEL_COLOR[intimacy.level]||LEVEL_COLOR[1],color:"#fff"}}>{LEVEL_LABEL[intimacy.level]||""} {intimacy.level_name}</span>}
             <div className="flex-1" />
           </div>
         )}

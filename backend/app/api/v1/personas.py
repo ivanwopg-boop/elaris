@@ -6,7 +6,7 @@ import os, uuid
 from pathlib import Path
 from fastapi import Request, APIRouter, Depends, HTTPException, status, Query, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 
 from app.database import get_db
 from app.models.schemas import PersonaCreate, PersonaUpdate, PersonaOut, PersonaDetail

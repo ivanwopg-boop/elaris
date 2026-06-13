@@ -187,7 +187,9 @@ class User(Base):
     avatar_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
     birth_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     age_verified: Mapped[bool] = mapped_column(Boolean, default=False)
-    tier: Mapped[str] = mapped_column(String(16), default="free")  # "free" | "premium" | "admin" | "restricted"
+    tier: Mapped[str] = mapped_column(String(16), default="free")  # "free" | "plus" | "pro" | "admin" | "restricted"
+    daily_msg_count: Mapped[int] = mapped_column(Integer, default=0)
+    daily_msg_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     provider: Mapped[str | None] = mapped_column(String(32), nullable=True)  # "google" | "twitter" | "email" | "invite"
     provider_id: Mapped[str | None] = mapped_column(String(256), nullable=True)  # OAuth sub
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)

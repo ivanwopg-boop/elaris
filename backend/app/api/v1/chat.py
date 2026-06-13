@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete
+from sqlalchemy import select, func, delete
 
 from app.database import get_db
 from app.models.db_models import Persona, PersonaSoul, Conversation as ConvTable, ConversationMessage
@@ -376,9 +376,54 @@ Please factor in the above information when responding."""
     return StreamingResponse(event_gen(), media_type="text/event-stream")
 
 
+
+
+# ── Phase 7: Tier Limits ──────────────────────────────────
+TIER_LIMITS = {
+    "free": {"msg_per_day": 50, "persona_slots": 3, "group_chats": 1, "memory_days": 7},
+    "plus": {"msg_per_day": 300, "persona_slots": 10, "group_chats": 3, "memory_days": 9999},
+    "pro": {"msg_per_day": 9999, "persona_slots": 9999, "group_chats": 10, "memory_days": 9999},
+    "admin": {"msg_per_day": 9999, "persona_slots": 9999, "group_chats": 9999, "memory_days": 9999},
+}
+
+async def check_rate_limit(user_id: str, tier: str, db: AsyncSession) -> dict | None:
+    """Check if user has exceeded daily message limit by counting today's messages."""
+    limit = TIER_LIMITS.get(tier, TIER_LIMITS["free"])["msg_per_day"]
+    if tier in ("plus", "pro", "admin"):
+        return None
+
+    # Count messages sent by this user today
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    cr = await db.execute(
+        select(func.count()).select_from(ConversationMessage).where(
+            ConversationMessage.user_id == user_id,
+            ConversationMessage.role == "user",
+            ConversationMessage.created_at >= today_start,
+        )
+    )
+    today_count = cr.scalar_one()
+
+    if today_count >= limit:
+        return {
+            "error": "limit_reached",
+            "message": f"You have reached the daily message limit ({limit}). Upgrade to Plus for 300 messages/day.",
+            "tier": tier,
+            "usage": today_count,
+            "limit": limit,
+        }
+    return None
+
 # ── Blocking endpoints ────────────────────────────────────────
 
 async def _handle_mode(request: ChatRequest, user_id: str, db: AsyncSession, user_tier: str = "free") -> ChatResponse:
+    # Phase 7: Rate limit check
+    ur = await db.execute(select(User).where(User.id == user_id))
+    _u = ur.scalar_one_or_none()
+    if _u:
+        _limit = await check_rate_limit(user_id, _u.tier or "free", db)
+        if _limit:
+            return ChatResponse(message=_limit["message"], sources=["system"], style_match=0.0)
+
     # Safety filter: check input
     safety = check_input(request.message)
     if not safety["safe"]:
