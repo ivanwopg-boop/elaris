@@ -43,6 +43,7 @@ export default function ChatPage() {
   const { lang } = useLangStore();
   const tl = translations[lang];
   const [sending, setSending] = useState(false);
+  const [building, setBuilding] = useState(false);
   const [streamError, setStreamError] = useState<string | null>(null);
   const [liveContent, setLiveContent] = useState("");
   const ref = useRef<HTMLDivElement>(null);
@@ -66,6 +67,7 @@ export default function ChatPage() {
     api.getPersona(id).then((p) => {
       setPersona(p);
       if (!p.has_soul) {
+        setBuilding(true);
         // Backend auto-distills in background — just poll until ready
         // Poll until soul is ready
         const poll = setInterval(() => {
@@ -73,6 +75,7 @@ export default function ChatPage() {
             if (pp.has_soul) {
               clearInterval(poll);
               setPersona(pp);
+              setBuilding(false);
               setMsgs([]);
             }
           }).catch(() => {});
@@ -312,9 +315,18 @@ export default function ChatPage() {
       {/* Messages */}
       <div className={`flex-1 overflow-y-auto px-4 py-6 ${selectMode ? "pb-32" : ""}`}>
         <div className="max-w-3xl mx-auto">
-          {msgs.length === 0 && !liveContent && (
+          {msgs.length === 0 && !liveContent && !building && (
             <div className="text-center pt-24">
               <p className="text-sm text-[#86868B] font-light">Start a conversation with {n}</p>
+            </div>
+          )}
+          {building && (
+            <div className="flex flex-col items-center justify-center pt-20 gap-4">
+              <div className="w-10 h-10 rounded-full bg-[#F5F5F7] flex items-center justify-center">
+                <div className="w-5 h-5 border-2 border-[#0071E3] border-t-transparent rounded-full animate-spin" />
+              </div>
+              <p className="text-sm text-[#1D1D1F] font-light">Building your conversation partner...</p>
+              <p className="text-xs text-[#86868B] font-light">This takes around 30 seconds — we are searching the web and learning how {n} thinks.</p>
             </div>
           )}
           {msgs.map((m) => {
@@ -433,12 +445,12 @@ export default function ChatPage() {
                   send();
                 }
               }}
-              placeholder={tl.input_placeholder}
+              placeholder={building ? "Building your conversation partner..." : tl.input_placeholder}
               rows={1}
               className="flex-1 resize-none bg-white border border-[rgba(0,0,0,0.08)] rounded-[10px] px-4 py-3 text-base text-[#1D1D1F] placeholder-[#86868B] focus:outline-none focus:border-[#0071E3] font-light leading-snug" style={{ fontSize: "16px", maxHeight: "144px" }}
               disabled={sending}
             />
-            <Button onClick={send} loading={sending} disabled={!input.trim()}>{tl.send}</Button>
+            <Button onClick={send} loading={sending} disabled={!input.trim() || building}>{tl.send}</Button>
           </div>
         </footer>
       )}
