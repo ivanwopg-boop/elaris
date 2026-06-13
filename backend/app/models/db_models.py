@@ -268,6 +268,8 @@ class PersonaUserMemory(Base):
     summary: Mapped[str] = mapped_column(Text, default="")
     key_facts: Mapped[str] = mapped_column(Text, default="[]")  # JSON array of strings
     message_count: Mapped[int] = mapped_column(Integer, default=0)
+    xp: Mapped[int] = mapped_column(Integer, default=0)
+    level: Mapped[int] = mapped_column(Integer, default=1)
     last_interacted: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)

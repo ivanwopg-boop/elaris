@@ -10,7 +10,7 @@ from sqlalchemy import select
 
 from app.database import get_db
 from app.models.schemas import PersonaCreate, PersonaUpdate, PersonaOut, PersonaDetail
-from app.models.db_models import Persona, User
+from app.models.db_models import Persona, PersonaUserMemory, User
 from app.services import persona_service
 from app.config import get_settings
 from app.core.auth_deps import require_auth, require_auth_optional, require_premium
@@ -38,7 +38,7 @@ async def create_persona(data: PersonaCreate, db: AsyncSession = Depends(get_db)
     # not just the single most-recently-created soul row.
     if data.source_id:
         from sqlalchemy import select
-        from app.models.db_models import PersonaSoul, PersonaFile, WebSearchResult
+        from app.models.db_models import Persona, PersonaUserMemorySoul, PersonaFile, WebSearchResult
         from datetime import datetime
 
         # 1. Copy latest soul per lang (en, zh-CN) — preserves bilingual coverage.
@@ -170,7 +170,7 @@ async def list_contacts(user = Depends(require_auth), db: AsyncSession = Depends
 @router.delete("/presets/{persona_id}")
 async def delete_preset(persona_id: str, user = Depends(require_auth), db: AsyncSession = Depends(get_db)):
     """Delete a preset persona from Discover tab."""
-    from app.models.db_models import Persona
+    from app.models.db_models import Persona, PersonaUserMemory
     from sqlalchemy import select, delete
     result = await db.execute(select(Persona).where(Persona.id == persona_id, Persona.user_id == None))
     preset = result.scalar_one_or_none()
@@ -251,3 +251,41 @@ async def delete_persona(persona_id: str, user = Depends(require_auth), db: Asyn
     deleted = await persona_service.delete_persona(persona_id, db, user_id=user.id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Persona not found or access denied")
+
+
+# ── Phase 2: Intimacy System ─────────────────────────────
+@router.get("/{persona_id}/intimacy")
+async def get_intimacy(
+    persona_id: str,
+    user: User = Depends(require_auth),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get intimacy level and progress for this persona-user pair."""
+    from app.services.memory_service import LEVEL_THRESHOLDS, LEVEL_NAMES, get_level, get_next_level_xp
+    result = await db.execute(
+        select(PersonaUserMemory).where(
+            PersonaUserMemory.persona_id == persona_id,
+            PersonaUserMemory.user_id == user.id,
+        )
+    )
+    mem = result.scalars().first()
+
+    if not mem:
+        return {
+            "level": 1,
+            "level_name": LEVEL_NAMES[0],
+            "xp": 0,
+            "next_level_xp": LEVEL_THRESHOLDS[1] if len(LEVEL_THRESHOLDS) > 1 else 0,
+            "message_count": 0,
+            "next_level": LEVEL_NAMES[1] if len(LEVEL_NAMES) > 1 else None,
+        }
+
+    level = mem.level or 1
+    return {
+        "level": level,
+        "level_name": LEVEL_NAMES[min(level - 1, len(LEVEL_NAMES) - 1)],
+        "xp": mem.xp or 0,
+        "next_level_xp": get_next_level_xp(mem.xp or 0),
+        "message_count": mem.message_count or 0,
+        "next_level": LEVEL_NAMES[level] if level < len(LEVEL_NAMES) else None,
+    }
