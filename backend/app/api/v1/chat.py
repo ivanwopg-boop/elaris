@@ -16,6 +16,7 @@ from app.core.minimax_client import minimax_client
 from app.core.prompts import CHAT_SYSTEM_PROMPT
 from app.api.v1.chat_utils import needs_web_search
 from app.services.web_search import search_web
+from app.services.memory_service import get_memory_context, generate_memory_summary
 from app.core.auth_deps import require_auth, require_auth_optional
 from app.core.safety_filter import check_input, check_output, check_restricted_output
 from app.core.auth import decode_token
@@ -248,12 +249,15 @@ async def chat_stream(persona_id: str, message: str, conv: str = None, request: 
         if _u2 and _u2.tier == "restricted":
             restricted_reminder = "\n8. USER IS A MINOR (13-16): Keep responses age-appropriate. Avoid mature themes. Gently suggest breaks every so often."
 
+    # Inject persona memory (Phase 1: Bond System)
+    _memory_ctx = await get_memory_context(persona_id, user_id, db)
+
     system_prompt = CHAT_SYSTEM_PROMPT.format(
             current_date=datetime.now().strftime("%Y-%m-%d"),
         name=info["name"],
         search_context=search_context + restricted_reminder,
         soul_json=json.dumps(info["soul"], indent=2, ensure_ascii=False),
-        memory_context="",
+        memory_context=_memory_ctx,
     )
 
     # ── Context gate: only load history when the message needs it ──
@@ -325,6 +329,24 @@ Please factor in the above information when responding."""
                 assistant_msg_id = await _save_message(conv_id, user_id, persona_id, "assistant", reply, db)
             yield await _sse_event("chat_message", {"content": reply})
             yield await _sse_event("done", {"user_msg_id": user_msg_id, "assistant_msg_id": assistant_msg_id})
+
+            # Phase 1: Generate conversation summary (async, non-blocking)
+            try:
+                _conv_msgs = await db.execute(
+                    select(ConversationMessage)
+                    .where(ConversationMessage.conversation_id == conv_id)
+                    .order_by(ConversationMessage.created_at.desc())
+                    .limit(10)
+                )
+                _recent = list(reversed(_conv_msgs.scalars().all()))
+                _conv_text = "\n".join(
+                    f"{'User' if m.role == 'user' else 'AI'}: {m.content[:200]}"
+                    for m in _recent
+                )
+                if len(_conv_text) > 50:  # only summarize if there's substance
+                    await generate_memory_summary(persona_id, user_id, _conv_text, db, minimax_client)
+            except Exception as _me:
+                _log.warning(f"[MEMORY] Post-chat summary failed: {_me}")
         except Exception as e:
             yield await _sse_event("error", {"message": str(e)})
 
@@ -425,10 +447,12 @@ async def _handle_mode(request: ChatRequest, user_id: str, db: AsyncSession, use
                     search_context += "\n\n⚠️ CRITICAL: No verified dates found in these results. Do NOT fabricate dates, venues, or schedules. Say you don't have confirmed information if asked about specific events."
     except Exception:
         pass
+    # Inject persona memory (Phase 1: Bond System)
+    _memory_ctx = await get_memory_context(request.persona_id, user_id, db)
     system_prompt = CHAT_SYSTEM_PROMPT.format(
         current_date=datetime.now().strftime("%Y-%m-%d"),
         name=info["name"], soul_json=json.dumps(info["soul"], indent=2, ensure_ascii=False),
-        memory_context=memory_context,
+        memory_context=memory_context + "\n" + _memory_ctx if _memory_ctx else memory_context,
         search_context=search_context,
     )
     user_msg = request.message
@@ -454,6 +478,25 @@ Please factor in the above information when responding."""
         if not _rc["safe"]:
             reply = _rc["message"]
     await _save_message(conv_id, user_id, request.persona_id, "assistant", reply, db)
+
+    # Phase 1: Generate conversation summary (best-effort, don't block response)
+    try:
+        _conv_msgs = await db.execute(
+            select(ConversationMessage)
+            .where(ConversationMessage.conversation_id == conv_id)
+            .order_by(ConversationMessage.created_at.desc())
+            .limit(10)
+        )
+        _recent = list(reversed(_conv_msgs.scalars().all()))
+        _conv_text = "\n".join(
+            f"{'User' if m.role == 'user' else 'AI'}: {m.content[:200]}"
+            for m in _recent
+        )
+        if len(_conv_text) > 50:
+            await generate_memory_summary(request.persona_id, user_id, _conv_text, db, minimax_client)
+    except Exception as _me:
+        pass  # Don't fail the response over memory issues
+
     return ChatResponse(message=reply, sources=["L3"], style_match=0.85)
 
 @router.post("/chat", response_model=ChatResponse)

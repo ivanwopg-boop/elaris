@@ -256,3 +256,22 @@ class Contact(Base):
     __table_args__ = (
         UniqueConstraint("user_id", "persona_id", name="uq_user_persona"),
     )
+
+
+# ── PersonaUserMemory (Phase 1: Bond System) ─────────────
+class PersonaUserMemory(Base):
+    __tablename__ = "persona_user_memory"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    persona_id: Mapped[str] = mapped_column(String(36), ForeignKey("personas.id", ondelete="CASCADE"), nullable=False)
+    user_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    summary: Mapped[str] = mapped_column(Text, default="")
+    key_facts: Mapped[str] = mapped_column(Text, default="[]")  # JSON array of strings
+    message_count: Mapped[int] = mapped_column(Integer, default=0)
+    last_interacted: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
+
+    __table_args__ = (
+        UniqueConstraint("persona_id", "user_id", name="uq_persona_user_memory"),
+    )
