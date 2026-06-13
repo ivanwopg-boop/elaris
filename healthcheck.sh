@@ -11,6 +11,12 @@ BE_OK=$(timeout 5 curl -s -o /dev/null -w '%{http_code}' http://localhost:8000/h
 
 FE_VALID=false
 BE_VALID=false
+
+SX_OK=$(timeout 5 curl -s -o /dev/null -w '%{http_code}' http://localhost:8888/search?q=test 2>/dev/null || echo '000')
+SX_VALID=false
+case "$SX_OK" in 200|303) SX_VALID=true ;; esac
+
+BE_VALID=false
 case "$FE_OK" in 200|307|304) FE_VALID=true ;; esac
 case "$BE_OK" in 200) BE_VALID=true ;; esac
 
