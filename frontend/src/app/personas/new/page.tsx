@@ -26,11 +26,6 @@ export default function CreatePersonaPage() {
       if (keywords.trim()) {
         try { await api.addManualInput(persona.id, { title: keywords.trim(), background: keywords.trim() }) } catch {}
       }
-      // Fire-and-forget distillation — no waiting, no blocking
-      api.distill(persona.id, lang).catch(() => {});
-      if (lang !== "en") {
-        api.distill(persona.id, "en").catch(() => {});
-      }
       router.push("/chat/" + persona.id);
     } catch (e: any) {
       setStage("error");

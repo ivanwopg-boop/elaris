@@ -65,19 +65,23 @@ export default function ChatPage() {
     }
     api.getPersona(id).then((p) => {
       setPersona(p);
-      // If persona was just created and has no soul, poll until ready
       if (!p.has_soul) {
+        // Auto-trigger distillation — browser connection pool safe (no parallel drain)
+        setTimeout(() => {
+          api.distill(id, lang).catch(() => {});
+          if (lang !== "en") { api.distill(id, "en").catch(() => {}); }
+        }, 500);
+        // Poll until soul is ready
         const poll = setInterval(() => {
           api.getPersona(id).then((pp) => {
             if (pp.has_soul) {
               clearInterval(poll);
               setPersona(pp);
-              // Auto-trigger first greeting message
-              setMsgs([]);  // clear any empty state
+              setMsgs([]);
             }
           }).catch(() => {});
         }, 3000);
-        setTimeout(() => clearInterval(poll), 120000); // max 2min
+        setTimeout(() => clearInterval(poll), 120000);
       }
     }).catch(() => router.push("/"));
   }, [id, router, convId]);
