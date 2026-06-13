@@ -219,11 +219,29 @@ export default function GroupChatRoom() {
     lastCount.current += 1;
     setAllMsgs((p) => [...p, { id: `u-${Date.now()}`, sender_type: "user", sender_name: userName, content: text }]);
     try {
-      // Listen handles new messages; send-blocking waits for the orchestrator to finish.
       await fetch(`/api/v1/group-chat/${id}/send-blocking`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: text }),
       });
+    } catch {}
+    // Safety net: re-fetch full chat to ensure messages appear
+    // even if the SSE listener hasn't delivered them yet.
+    try {
+      const updated = await api.getGroupChat(id);
+      if (updated.messages.length > allMsgs.length) {
+        setAllMsgs(updated.messages);
+        lastCount.current = updated.messages.length;
+        // Update persona name map from new messages
+        updated.messages.forEach((m: any) => {
+          if (m.sender_type === "persona" && m.sender_id && m.sender_name) {
+            setPersonaNameMap((prev) => {
+              const next = { ...prev };
+              next[m.sender_id] = { name: m.sender_name, avatar_url: prev[m.sender_id]?.avatar_url };
+              return next;
+            });
+          }
+        });
+      }
     } catch {}
     setSending(false); setThinking(null);
   };
