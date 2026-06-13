@@ -325,8 +325,8 @@ export default function ChatPage() {
               <div className="w-10 h-10 rounded-full bg-[#F5F5F7] flex items-center justify-center">
                 <div className="w-5 h-5 border-2 border-[#0071E3] border-t-transparent rounded-full animate-spin" />
               </div>
-              <p className="text-sm text-[#1D1D1F] font-light">Building your conversation partner...</p>
-              <p className="text-xs text-[#86868B] font-light">This takes around 30 seconds — we are searching the web and learning how {n} thinks.</p>
+              <p className="text-sm text-[#1D1D1F] font-light">Preparing your conversation.</p>
+              <p className="text-xs text-[#86868B] font-light">Just a moment.</p>
             </div>
           )}
           {msgs.map((m) => {
