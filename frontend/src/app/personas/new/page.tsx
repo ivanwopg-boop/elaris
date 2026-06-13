@@ -1,152 +1,104 @@
 "use client";
 
 import { useState } from "react";
-import { useLangStore, translations } from '@/lib/i18n';
+import { useLangStore, translations } from "@/lib/i18n";
 import { useRouter } from "next/navigation";
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
 
-type DistillStage = "idle" | "searching" | "analyzing" | "distilling" | "done" | "error";
+type Stage = "idle" | "creating" | "distilling" | "done" | "error";
 
 export default function CreatePersonaPage() {
   const { lang } = useLangStore();
   const t = translations[lang];
-  const [category, setCategory] = useState("other");
   const router = useRouter();
-  const [sourceName, setSourceName] = useState("");  // real person for web search
-  const [displayName, setDisplayName] = useState("");  // AI persona name
-  const [keywords, setKeywords] = useState("");
-  const [stage, setStage] = useState<DistillStage>("idle");
-  const [error, setError] = useState<string>("");
+  const [name, setName] = useState("");
+  const [stage, setStage] = useState<Stage>("idle");
+  const [error, setError] = useState("");
+  const [personaId, setPersonaId] = useState("");
 
-  const handleDistill = async () => {
-    if (!sourceName.trim()) { alert(t.enter_name || "Please enter the real person's name"); return; }
-    if (!displayName.trim()) { alert(t.name_label || "Please enter a name for your AI persona"); return; }
-    if (displayName.trim().toLowerCase() === sourceName.trim().toLowerCase()) { alert("AI persona name must be different from the source person"); return; }
-    if (!keywords.trim()) { alert(t.enter_keywords || "Please enter keywords to help AI search"); return; }
-    setStage("searching");
+  const handleGo = async () => {
+    const n = name.trim();
+    if (!n) return;
+    setStage("creating");
     setError("");
     try {
-      // 1. Create persona with AI display name + source name for search
-      const persona = await api.createPersona({ name: displayName.trim(), source_name: sourceName.trim(), category });
-
-      // 2. Add keywords as background for web search query generation
-      await api.addManualInput(persona.id, {
-        title: keywords.trim(),
-        background: keywords.trim(),
-      });
-
-      // 3. Trigger distillation — AI will auto-search using source name + keywords
-      setStage("analyzing");
-      const otherLang = lang === "zh-CN" ? "en" : "zh-CN";
+      // Create persona — name is both display name and search source
+      const persona = await api.createPersona({ name: n, source_name: n, category: "other" });
+      setPersonaId(persona.id);
+      setStage("distilling");
+      // Distill in current language only (faster), other lang follows async
       await api.distill(persona.id, lang);
-      await api.distill(persona.id, otherLang);
-
-      setStage("done");
-      // Add to contacts & notify tabs BEFORE navigation
-      const addRes = await fetch(`/api/v1/personas/contacts/${persona.id}`, { method: "POST" });
-      if (addRes.ok) {
-        // Store in sessionStorage so ContactsTab catches it after navigation
-        sessionStorage.setItem("pending-contact-add", JSON.stringify({ id: persona.id, name: persona.name }));
-        window.dispatchEvent(new CustomEvent("contact-added", { detail: { id: persona.id, name: persona.name } }));
+      if (lang !== "en") {
+        try { await api.distill(persona.id, "en"); } catch {}
       }
-      // Navigate to contacts tab
-      setTimeout(() => router.push("/chats?tab=contacts"), 1500);
+      // Navigate directly to the chat page
+      router.push("/chat/" + persona.id);
     } catch (e: any) {
       setStage("error");
-      setError(e.message || (t.distill_failed || "Distillation failed"));
+      setError(e.message || (t.distill_failed || "Something went wrong"));
     }
   };
 
-  const stageLabels: Record<DistillStage, string> = {
+  const stageText: Record<Stage, string> = {
     idle: "",
-    searching: t.stage_searching || "Searching the web for information...",
-    analyzing: t.stage_analyzing || "Analyzing search results and extracting cognitive traits...",
-    distilling: t.stage_distilling || "Forging soul in EN + ZH...",
-    done: t.stage_done || "Persona created! Redirecting...",
+    creating: "Creating...",
+    distilling: "Searching the web and building your conversation partner...",
+    done: "",
     error: "",
   };
 
   return (
-    <div className="max-w-xl mx-auto px-6 py-16">
-      <button onClick={() => router.push("/personas")} className="text-xs text-[#86868B] font-light hover:text-[#6E6E73] mb-6">{t.back}</button>
-      <h1 className="text-2xl font-extralight tracking-tight mb-2">{t.one_click_title || "One-Click Distillation"}</h1>
-      <p className="text-xs text-[#86868B] font-light mb-10">
-        Enter a name and keywords. AI will search the web and create the persona automatically.
-      </p>
-
-      <div className="space-y-5">
-        <Card>
-          <h3 className="text-xs font-light text-[#86868B] mb-3 tracking-wide">{t.field_name || "Who is this based on?"} <span className="text-red-400">*</span></h3>
-          <p className="text-xs text-[#86868B] font-light mb-2">The real person's name. Only used for web search.</p>
-          <input value={sourceName} onChange={(e) => setSourceName(e.target.value)}
-            placeholder={t.name_placeholder || "E.g., Elon Musk, 张一鸣, 稻盛和夫"}
-            className="w-full bg-white border border-[rgba(0,0,0,0.08)] rounded-[10px] px-4 py-3 text-sm text-[#1D1D1F] placeholder-[#86868B] focus:outline-none focus:border-[#0071E3] font-light" />
-        </Card>
-
-        <Card>
-          <h3 className="text-xs font-light text-[#86868B] mb-3 tracking-wide">{t.name_label || "AI Persona Name"} <span className="text-red-400">*</span></h3>
-          <p className="text-xs text-[#86868B] font-light mb-2">Give your AI persona a unique name. Cannot be the same as the person above.</p>
-          <input value={displayName} onChange={(e) => setDisplayName(e.target.value)}
-            placeholder="E.g., Silicon Prophet, 算法诗人, Cosmic Thinker"
-            className="w-full bg-white border border-[rgba(0,0,0,0.08)] rounded-[10px] px-4 py-3 text-sm text-[#1D1D1F] placeholder-[#86868B] focus:outline-none focus:border-[#0071E3] font-light" />
-        </Card>
-
-        <Card>
-          <h3 className="text-xs font-light text-[#86868B] mb-3 tracking-wide">{t.category_label || "Category"}</h3>
-          <select value={category} onChange={(e) => setCategory(e.target.value)}
-            className="w-full bg-white border border-[rgba(0,0,0,0.08)] rounded-[10px] px-4 py-3 text-sm text-[#1D1D1F] focus:outline-none focus:border-[#0071E3] font-light appearance-none">
-            <option value="tech">{t.cat_tech || "Tech"}</option>
-            <option value="politics">{t.cat_politics || "Politics"}</option>
-            <option value="business">{t.cat_business || "Business"}</option>
-            <option value="entertainment">{t.cat_entertainment || "Entertainment"}</option>
-            <option value="science">{t.cat_science || "Science"}</option>
-            <option value="sports">{t.cat_sports || "Sports"}</option>
-            <option value="other">{t.cat_other || "Other"}</option>
-          </select>
-        </Card>
-
-        <Card>
-          <h3 className="text-xs font-light text-[#86868B] mb-3 tracking-wide">{t.keywords_label || "Keywords"} <span className="text-red-400">*</span></h3>
-          <p className="text-xs text-[#86868B] font-light mb-3 leading-relaxed">
-            Describe this person in a few keywords or a short sentence. AI uses this to generate search queries.
-          </p>
-          <textarea value={keywords} onChange={(e) => setKeywords(e.target.value)}
-            placeholder={t.keywords_placeholder || "E.g., Tesla CEO, SpaceX founder, tech entrepreneur, born 1971, South Africa"}
-            rows={4}
-            className="w-full bg-white border border-[rgba(0,0,0,0.08)] rounded-[10px] px-4 py-3 text-sm text-[#1D1D1F] placeholder-[#86868B] focus:outline-none focus:border-[#0071E3] font-light resize-none" />
-        </Card>
-
-        {stage !== "idle" && stage !== "done" && stage !== "error" && (
-          <div className="text-center py-4">
-            <div className="inline-block w-5 h-5 border-2 border-[#0071E3] border-t-transparent rounded-full animate-spin mb-3" />
-            <p className="text-xs text-[#86868B] font-light">{stageLabels[stage]}</p>
-          </div>
+    <div className="min-h-screen flex flex-col items-center justify-center bg-[#F5F5F7] px-6">
+      <div className="w-full max-w-[360px] text-center">
+        {stage === "idle" && (
+          <>
+            <h1 className="text-xl font-light text-[#1D1D1F] tracking-[-0.01em] mb-2">
+              Who do you want to talk to?
+            </h1>
+            <p className="text-xs text-[#86868B] font-light mb-8">
+              Anyone you can think of.
+            </p>
+            <div className="relative">
+              <input
+                autoFocus
+                value={name}
+                onChange={e => setName(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter") handleGo(); }}
+                placeholder="Enter a name"
+                className="w-full bg-white border border-[rgba(0,0,0,0.1)] rounded-xl px-5 py-4 text-base text-[#1D1D1F] placeholder-[#86868B] focus:outline-none focus:border-[#1D1D1F] transition-colors font-light text-center"
+              />
+            </div>
+            <button
+              onClick={handleGo}
+              disabled={!name.trim()}
+              className="mt-3 w-full py-3.5 rounded-xl bg-[#1D1D1F] text-white text-sm font-light hover:bg-[#3C3C3E] active:bg-[#000] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            >
+              Go
+            </button>
+            <p className="text-[11px] text-[#AEAEB2] font-light mt-4">
+              Musk · Miyazaki · Austen · Turing
+            </p>
+          </>
         )}
 
-        {stage === "done" && (
-          <div className="text-center py-4">
-            <p className="text-xs text-green-600 font-light">✓ {stageLabels.done}</p>
+        {(stage === "creating" || stage === "distilling") && (
+          <div className="flex flex-col items-center gap-4">
+            <div className="w-8 h-8 border-2 border-[#1D1D1F] border-t-transparent rounded-full animate-spin" />
+            <p className="text-sm text-[#86868B] font-light">{stageText[stage]}</p>
           </div>
         )}
 
         {stage === "error" && (
-          <div className="text-center py-4">
-            <p className="text-xs text-red-500 font-light">✗ {error}</p>
-            <button onClick={() => setStage("idle")} className="mt-2 text-xs text-[#0071E3] hover:underline">{t.try_again || "Try again"}</button>
+          <div className="flex flex-col items-center gap-4">
+            <p className="text-sm text-red-500 font-light">{error}</p>
+            <button
+              onClick={() => setStage("idle")}
+              className="text-sm text-[#1D1D1F] hover:underline font-light"
+            >
+              {t.try_again || "Try again"}
+            </button>
           </div>
         )}
-
-        <Button
-          className="w-full"
-          size="lg"
-          onClick={handleDistill}
-          disabled={stage !== "idle" || !sourceName.trim() || !displayName.trim() || !keywords.trim()}
-          loading={stage !== "idle" && stage !== "done" && stage !== "error"}
-        >
-          {stage === "idle" ? (t.start_distillation || "Start Distillation") : stageLabels[stage] || (t.processing || "Processing...")}
-        </Button>
       </div>
     </div>
   );
