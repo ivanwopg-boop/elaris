@@ -79,10 +79,7 @@ function LoginForm() {
             <a className="block text-sm text-[#86868B] hover:text-[#1D1D1F] font-light transition-colors" href="/register">
               {t.no_account || 'No account?'} <span className="text-[#1D1D1F]">{t.create_one || 'Create one'}</span>
             </a>
-            <a className="block text-sm text-[#86868B] hover:text-[#1D1D1F] font-light transition-colors mt-2" href="/chats">
-              {t.continue_as_guest || 'Continue as guest →'}
-            </a>
-          </div>
+</div>
         </div>
       </div>
     </div>

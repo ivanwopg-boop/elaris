@@ -156,11 +156,11 @@ export const api = {
   getSoul: (personaId: string) =>
     api.request<any>(`/personas/${personaId}/soul`),
 
-  // Chat / Write / Advise
-  chat: (personaId: string, message: string, mode: "chat" | "write" | "advise" = "chat", context?: string) =>
-    api.request<ChatResponse>(`/${mode}`, {
+  // Chat
+  chat: (personaId: string, message: string, context?: string) =>
+    api.request<ChatResponse>('/chat', {
       method: "POST",
-      body: JSON.stringify({ persona_id: personaId, message, mode, context }),
+      body: JSON.stringify({ persona_id: personaId, message, context }),
     }),
 
   // Brainstorm

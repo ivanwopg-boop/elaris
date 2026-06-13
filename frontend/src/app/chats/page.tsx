@@ -461,7 +461,7 @@ function DiscoverTab({ tabStrings, onContactAdded }: { tabStrings: Record<string
                 </button>
               )}
               <button
-                onClick={() => window.location.href = `/guest-chat/${p.id}`}
+                onClick={() => token ? window.location.href = `/chat/${p.id}` : window.location.href = '/login'}
                 className="flex-1 py-2.5 rounded-full bg-[#1D1D1F] text-white text-sm font-light active:bg-[#3C3C3E] active:scale-[0.98] transition-all"
               >
                 {tabStrings.start_chat}

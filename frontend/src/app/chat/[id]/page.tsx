@@ -43,6 +43,7 @@ export default function ChatPage() {
   const { lang } = useLangStore();
   const tl = translations[lang];
   const [sending, setSending] = useState(false);
+  const [streamError, setStreamError] = useState<string | null>(null);
   const [liveContent, setLiveContent] = useState("");
   const ref = useRef<HTMLDivElement>(null);
   const esRef = useRef<EventSource | null>(null);
@@ -68,6 +69,7 @@ export default function ChatPage() {
   useEffect(() => { liveRef.current = liveContent; }, [liveContent]);
 
   const send = () => {
+    setStreamError(null);
     if (!input.trim() || sending) return;
     if (selectMode) return; // Don't send in select mode
     const text = input.trim(); setInput(""); setSending(true); setLiveContent("");
@@ -104,7 +106,13 @@ export default function ChatPage() {
       }
     });
 
-    es.onerror = () => { es.close(); setSending(false); };
+    es.onerror = () => {
+      es.close();
+      setSending(false);
+      setLiveContent("");
+      liveRef.current = "";
+      setStreamError(tl.error_occurred || "Connection lost. Please try again.");
+    };
   };
 
   // ── Click-to-select (tap message to enter multi-select) ──
@@ -290,7 +298,12 @@ export default function ChatPage() {
               </div>
             </div>
           )}
-          {sending && !liveContent && (
+          {streamError && (
+    <div className="fixed top-12 left-0 right-0 z-30 px-4 py-2 bg-red-50 border-b border-red-200 text-red-700 text-xs font-light text-center">
+      {streamError}
+    </div>
+  )}
+  {sending && !liveContent && (
             <div className="flex justify-start mb-5">
               <div className="flex items-center gap-2 px-4 py-3 text-sm text-[#86868B] font-light">
                 <span className="flex gap-0.5">

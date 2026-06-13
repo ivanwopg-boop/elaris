@@ -101,10 +101,7 @@ function RegisterForm() {
             <a className="block text-sm text-[#86868B] hover:text-[#1D1D1F] font-light transition-colors" href="/login">
               {t.already_have_account || 'Already have an account?'} <span className="text-[#1D1D1F]">{t.sign_in || 'Sign in'}</span>
             </a>
-            <a className="block text-sm text-[#86868B] hover:text-[#1D1D1F] font-light transition-colors mt-2" href="/chats">
-              {t.continue_as_guest || 'Continue as guest →'}
-            </a>
-          </div>
+</div>
         </div>
       </div>
     </div>

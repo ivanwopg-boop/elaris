@@ -13,6 +13,7 @@ import { DistillProgress } from "@/components/DistillProgress";
 import { Avatar } from "@/components/Avatar";
 import { api, PersonaDetail, FileOut } from "@/lib/api";
 import { useLangStore, translations } from "@/lib/i18n";
+import { useAuthStore } from "@/lib/auth-store";
 import { formatDate, fileIcon } from "@/lib/utils";
 
 export default function PersonaDetailPage() {
@@ -31,6 +32,7 @@ export default function PersonaDetailPage() {
   const [uploadMsg, setUploadMsg] = useState<string>("");
   const [activeTab, setActiveTab] = useState<"soul" | "files" | "search">("soul");
   const { lang } = useLangStore();
+  const { token } = useAuthStore();
     const { toast } = useToast();
   const t = translations[lang];
 
@@ -181,7 +183,7 @@ if (loading) {
           </div>
         </div>
         <div className="flex gap-2">
-          <Button variant="primary" size="sm" className="sm:size-md" onClick={() => window.location.href = `/guest-chat/${id}`}>{t.chat || "Chat"}</Button>
+          <Button variant="primary" size="sm" className="sm:size-md" onClick={() => window.location.href = token ? `/chat/${id}` : '/login'}>{t.chat || "Chat"}</Button>
         </div>
       </div>
 
