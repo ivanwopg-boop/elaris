@@ -26,6 +26,7 @@ export default function PersonaDetailPage() {
   const [distillError, setDistillError] = useState<string>();
   const [uploadStatus, setUploadStatus] = useState<"idle" | "uploading" | "done" | "error">("idle");
   const [uploadMsg, setUploadMsg] = useState<string>("");
+  const [intimacy, setIntimacy] = useState<{level:number;level_name:string;xp:number;next_level_xp:number;message_count:number;next_level:string|null} | null>(null);
   const [activeTab, setActiveTab] = useState<"soul" | "files" | "search">("soul");
   const { lang } = useLangStore();
   const { token } = useAuthStore();
@@ -46,6 +47,7 @@ export default function PersonaDetailPage() {
         setSoul(p.soul || null);
         setSoulVersion(p.soul_version ?? null);
       }
+      api.getIntimacy(id).then(setIntimacy).catch(() => {});
       const f = await api.listFiles(id);
       setFiles(f);
     } catch (e: any) {
@@ -184,7 +186,36 @@ if (loading) {
         </div>
       </div>
 
-      {/* Blueprint */}
+      {/* Intimacy Progress */}
+      {intimacy && intimacy.message_count > 0 && (
+        <div className="max-w-2xl mx-auto px-4 pb-2">
+          {(() => {
+            const thresholds = [0, 100, 500, 2000, 5000];
+            const level = intimacy.level || 1;
+            const curXP = intimacy.xp || 0;
+            const levelStart = thresholds[Math.min(level - 1, 4)];
+            const levelEnd = thresholds[Math.min(level, 5)];
+            const totalXP = levelEnd - levelStart;
+            const progressXP = Math.max(0, curXP - levelStart);
+            const pct = level >= 5 ? 100 : Math.min(100, Math.round((progressXP / totalXP) * 100));
+            return (
+              <div className="rounded-xl bg-white border border-[rgba(0,0,0,0.06)] px-4 py-3">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-xs font-medium text-[#1D1D1F]">Relationship Level {level}/5 — {intimacy.level_name}</span>
+                  <span className="text-[10px] text-[#AEAEB2] font-light">{curXP} XP · {intimacy.message_count || 0} chats</span>
+                </div>
+                <div className="h-1.5 bg-[#F5F5F7] rounded-full overflow-hidden">
+                  <div className="h-full rounded-full bg-gradient-to-r from-[#6B7FD6] to-[#D676A6] transition-all duration-500"
+                       style={{width: pct + "%"}}></div>
+                </div>
+                {intimacy.next_level && <p className="text-[10px] text-[#AEAEB2] font-light mt-1">Next: {intimacy.next_level} · {intimacy.next_level_xp} XP to go</p>}
+              </div>
+            );
+          })()}
+        </div>
+      )}
+
+      {/* Blueprint */}      {/* Blueprint */}
       <div className="max-w-2xl mx-auto space-y-5">
         <SoulCard soul={soul} version={soulVersion ?? undefined} name={persona?.name} />
         {persona.user_id && (

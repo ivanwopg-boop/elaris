@@ -265,6 +265,11 @@ export const api = {
     if (!res.ok) throw new Error(`Export failed: ${res.status}`);
     return res.blob();
   },
+  // Phase 2: Intimacy
+    getIntimacy: (personaId: string) =>
+    api.request<{ level: number; level_name: string; xp: number; next_level_xp: number; message_count: number; next_level: string | null }>(`/personas/${personaId}/intimacy`),
+  
+
 };
 
 // Type definitions (matching backend schemas)
