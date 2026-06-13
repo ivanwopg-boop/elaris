@@ -190,7 +190,7 @@ if (loading) {
       {/* Tabs */}
       <div className="flex gap-4 sm:gap-6 border-b border-[rgba(0,0,0,0.06)] mb-8">
         {[
-          { key: "soul" as const, label: t.tab_dna },
+          { key: "soul" as const, label: t.tab_blueprint },
           { key: "files" as const, label: `${t.tab_files} (${files.length})` },
           { key: "search" as const, label: t.tab_search },
         ].map((tab) => (
