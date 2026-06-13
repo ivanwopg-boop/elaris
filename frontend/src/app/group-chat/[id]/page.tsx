@@ -186,7 +186,8 @@ export default function GroupChatRoom() {
     const cursorPos = inputRef.current?.selectionStart || input.length;
     const before = input.slice(0, cursorPos);
     const after = input.slice(cursorPos);
-    const newValue = before.replace(/@[\w\u4e00-\u9fa5]*$/, `@${name} `) + after;
+    const displayName = name === "@all" ? "@all" : `@${name}`;
+    const newValue = before.replace(/@[\w\u4e00-\u9fa5]*$/, `${displayName} `) + after;
     setInput(newValue);
     setShowMentions(false);
     inputRef.current?.focus();
@@ -215,7 +216,16 @@ export default function GroupChatRoom() {
 
   const send = async () => {
     if (!input.trim() || sending) return;
-    const text = input.trim(); setInput(""); setSending(true); setThinking(t.waiting);
+    const text = input.trim(); setInput(""); setSending(true);
+    // Count active personas: parse @mentions to show accurate thinking text
+    const atMentions = text.match(/@([\w一-龥]+)/g);
+    const activeCount = atMentions
+      ? atMentions.filter(t => t !== "@all").length
+      : (chat?.persona_ids?.length || 1);
+    const thinkingText = activeCount > 1
+      ? `${activeCount} personas thinking...`
+      : t.waiting;
+    setThinking(thinkingText);
     lastCount.current += 1;
     setAllMsgs((p) => [...p, { id: `u-${Date.now()}`, sender_type: "user", sender_name: userName, content: text }]);
     try {

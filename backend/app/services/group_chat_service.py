@@ -229,7 +229,7 @@ async def run_group_chat_stream(
                         if _hits > 0:
                             persona_search_context = "\n".join(_parts)
                     _log.info(
-                        f"[PERSONA_SEARCH] name={persona['name']} q={_q[:60]!r} hits={_hits}"
+                        f"[PERSONA_SEARCH] name={persona['name']} q={_qs[0][:60]!r} hits={_hits}"
                     )
                 except Exception as _se:
                     import logging
