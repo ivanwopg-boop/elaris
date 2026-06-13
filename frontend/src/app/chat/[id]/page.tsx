@@ -63,7 +63,23 @@ export default function ChatPage() {
         .then((data) => setMsgs(data.map((m: any) => ({ role: m.role, content: m.content, id: m.id || m.role + "-" + Date.now(), time: m.created_at ? new Date(m.created_at).getTime() : undefined }))))
         .catch(() => {});
     }
-    api.getPersona(id).then(setPersona).catch(() => router.push("/"));
+    api.getPersona(id).then((p) => {
+      setPersona(p);
+      // If persona was just created and has no soul, poll until ready
+      if (!p.has_soul) {
+        const poll = setInterval(() => {
+          api.getPersona(id).then((pp) => {
+            if (pp.has_soul) {
+              clearInterval(poll);
+              setPersona(pp);
+              // Auto-trigger first greeting message
+              setMsgs([]);  // clear any empty state
+            }
+          }).catch(() => {});
+        }, 3000);
+        setTimeout(() => clearInterval(poll), 120000); // max 2min
+      }
+    }).catch(() => router.push("/"));
   }, [id, router, convId]);
 
   useEffect(() => { ref.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs.length, liveContent, sending]);

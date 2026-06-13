@@ -23,13 +23,13 @@ export default function CreatePersonaPage() {
     setError("");
     try {
       const persona = await api.createPersona({ name: n, source_name: n, category: "other" });
-      setStage("distilling");
       if (keywords.trim()) {
         try { await api.addManualInput(persona.id, { title: keywords.trim(), background: keywords.trim() }) } catch {}
       }
-      await api.distill(persona.id, lang);
+      // Fire-and-forget distillation — no waiting, no blocking
+      api.distill(persona.id, lang).catch(() => {});
       if (lang !== "en") {
-        try { await api.distill(persona.id, "en"); } catch {}
+        api.distill(persona.id, "en").catch(() => {});
       }
       router.push("/chat/" + persona.id);
     } catch (e: any) {
