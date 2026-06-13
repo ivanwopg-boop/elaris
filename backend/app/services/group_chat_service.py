@@ -281,7 +281,7 @@ async def run_group_chat_stream(
 
 
     # ── Round 2: ONE reaction per reactor, non-recursive ──
-    _reaction_limit = 2  # Max 2 reaction messages total, never recursive
+    _reaction_limit = 4  # Max 4 reactions messages total, never recursive
     if len(active_personas) >= 2:
         import random
         _all_ids = [p["id"] for p in active_personas]
