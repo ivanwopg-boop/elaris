@@ -75,7 +75,7 @@ export const translations: Record<Lang, Record<string, string>> = {
     field_personality_placeholder: "Known personality traits...",
     save_info: "Save Info",
     persona_not_found: "Persona not found",
-    tab_soul: "Soul",
+    tab_dna: "DNA",
     tab_files: "Files",
     tab_search: "Search",
     edit: "Edit",
@@ -106,11 +106,11 @@ export const translations: Record<Lang, Record<string, string>> = {
     chars: "chars",
 
     // SoulCard
-    not_distilled_soul: "Soul not yet forged",
+    not_distilled_dna: "DNA not yet extracted",
     inspired_by: "Inspired by the public works of",
 
     // ── Insight Card titles ──
-    insight_source: "Soul Origins",
+    insight_source: "AI DNA Origins",
     insight_perception: "How this persona perceives the world",
     insight_anchor: "What anchors this persona",
     insight_drive: "What drives this persona",

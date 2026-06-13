@@ -643,6 +643,27 @@ Below is a valid CognitiveProfileV2 JSON for a real person. Replace every field 
   }}
 }}
 ```
+
+## Non-Negotiable Output Rules
+
+1. Every string field MUST be filled. Never leave empty.
+2. Every array MUST have 2+ entries. Never return [].
+3. Voice samples: at least 2 quoted sentences using the person's known style.
+4. Signature expressions: at least 3 distinctive phrases.
+5. Deep domains: at least 2 areas of genuine expertise.
+6. The JSON must be 3000+ words. If shorter, you skipped something.
+
+n## Non-Negotiable Output Rules
+
+1. Every string field MUST be filled. Never leave empty.
+2. Every array MUST have 2+ entries. Never return [].
+3. Voice samples: at least 2 quoted sentences in their speaking style.
+4. Signature expressions: at least 3 distinctive phrases.
+5. Deep domains: at least 2 areas of genuine expertise.
+6. The JSON must be 3000+ words. Shorter = you skipped something.
+
+Output ONLY JSON. No preamble.
+Output ONLY JSON. No preamble.
 """
 
 

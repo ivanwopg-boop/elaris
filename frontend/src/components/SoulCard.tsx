@@ -222,31 +222,6 @@ export function SoulCard({ soul, version, name }: SoulCardProps) {
 
       </div>
 
-      {/* ── FULL DNA ARCHIVE ── */}
-      <div className="px-5 pt-1 pb-4">
-        <div className="border-t border-[rgba(0,0,0,0.06)] pt-3">
-          <ArchivePanel label={t.insight_archive || "Full DNA Archive"}>
-            <div className="text-[12px] font-light text-[#6E6E73] leading-relaxed space-y-4">
-              {[
-                ["identity", ident], ["cognitive_architecture", cog], ["perceptual_frameworks", per],
-                ["emotional_reactive_system", emo], ["expertise", exp],
-                ["communication_profile", comm], ["contextual_modulation", ctx],
-                ["relationship_dynamics", rel], ["voice_samples", vs], ["temporal_profile", tp],
-                ["knowledge_boundaries", kb]
-              ].map(([key, val]) => {
-                const entries = Object.entries(obj(val as any));
-                if (!entries.length) return null;
-                return <div key={key as string}><p className="text-[11px] font-medium text-[#AEAEB2] mb-1">{(key as string).replace(/_/g, " ")}</p>
-                  {entries.map(([k, v]) => {
-                    const display = typeof v === "string" ? v : JSON.stringify(v);
-                    if (!display || display === "[]" || display === "{}" || display === "null") return null;
-                    return <p key={k} className="mb-1"><span className="text-[#1D1D1F]">{k}:</span> {display.length > 300 ? display.slice(0, 300) + "\u2026" : display}</p>;
-                  })}</div>;
-              })}
-            </div>
-          </ArchivePanel>
-        </div>
-      </div>
-    </Card>
+      </Card>
   );
 }
