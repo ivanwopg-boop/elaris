@@ -32,9 +32,10 @@ function TypeText({ text, speed = 20, animate = false }: { text: string; speed?:
   return <span>{d}</span>;
 }
 
-export default function ChatPage() {
 const LEVEL_LABEL = ["", "Lv1", "Lv2", "Lv3", "Lv4", "Lv5"];
 const LEVEL_COLOR = ["", "#86868B", "#6B7FD6", "#D676A6", "#E8913A", "#E04A3A"];
+
+export default function ChatPage() {
   const params = useParams();
   const router = useRouter();
   const id = params.id as string;
@@ -88,11 +89,12 @@ const LEVEL_COLOR = ["", "#86868B", "#6B7FD6", "#D676A6", "#E8913A", "#E04A3A"];
         setTimeout(() => clearInterval(poll), 120000);
       }
     }).catch(() => router.push("/"));
+  }, [id, router, convId]);
 
   useEffect(() => {
     if (!id) return;
     api.getIntimacy(id as string).then(setIntimacy).catch(() => {});
-  }, [id]);  }, [id, router, convId]);
+  }, [id]);
 
   useEffect(() => { ref.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs.length, liveContent, sending]);
 
@@ -316,7 +318,7 @@ const LEVEL_COLOR = ["", "#86868B", "#6B7FD6", "#D676A6", "#E8913A", "#E04A3A"];
               <Avatar name={persona?.name || "?"} url={persona?.avatar_url} size="sm" className="shrink-0" />
             </button>
             <button onClick={() => router.push(`/persona/${id}`)} className="text-sm font-light truncate text-left hover:text-[#0071E3] transition-colors" title="View profile">{n}</button><span className="text-[10px] text-[#AEAEB2] font-light shrink-0">AI persona</span>
-            {intimacy && intimacy.message_count > 0 && <span className="text-[11px] font-light shrink-0 px-1.5 py-0.5 rounded-full" style={{backgroundColor:LEVEL_COLOR[intimacy.level]||LEVEL_COLOR[1],color:"#fff"}} title={intimacy.level_name}>{LEVEL_LABEL[intimacy.level]||""} Lv{intimacy.level}</span>}
+            {intimacy && intimacy.message_count > 0 && <span className="text-[11px] font-light shrink-0 px-1.5 py-0.5 rounded-full" style={{backgroundColor:LEVEL_COLOR[intimacy.level]||LEVEL_COLOR[1],color:"#fff"}} title={intimacy.level_name}>{LEVEL_LABEL[intimacy.level]||""}</span>}
             <div className="flex-1" />
           </div>
         )}
