@@ -66,11 +66,7 @@ export default function ChatPage() {
     api.getPersona(id).then((p) => {
       setPersona(p);
       if (!p.has_soul) {
-        // Auto-trigger distillation — browser connection pool safe (no parallel drain)
-        setTimeout(() => {
-          api.distill(id, lang).catch(() => {});
-          if (lang !== "en") { api.distill(id, "en").catch(() => {}); }
-        }, 500);
+        // Backend auto-distills in background — just poll until ready
         // Poll until soul is ready
         const poll = setInterval(() => {
           api.getPersona(id).then((pp) => {

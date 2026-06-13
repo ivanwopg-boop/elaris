@@ -1,5 +1,7 @@
 """Persona CRUD API routes."""
 
+import asyncio
+
 import os, uuid
 from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File
@@ -26,6 +28,27 @@ async def create_persona(data: PersonaCreate, db: AsyncSession = Depends(get_db)
     if not persona.avatar_url:
         persona.avatar_url = generate_avatar_url(persona.name)
         await db.flush()
+
+    # Auto-trigger distillation in background (no await — user gets persona immediately)
+    async def _auto_distill():
+        from app.database import async_session
+        async with async_session() as _db:
+            from app.services.web_search import ensure_web_search_results
+            from app.services.distill_service import distill_persona
+            import logging
+            _log = logging.getLogger("uvicorn")
+            try:
+                await ensure_web_search_results(persona.id, _db)
+                for lang, v2 in [("en", True), ("zh-CN", True)]:
+                    try:
+                        await distill_persona(persona.id, _db, lang=lang, use_v2=v2)
+                        await _db.commit()
+                    except Exception as le:
+                        _log.warning(f"Auto-distill {lang} failed for {persona.id}: {le}")
+                _log.info(f"Auto-distill complete for {persona.id}")
+            except Exception as e:
+                _log.error(f"Auto-distill failed for {persona.id}: {e}")
+    asyncio.create_task(_auto_distill())
 
     # If source_id provided, copy souls + files + web search results from source persona.
     # IMPORTANT: copy the LATEST soul for EACH language so the cloned persona is bilingual,
