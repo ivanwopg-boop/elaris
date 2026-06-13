@@ -163,14 +163,19 @@ function ChatTab({ tabStrings, conversations, setConversations, lastVisit }: { t
             onClick={() => router.push(`/chat/${conv.persona_id}?conv=${conv.id}`)}
             onContextMenu={(e) => { e.preventDefault(); handleDelete(conv); }}
           >
-            {isUnread && (
-              <div className="absolute left-0 top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full bg-[#FF3B30] ring-2 ring-white" aria-label="Unread" />
-            )}
-            <Avatar name={getLocalizedPresetName(conv.persona_name, lang)} url={conv.persona_avatar} size="md" />
+
+            <div className="relative shrink-0">
+              <Avatar name={getLocalizedPresetName(conv.persona_name, lang)} url={conv.persona_avatar} size="md" />
+              {isUnread && (
+                <div className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full bg-[#FF3B30] flex items-center justify-center ring-2 ring-white">
+                  <span className="text-[10px] font-medium text-white leading-none px-1">1</span>
+                </div>
+              )}
+            </div>
             <div className="flex-1 min-w-0">
               <p className="text-base font-medium text-[#1D1D1F] truncate">{getLocalizedPresetName(conv.persona_name, lang)}</p>
               {conv.last_message && (
-                <p className="text-sm text-[#86868B] font-light truncate mt-0.5">{conv.last_message}</p>
+                <p className={`text-sm truncate mt-0.5 ${isUnread ? "text-[#1D1D1F] font-normal" : "text-[#86868B] font-light"}`}>{conv.last_message}</p>
               )}
             </div>
             <div className="flex items-center gap-2 shrink-0">
