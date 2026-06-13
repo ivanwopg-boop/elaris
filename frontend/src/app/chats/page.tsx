@@ -84,6 +84,7 @@ interface ConversationItem {
 // ── Chat Tab (Conversation List) ─────────────────────────────
 
 function ChatTab({ tabStrings, conversations, setConversations, onNavigate }: { tabStrings: Record<string, string>; conversations: ConversationItem[]; setConversations: any; onNavigate: () => void }) {
+  const { toast } = useToast();
   const { lang } = useLangStore() as { lang: Lang };
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -121,14 +122,17 @@ function ChatTab({ tabStrings, conversations, setConversations, onNavigate }: { 
 
   useEffect(() => { loadConversations(); }, []);
 
-  const handleDelete = async (convId: string) => {
-    if (!confirm(tabStrings.delete_confirm_conv || "Delete this conversation?")) return;
-    setDeletingId(convId);
+  const handleDelete = async (conv: ConversationItem) => {
+    setDeletingId(conv.id);
     try {
-      await api.deleteConversation(convId);
-      setConversations((prev: ConversationItem[]) => prev.filter((c: ConversationItem) => c.id !== convId));
+      if (conv.type === 'group') {
+        await api.deleteGroupChat(conv.id);
+      } else {
+        await api.deleteConversation(conv.id);
+      }
+      setConversations((prev: ConversationItem[]) => prev.filter((c: ConversationItem) => c.id !== conv.id));
     } catch (err: any) {
-      alert((tabStrings.delete_failed || "Delete failed: ") + (err?.message || err));
+      toast(tabStrings.delete_failed || "Delete failed", "error");
     } finally {
       setDeletingId(null);
     }
@@ -174,7 +178,7 @@ function ChatTab({ tabStrings, conversations, setConversations, onNavigate }: { 
       {conversations.map((conv) => (
         <SwipeableRow
           key={conv.id}
-          onDelete={() => handleDelete(conv.id)}
+          onDelete={() => handleDelete(conv)}
           deleteLabel={tabStrings.delete || "Delete"}
           deleting={deletingId === conv.id}
         >
@@ -182,7 +186,7 @@ function ChatTab({ tabStrings, conversations, setConversations, onNavigate }: { 
             className="flex items-center gap-3 px-4 py-4 border-b border-[rgba(0,0,0,0.04)] active:bg-[rgba(0,0,0,0.02)] active:scale-[0.98] transition-all cursor-pointer"
             style={{ minHeight: '64px' }}
             onClick={() => router.push(conv.type === 'group' ? `/group-chat/${conv.id}` : `/chat/${conv.persona_id}?conv=${conv.id}`)}
-            onContextMenu={(e) => { e.preventDefault(); handleDelete(conv.id); }}
+            onContextMenu={(e) => { e.preventDefault(); handleDelete(conv); }}
           >
             {conv.type === 'group' ? (
               <div className="w-10 h-10 rounded-full bg-[rgba(0,0,0,0.04)] flex items-center justify-center shrink-0">
