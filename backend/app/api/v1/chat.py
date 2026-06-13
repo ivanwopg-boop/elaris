@@ -65,6 +65,7 @@ class ConversationListOut(BaseModel):
     type: str = "single"
     name: str | None = None
     participant_ids: list[str] = []
+    has_unread: bool = False
 
 
 # ── Conversation helpers ───────────────────────────────────────
@@ -606,14 +607,16 @@ async def list_conversations(user: User = Depends(require_auth), db: AsyncSessio
     rows = result.all()
     conversations = []
     for conv, persona in rows:
-        # Get last message preview
+        # Get last message preview + unread status
         msg_result = await db.execute(
-            select(ConversationMessage.content)
+            select(ConversationMessage.content, ConversationMessage.is_proactive)
             .where(ConversationMessage.conversation_id == conv.id)
             .order_by(ConversationMessage.created_at.desc())
             .limit(1)
         )
-        last_msg = msg_result.scalar_one_or_none()
+        msg_row = msg_result.first()
+        last_msg = msg_row[0] if msg_row else None
+        has_unread = bool(msg_row[1]) if msg_row else False
         participant_ids = []
         if conv.participant_ids:
             try:
@@ -630,6 +633,7 @@ async def list_conversations(user: User = Depends(require_auth), db: AsyncSessio
             type=conv.type or "single",
             name=conv.name,
             participant_ids=participant_ids,
+            has_unread=has_unread,
         ))
     return conversations
 

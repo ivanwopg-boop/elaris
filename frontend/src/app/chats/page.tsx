@@ -79,6 +79,7 @@ interface ConversationItem {
   type?: string;
   name?: string | null;
   participant_ids?: string[];
+  has_unread?: boolean;
 }
 
 // ── Chat Tab (Conversation List) ─────────────────────────────
@@ -148,7 +149,7 @@ function ChatTab({ tabStrings, conversations, setConversations, lastVisit }: { t
     <div className="bg-white">
       {conversations.map((conv) => {
           const lastTs = conv.updated_at ? new Date(conv.updated_at).getTime() : 0;
-          const isUnread = lastTs > lastVisit;
+          const isUnread = conv.has_unread || lastTs > lastVisit;
           return (
         <SwipeableRow
           key={conv.id}
@@ -163,7 +164,7 @@ function ChatTab({ tabStrings, conversations, setConversations, lastVisit }: { t
             onContextMenu={(e) => { e.preventDefault(); handleDelete(conv); }}
           >
             {isUnread && (
-              <div className="absolute left-1.5 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-[#0071E3]" aria-label="Unread" />
+              <div className="absolute left-0 top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full bg-[#FF3B30] ring-2 ring-white" aria-label="Unread" />
             )}
             <Avatar name={getLocalizedPresetName(conv.persona_name, lang)} url={conv.persona_avatar} size="md" />
             <div className="flex-1 min-w-0">

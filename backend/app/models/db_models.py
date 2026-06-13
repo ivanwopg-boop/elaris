@@ -231,6 +231,7 @@ class ConversationMessage(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     sources: Mapped[str] = mapped_column(Text, default="[]")
     style_match: Mapped[float] = mapped_column(Float, default=0)
+    is_proactive: Mapped[int] = mapped_column(Integer, default=0)
 
 class InviteCode(Base):
     __tablename__ = "invite_codes"
