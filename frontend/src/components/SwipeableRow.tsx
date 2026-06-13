@@ -8,6 +8,7 @@ interface SwipeableRowProps {
   deleteLabel?: string;
   className?: string;
   deleting?: boolean;
+  onContentClick?: () => void;
 }
 
 const DELETE_BTN_WIDTH = 80;
@@ -19,6 +20,7 @@ export function SwipeableRow({
   deleteLabel = 'Delete',
   className = '',
   deleting = false,
+  onContentClick,
 }: SwipeableRowProps) {
   const [translateX, setTranslateX] = useState(0);
   const touchStartX = useRef(0);
@@ -65,12 +67,14 @@ export function SwipeableRow({
   };
 
   const onTouchEnd = () => {
+    const wasDragging = isDragging.current;
     isDragging.current = false;
     if (translateX < -SWIPE_THRESHOLD) {
       snapTo(-DELETE_BTN_WIDTH);
     } else {
       snapTo(0);
     }
+    // Treat as click only if barely moved (handled via onClick on inner div)
   };
 
   // ── Mouse handlers (desktop swipe support) ──
@@ -164,6 +168,16 @@ export function SwipeableRow({
         onMouseMove={onMouseMove}
         onMouseUp={onMouseUp}
         onMouseLeave={onMouseLeave}
+        onClick={(e) => {
+          // Only fire content click if not in swiped-open state
+          if (translateX < -SWIPE_THRESHOLD) {
+            // Tapped while delete button is showing → close it
+            e.stopPropagation();
+            snapTo(0);
+            return;
+          }
+          // Otherwise let click bubble to children (Card onClick)
+        }}
       >
         {children}
       </div>

@@ -53,7 +53,6 @@ export default function PersonaListPage() {
           <SwipeableRow
             key={p.id}
             onDelete={() => {
-              if (!confirm('Delete persona "' + getLocalizedPresetName(p.name, lang) + '"? This cannot be undone.')) return;
               api.deletePersona(p.id).then(() => loadPersonas(lang)).catch((err: any) => alert((t.delete_failed || "Delete failed:") + (err?.detail || err?.message || err)));
             }}
             deleteLabel={t.delete || "Delete"}
