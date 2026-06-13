@@ -177,41 +177,63 @@ async def chat_stream(persona_id: str, message: str, conv: str = None, request: 
         _year = str(_now.year)
 
         search_person_name = info.get('source_name') or info['name']
-        
-        # Clean message for search: strip @mentions, pure greetings, very short messages
+
+        # Smart search trigger: clean message but keep meaningful short follow-ups
         import re as _re
         _clean = _re.sub(r'@\w+', '', message).strip()  # remove @mentions
-        _clean = _re.sub(r'^(hi|hello|hey|你好|大家好|哈喽|嗨|yo|sup)[!！.。?？~～]*$', '', _clean, flags=_re.IGNORECASE).strip()
-        _search_msg = _clean if len(_clean) >= 5 else None  # skip search for greetings/short
-        
-        # Step 1: LLM thinks deeply about what the user wants, then crafts precise queries
-        _qp = (
-            f"Today is {_today}. A user is chatting with an AI persona of {search_person_name}. "
-            f"The user just said: '{_search_msg}'\n\n"
-            f"First, briefly analyze: What does the user REALLY want to know? What specific information would satisfy them?\n"
-            f"Then, generate 3 precise search queries that will find exactly that information.\n\n"
-            f"Rules:\n"
-            f"- Think about the USER'S INTENT before writing queries\n"
-            f"- For event/date questions: search official sources + ticket platforms + news\n"
-            f"- For facts: use exact names, dates, locations. Include current year {_year}\n"
-            f"- Use the persona's SOURCE name ({search_person_name}) in every query\n"
-            f"- Include specific keywords: ticket, venue, schedule, announcement, official, confirmed\n"
-            f"- Output format: one analysis line (start with THINK:), then 3 queries, each on its own line\n"
-            f"- NO numbering, NO markdown. Each query line must be searchable directly."
-        )
-        _qr = (await minimax_client.chat(
-            [{"role": "user", "content": _qp}], temperature=0.1, max_tokens=200
-        )) if _search_msg else ""
-        _q_lines = [l.strip() for l in _qr.strip().split("\n") if l.strip() and len(l.strip()) > 10]
-        _q_lines = [q for q in _q_lines if not q.startswith(('THINK','Think','think','query','Query','search','Search','1.','2.','3.','-','*','#'))]
-        _q_lines = _q_lines[:3]
-        if not _q_lines:
-            _q_lines = [f"{search_person_name} {_search_msg} {_year}"] if _search_msg else []
-        _search_queries = _q_lines
-        if not _search_queries:
-            _log.info(f"[SEARCH_Q] skipped (greeting/short): {message[:40]!r}")
+        _pure_greeting = bool(_re.match(r'^(hi|hello|hey|你好|大家好|哈喽|嗨|yo|sup|好|ok|嗯+|哈哈+)[!!.?？~～]*$', _clean, _re.IGNORECASE))
+        _search_msg = None if _pure_greeting else (_clean if len(_clean) >= 2 else None)
+
+        # Build search context from recent conversation (for follow-up questions)
+        _search_ctx = ""
+        if conv:
+            try:
+                _ctx_rows = await db.execute(
+                    select(ConversationMessage)
+                    .where(ConversationMessage.conversation_id == conv)
+                    .order_by(ConversationMessage.created_at.desc())
+                    .limit(4)
+                )
+                _recent_msgs = list(reversed(_ctx_rows.scalars().all()))
+                _search_ctx = " | ".join(
+                    f"{'User' if m.role == 'user' else 'AI'}: {m.content[:80]}"
+                    for m in _recent_msgs
+                )
+            except:
+                pass
+
+        # Generate smart search queries
+        _search_queries = []
+        if _search_msg:
+            _qp_parts = [
+                f"User is chatting with AI persona of {search_person_name}.",
+                f"User said: {_search_msg}",
+            ]
+            if _search_ctx:
+                _qp_parts.append(f"Recent context: {_search_ctx[:300]}")
+            _qp_parts.extend([
+                f"Generate 3 SHORT search queries (max 50 chars each) to find current info.",
+                f"Rules: persona name + key topic + year {datetime.now().year}",
+                "Match user language (Chinese/English).",
+                "3 lines only. No numbering. No explanation.",
+            ])
+            _qp = "\n".join(_qp_parts)
+            try:
+                _qr = await minimax_client.chat(
+                    [{"role": "user", "content": _qp}], temperature=0.1, max_tokens=150
+                )
+                _q_lines = [l.strip() for l in _qr.strip().split("\n") if l.strip() and 5 < len(l.strip()) < 80]
+                _q_lines = [q for q in _q_lines if not q.startswith(('THINK','Think','Here','Below','query','I ','You ','-','*','#','1.','2.','3.'))]
+                _search_queries = _q_lines[:3]
+            except:
+                pass
+
+            if not _search_queries:
+                _search_queries = [f"{search_person_name} {_search_msg[:30]} {datetime.now().year}"]
+
+            _log.info(f"[SEARCH_Q] msg={message[:30]!r} ctx={'yes' if _search_ctx else 'no'} -> {_search_queries}")
         else:
-            _log.info(f"[SEARCH_Q] message={message[:40]!r} -> {_search_queries}")
+            _log.info(f"[SEARCH_Q] skipped (greeting): {message[:30]!r}")
 
         # Step 3: Execute searches in parallel
         sr = await search_web(_search_queries)
@@ -360,8 +382,8 @@ async def _handle_mode(request: ChatRequest, user_id: str, db: AsyncSession, use
     safety = check_input(request.message)
     if not safety["safe"]:
         return ChatResponse(message=safety["message"], sources=["safety"], style_match=0.0)
-
     info = await _get_soul(request.persona_id, db)
+    search_person_name_ns = info.get('source_name') or info['name']
 
     # ── Conversation memory (L1): recent conversation summary ──
     memory_context = ""
@@ -387,43 +409,57 @@ async def _handle_mode(request: ChatRequest, user_id: str, db: AsyncSession, use
     except Exception:
         pass
 
-    # Clean message for search
+    # Smart search trigger
     import re as _re_ns
     _clean_ns = _re_ns.sub(r'@\w+', '', request.message).strip()
-    _clean_ns = _re_ns.sub(r'^(hi|hello|hey|你好|大家好|哈喽|嗨|yo|sup)[!！.。?？~～]*$', '', _clean_ns, flags=_re_ns.IGNORECASE).strip()
-    _search_msg_ns = _clean_ns if len(_clean_ns) >= 5 else None
+    _pure_greeting_ns = bool(_re_ns.match(r'^(hi|hello|hey|你好|大家好|哈喽|嗨|yo|sup|好|ok|嗯+|哈哈+)[!!.?？~～]*$', _clean_ns, _re_ns.IGNORECASE))
+    _search_msg_ns = None if _pure_greeting_ns else (_clean_ns if len(_clean_ns) >= 2 else None)
 
-    search_person_name_ns = info.get('source_name') or info['name']
+    # Build search context from conversation history
+    _search_ctx_ns = ""
+    try:
+        _ctx_q = await db.execute(
+            select(ConversationMessage)
+            .where(ConversationMessage.conversation_id == conv_id) if conv_id else None
+        )
+    except:
+        pass
+    if memory_context:
+        _search_ctx_ns = memory_context[:300]
+
+    # Generate queries
+    _search_queries_ns = []
+    if _search_msg_ns:
+        _qp = (
+            f"User chatting with AI persona of {search_person_name_ns}. "
+            f"User said: \"{_search_msg_ns}\"\n"
+        )
+        if _search_ctx_ns:
+            _qp += f"Recent: {_search_ctx_ns[:200]}\n"
+        _qp += (
+            f"Generate 3 SHORT search queries (max 50 chars). "
+            f"Rules: persona name + topic + {datetime.now().year}. "
+            f"Match user language. 3 lines only, no numbering."
+        )
+        try:
+            _qr_ns = await minimax_client.chat(
+                [{"role": "user", "content": _qp}], temperature=0.1, max_tokens=150
+            )
+            _queries = [l.strip() for l in _qr_ns.strip().split("\n") if l.strip() and 5 < len(l.strip()) < 80]
+            _queries = [q for q in _queries if not q.startswith(('THINK','Think','Here','Below','query','I ','You ','-','*','#','1.','2.','3.'))]
+            _search_queries_ns = _queries[:3]
+        except:
+            pass
+
+        if not _search_queries_ns:
+            _search_queries_ns = [f"{search_person_name_ns} {_search_msg_ns[:30]} {datetime.now().year}"]
+    else:
+        _search_queries_ns = []
+
     search_context = ""
     try:
-        import re as _re2
-        _now_dt = datetime.now()
-        _year = str(_now_dt.year)
-        _today = _now_dt.strftime("%Y-%m-%d")
-
-        # Step 1: LLM generates smart search queries (fast ~2s, but precise)
-        _qp = (
-            f"Today is {_today}. A user is chatting with an AI persona of {search_person_name_ns}. "
-            f"The user just said: '{_search_msg_ns}'\n\n"
-            f"First, briefly analyze: What does the user REALLY want? What information would satisfy them?\n"
-            f"Then, generate 3 precise search queries to find that exact information.\n\n"
-            f"Rules:\n"
-            f"- Think about USER INTENT before writing queries\n"
-            f"- For events: official sources + ticket platforms + recent news\n"
-            f"- For facts: exact names, dates, locations. Include year {_year}\n"
-            f"- Use the persona's source name in every query\n"
-            f"- Include keywords: ticket, venue, schedule, announcement, official, confirmed\n"
-            f"- Output: one THINK line, then 3 query lines. NO numbering. NO markdown."
-        )
-        _qr = (await minimax_client.chat(
-            [{"role": "user", "content": _qp}], temperature=0.1, max_tokens=200
-        )) if _search_msg_ns else ""
-        _queries = [l.strip() for l in _qr.strip().split("\n") if l.strip() and len(l.strip()) > 10]
-        _queries = [q for q in _queries if not q.startswith(('THINK','Think','think','query','Query','search','Search','1.','2.','3.','-','*','#'))]
-        _queries = _queries[:3]
-        if not _queries:
-            _queries = [f"{search_person_name_ns} {_search_msg_ns} {_year}"] if _search_msg_ns else []
-        sr = await search_web(_queries)
+        # Execute searches in parallel
+        sr = await search_web(_search_queries_ns)
         if sr:
             _seen_urls = set()
             _all_results = []
@@ -440,7 +476,7 @@ async def _handle_mode(request: ChatRequest, user_id: str, db: AsyncSession, use
                     _t = r.get('title','')[:120]
                     _s = r.get('snippet','')[:250]
                     sc_parts.append(f"- {_t}\n  {_s}")
-                    if _re2.search(r'\d{4}[-/年]\d{1,2}', _t + _s):
+                    if _re_ns.search(r'\d{4}[-/年]\d{1,2}', _t + _s):
                         _has_dates = True
                 search_context = "\n".join(sc_parts)
                 if not _has_dates:

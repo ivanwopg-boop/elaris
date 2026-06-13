@@ -1,4 +1,4 @@
-"""Search: AnySearch (primary, free 1000/day) + DuckDuckGo (fallback)."""
+"""Search: SearXNG (primary, self-hosted) + DuckDuckGo (fallback)."""
 
 import asyncio
 import logging
@@ -8,87 +8,48 @@ from trafilatura import extract
 
 logger = logging.getLogger("uvicorn")
 
-ANYSEARCH_URL = "https://api.anysearch.com/mcp"
+SEARXNG_URL = "http://localhost:8888/search"
 TIMEOUT = 8.0
 MAX_RESULTS = 8
 
 
-# ── AnySearch (Primary) ──────────────────────────────────
+# ── SearXNG (Primary, self-hosted) ───────────────────────
 
-async def _anysearch_search(query: str, max_results: int = 6) -> list[dict]:
-    """Search via AnySearch API — free, anonymous access, 1000 req/day."""
+async def _searxng_search(query: str, category: str = "general") -> list[dict]:
+    """Search via self-hosted SearXNG instance — unlimited, aggregates Google/Bing/DDG/Baidu."""
     try:
-        payload = {
-            "jsonrpc": "2.0",
-            "id": 1,
-            "method": "tools/call",
-            "params": {
-                "name": "search",
-                "arguments": {"query": query, "max_results": max_results},
-            },
+        params = {
+            "q": query,
+            "format": "json",
+            "language": "auto",
+            "categories": category,
+            "pageno": 1,
         }
         async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-            resp = await client.post(
-                ANYSEARCH_URL,
-                json=payload,
-                headers={"Content-Type": "application/json"},
-            )
+            resp = await client.get(SEARXNG_URL, params=params)
             if resp.status_code != 200:
-                logger.warning(f"[AnySearch] HTTP {resp.status_code} for: {query[:60]}")
+                logger.warning(f"[SearXNG] HTTP {resp.status_code} for: {query[:60]}")
                 return []
             data = resp.json()
-            result = data.get("result", {})
-            content = result.get("content", [])
-            if not content:
-                return []
-            # AnySearch returns [{type: "text", text: "## Search Results (N results...)..."}]
-            # Parse the markdown text into structured results
-            text = content[0].get("text", "") if content else ""
-            return _parse_anysearch_markdown(text)
+            results = []
+            for r in data.get("results", [])[:MAX_RESULTS]:
+                results.append({
+                    "title": r.get("title", ""),
+                    "url": r.get("url", ""),
+                    "snippet": r.get("content", ""),
+                    "engines": r.get("engines", ["searxng"]),
+                    "score": r.get("score", 0.8),
+                })
+            return results
     except Exception as e:
-        logger.warning(f"[AnySearch] Failed for '{query[:60]}': {e}")
+        logger.warning(f"[SearXNG] Failed for '{query[:60]}': {e}")
         return []
-
-
-def _parse_anysearch_markdown(text: str) -> list[dict]:
-    """Parse AnySearch markdown response into structured results.
-    
-    Format:
-    ## Search Results (N results, Xms)
-    ### 1. Title
-    - **URL**: https://...
-    - Description text...
-    """
-    import re
-    results = []
-    # Split by "### N. " pattern
-    items = re.split(r'\n### \d+\. ', text)
-    for item in items[1:]:  # skip header
-        lines = item.strip().split('\n')
-        title = lines[0].strip() if lines else ""
-        url = ""
-        snippet_parts = []
-        for line in lines[1:]:
-            url_match = re.match(r'- \*\*URL\*\*:\s*(.+)', line)
-            if url_match:
-                url = url_match.group(1).strip()
-            elif line.strip() and not line.startswith('##'):
-                snippet_parts.append(line.strip().lstrip('- '))
-        if title and url:
-            results.append({
-                "title": title,
-                "url": url,
-                "snippet": " ".join(snippet_parts)[:500],
-                "engines": ["anysearch"],
-                "score": 0.8,
-            })
-    return results
 
 
 # ── DuckDuckGo (Fallback) ────────────────────────────────
 
-def _duckduckgo_search_sync(query: str, max_results: int = 6) -> list[dict]:
-    """Direct DuckDuckGo search via duckduckgo_search library."""
+def _duckduckgo_search_sync(query: str, max_results: int = 5) -> list[dict]:
+    """Direct DuckDuckGo search via ddgs library."""
     try:
         from ddgs import DDGS
         results = []
@@ -98,7 +59,7 @@ def _duckduckgo_search_sync(query: str, max_results: int = 6) -> list[dict]:
                     "title": r.get("title", ""),
                     "url": r.get("href", ""),
                     "snippet": r.get("body", ""),
-                    "engines": ["duckduckgo_direct"],
+                    "engines": ["duckduckgo"],
                     "score": 0.5,
                 })
         return results
@@ -108,18 +69,37 @@ def _duckduckgo_search_sync(query: str, max_results: int = 6) -> list[dict]:
 
 
 async def _search_one(query: str) -> list[dict]:
-    """Search one query: AnySearch first, fall back to DDG."""
-    results = await _anysearch_search(query)
-    if len(results) < 3:
-        ddg = _duckduckgo_search_sync(query)
-        results.extend(ddg)
-    return results
+    """Search one query: SearXNG first, DDG fallback."""
+    # Use news category for time-sensitive queries (detected by keywords)
+    category = "general"
+    time_keywords = ["演唱会", "concert", "tour", "2026", "2025", "最新", "最新消息", "新闻", "announcement", "schedule"]
+    if any(kw in query.lower() for kw in [k.lower() for k in time_keywords]):
+        # Try news first, then general
+        news_results = await _searxng_search(query, "news")
+        if len(news_results) >= 3:
+            return news_results
+        general_results = await _searxng_search(query, "general")
+        # Merge: news first, then general
+        seen = set(r["url"] for r in news_results)
+        for r in general_results:
+            if r["url"] not in seen:
+                news_results.append(r)
+                seen.add(r["url"])
+        return news_results[:MAX_RESULTS]
+    else:
+        results = await _searxng_search(query, "general")
+        if len(results) < 3:
+            ddg = _duckduckgo_search_sync(query)
+            results.extend(ddg)
+        return results
 
 
 # ── Main Search ──────────────────────────────────────────
 
 async def search_web(queries: list[str]) -> list[dict]:
-    """Search via AnySearch + DDG fallback."""
+    """Search multiple queries in parallel via SearXNG + DDG fallback."""
+    if not queries:
+        return []
     tasks = [_search_one(q) for q in queries]
     all_raw = await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -132,39 +112,11 @@ async def search_web(queries: list[str]) -> list[dict]:
     return output
 
 
-# ── Page Content Extraction ──────────────────────────────
-
-def _deduplicate(results: list[dict]) -> list[dict]:
-    seen = set()
-    out = []
-    for r in results:
-        url = r.get("url", "")
-        if url and url not in seen:
-            seen.add(url)
-            out.append(r)
-    return out
-
-
-async def _fetch_page_content(url: str) -> Optional[str]:
-    """Extract page content with trafilatura."""
-    try:
-        async with httpx.AsyncClient(timeout=8.0) as client:
-            resp = await client.get(url, follow_redirects=True)
-            if resp.status_code == 200:
-                text = extract(resp.text)
-                return text[:2000] if text else None
-    except Exception:
-        pass
-    return None
-
+# ── Auto-search for distillation ─────────────────────────
 
 async def ensure_web_search_results(persona_id: str, db) -> None:
-    """Auto-generate web search results for new personas before distillation.
-
-    Uses source_name (real person) for search queries, not persona.name (AI display name).
-    """
-    import uuid
-    import json
+    """Auto-generate web search results for new personas before distillation."""
+    import uuid, json
     from datetime import datetime, timezone
     from sqlalchemy import select
     from app.models.db_models import Persona, WebSearchResult
@@ -173,7 +125,7 @@ async def ensure_web_search_results(persona_id: str, db) -> None:
         WebSearchResult.persona_id == persona_id
     ).limit(1))
     if result.scalars().first():
-        return  # Already has search results
+        return
 
     pr = await db.execute(select(Persona).where(Persona.id == persona_id))
     persona = pr.scalar_one_or_none()
@@ -181,7 +133,6 @@ async def ensure_web_search_results(persona_id: str, db) -> None:
         return
 
     search_name = persona.source_name or persona.name
-
     queries = [f"{search_name} {q}" for q in [
         "biography career achievements",
         "thinking style beliefs quotes",
