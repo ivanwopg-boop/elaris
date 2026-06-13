@@ -216,17 +216,15 @@ function ContactsTab({ isActive, onNavigate, tabStrings, contacts, setContacts, 
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const loading = false; // ChatsContent handles fetching
 
-  const handleDelete = async (personaId: string) => {
-    if (!confirm(tabStrings.delete_confirm_contact || "Delete this contact?")) return;
+  const { toast } = useToast();
+  const handleDeleteContact = async (personaId: string) => {
     setDeletingId(personaId);
     try {
-      const res = await fetch(`/api/v1/personas/contacts/${personaId}`, { method: 'DELETE' });
-      if (res.ok) {
-        setContacts((prev: any[]) => prev.filter((p: any) => p.id !== personaId));
-        setLocalContacts((prev: any[]) => prev.filter((p: any) => p.id !== personaId));
-      } else alert(tabStrings.delete_failed || 'Delete failed');
-    } catch {
-      alert(tabStrings.delete_failed || 'Delete failed');
+      await api.removeContact(personaId);
+      setContacts((prev: any[]) => prev.filter((p: any) => p.id !== personaId));
+      setLocalContacts((prev: any[]) => prev.filter((p: any) => p.id !== personaId));
+    } catch (err: any) {
+      toast(tabStrings.delete_failed || 'Delete failed', 'error');
     } finally {
       setDeletingId(null);
     }
@@ -303,7 +301,7 @@ function ContactsTab({ isActive, onNavigate, tabStrings, contacts, setContacts, 
       {displayContacts.map((p: any) => (
         <SwipeableRow
           key={p.id}
-          onDelete={() => handleDelete(p.id)}
+          onDelete={() => handleDeleteContact(p.id)}
           deleteLabel={tabStrings.delete || "Delete"}
           deleting={deletingId === p.id}
         >
@@ -311,7 +309,7 @@ function ContactsTab({ isActive, onNavigate, tabStrings, contacts, setContacts, 
             className="flex items-center gap-3 px-4 py-4 border-b border-[rgba(0,0,0,0.04)] active:bg-[rgba(0,0,0,0.02)] active:scale-[0.98] transition-all cursor-pointer"
             style={{ minHeight: '64px' }}
             onClick={() => window.location.href = `/persona/${p.id}`}
-            onContextMenu={(e) => { e.preventDefault(); handleDelete(p.id); }}
+            onContextMenu={(e) => { e.preventDefault(); handleDeleteContact(p.id); }}
           >
             <Avatar name={getLocalizedPresetName(p.name, lang)} url={p.avatar_url} size="md" />
             <div className="flex-1 min-w-0">
@@ -385,14 +383,16 @@ function DiscoverTab({ tabStrings, onContactAdded }: { tabStrings: Record<string
 
   const handleAddToContacts = async (e: React.MouseEvent, p: PersonaSummary) => {
     e.stopPropagation();
+    if (!token) {
+      window.location.href = '/login';
+      return;
+    }
     try {
-      const res = await fetch(`/api/v1/personas/contacts/${p.id}`, { method: 'POST' });
-      if (res.ok) {
-        if (onContactAdded) onContactAdded(p);
-        toast(p.name + " added to contacts", "success");
-      }
+      await api.addContact(p.id);
+      if (onContactAdded) onContactAdded(p);
+      toast((p.name || '') + " " + (tabStrings.added_to_contacts || "added to contacts"), "success");
     } catch {
-      toast("Add to contacts failed", "error");
+      toast(tabStrings.add_failed || "Add to contacts failed", "error");
     }
   };
 

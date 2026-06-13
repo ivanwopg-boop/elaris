@@ -115,6 +115,12 @@ export const api = {
   deletePreset: (id: string) =>
     api.request<{ ok: boolean }>(`/personas/presets/${id}`, { method: "DELETE" }),
 
+  addContact: (personaId: string) =>
+    api.request<{ ok: boolean }>(`/personas/contacts/${personaId}`, { method: "POST" }),
+
+  removeContact: (personaId: string) =>
+    api.request<{ ok: boolean }>(`/personas/contacts/${personaId}`, { method: "DELETE" }),
+
   // Files
   uploadFiles: async (personaId: string, files: File[], urls: string[] = []) => {
     const formData = new FormData();
