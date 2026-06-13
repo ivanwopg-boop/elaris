@@ -110,10 +110,8 @@ async def list_personas(lang: str = Query("en"), user: User = Depends(require_au
 
 @router.get("/presets", response_model=list[PersonaOut])
 async def list_presets(lang: str = Query("en"), user: User = Depends(require_auth_optional), db: AsyncSession = Depends(get_db)):
-    """List preset personas (user_id=NULL) for the Discover tab."""
-    # Include both presets (user_id=NULL) and current user's personas
-    uid = user.id if user else None
-    return await persona_service.list_personas(db, user_id=uid, include_presets=True, lang=lang)
+    """List preset personas (user_id=NULL) for the Discover tab — exclude current user's own personas."""
+    return await persona_service.list_personas(db, user_id=None, include_presets=True, lang=lang)
 
 
 @router.post("/contacts/{persona_id}")
