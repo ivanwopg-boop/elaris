@@ -278,6 +278,7 @@ async def get_intimacy(
             "next_level_xp": LEVEL_THRESHOLDS[1] if len(LEVEL_THRESHOLDS) > 1 else 0,
             "message_count": 0,
             "next_level": LEVEL_NAMES[1] if len(LEVEL_NAMES) > 1 else None,
+            "streak_days": 0,
         }
 
     level = mem.level or 1
@@ -288,6 +289,7 @@ async def get_intimacy(
         "next_level_xp": get_next_level_xp(mem.xp or 0),
         "message_count": mem.message_count or 0,
         "next_level": LEVEL_NAMES[level] if level < len(LEVEL_NAMES) else None,
+        "streak_days": mem.streak_days or 0,
     }
 
 # ── Phase 3: Proactive Outreach ─────────────────────────

@@ -45,6 +45,70 @@ LEVEL_DIRECTIVES = [
 MAX_LEVEL = 5
 
 
+def calculate_streak_bonus(streak_days: int) -> int:
+    """XP bonus for consecutive daily interaction."""
+    if streak_days >= 30:
+        return 500
+    elif streak_days >= 14:
+        return 200
+    elif streak_days >= 7:
+        return 100
+    elif streak_days >= 3:
+        return 50
+    return 0
+
+
+def update_streak(mem, now: datetime) -> int:
+    """Update streak count and return XP bonus. Call once per conversation session."""
+    today = now.date()
+    if mem.last_streak_date:
+        try:
+            last_date = datetime.fromisoformat(str(mem.last_streak_date)).date()
+            diff = (today - last_date).days
+            if diff == 0:
+                return 0  # Already counted today
+            elif diff == 1:
+                mem.streak_days = (mem.streak_days or 0) + 1
+            else:
+                mem.streak_days = 1  # Reset streak
+        except:
+            mem.streak_days = 1
+    else:
+        mem.streak_days = 1
+
+    mem.last_streak_date = today
+    return calculate_streak_bonus(mem.streak_days)
+
+
+def apply_decay(mem, now: datetime) -> tuple[int, str]:
+    """Apply XP decay if user has been absent for >3 days. Returns (xp_lost, message)."""
+    if not mem.last_interacted:
+        return 0, ""
+    try:
+        last = datetime.fromisoformat(str(mem.last_interacted)).replace(tzinfo=timezone.utc)
+        days = (now - last).days
+        if days >= 4:
+            # -5% per day, max 1 level drop
+            decay_pct = min(0.05 * days, 0.3)
+            xp_lost = int((mem.xp or 0) * decay_pct)
+            old_level = get_level(mem.xp)
+            new_xp = max(0, (mem.xp or 0) - xp_lost)
+            new_level = get_level(new_xp)
+            # Cap: don't drop more than 1 level
+            if old_level - new_level > 1:
+                # Clamp to just below the threshold of dropping 2 levels
+                thresholds = [0, 100, 500, 2000, 5000]
+                min_xp = thresholds[max(0, old_level - 2)]
+                new_xp = max(new_xp, min_xp)
+            mem.xp = new_xp
+            new_level = min(get_level(new_xp), old_level)  # Don't allow level up from decay
+            mem.level = max(1, old_level - 1) if new_level < old_level else old_level
+            return xp_lost, f"Absent for {days} days"
+        return 0, ""
+    except:
+        return 0, ""
+
+
 def get_level(xp: int) -> int:
     """Get current level from XP."""
     level = 1
@@ -62,12 +126,11 @@ def get_next_level_xp(xp: int) -> int:
     return LEVEL_THRESHOLDS[level] - xp
 
 
-def calculate_xp_gain(message_count_this_session: int, is_first_today: bool = False) -> int:
+def calculate_xp_gain(message_count_this_session: int, streak_bonus: int = 0) -> int:
     """Calculate XP gained from this conversation session."""
-    base = 10 * message_count_this_session
+    base = 10
     deep_bonus = 50 if message_count_this_session >= 5 else 0
-    daily_bonus = 20 if is_first_today else 0
-    return base + deep_bonus + daily_bonus
+    return base + deep_bonus + streak_bonus
 
 
 SUMMARY_PROMPT = """You are a conversation summarizer. Summarize the conversation below.
@@ -175,7 +238,12 @@ async def generate_memory_summary(
             mem.summary = summary
             mem.key_facts = json.dumps(facts, ensure_ascii=False)
             mem.message_count = (mem.message_count or 0) + 1
-            _xp_gain = calculate_xp_gain(1)
+            # Phase 4: Decay check + streak update
+            _decay_xp, _decay_msg = apply_decay(mem, now)
+            # Phase 4: Update streak
+            _streak_bonus = update_streak(mem, now)
+            _xp_gain = calculate_xp_gain(1, _streak_bonus)
+            
             mem.xp = (mem.xp or 0) + _xp_gain
             _old_level = mem.level or 1
             mem.level = get_level(mem.xp)
