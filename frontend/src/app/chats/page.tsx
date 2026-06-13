@@ -396,22 +396,23 @@ function DiscoverTab({ tabStrings, onContactAdded }: { tabStrings: Record<string
     }
   };
 
-  const handleDeletePreset = async (e: React.MouseEvent, p: PersonaSummary) => {
-    e.stopPropagation();
-
-    try {
-      const res = await fetch(`/api/v1/personas/presets/${p.id}`, { method: 'DELETE' });
-      if (res.ok) {
-        setPresets(prev => prev.filter(x => x.id !== p.id));
-      } else {
-        alert(tabStrings.delete_failed || 'Delete failed');
+  const handleDeletePreset = async (p: PersonaSummary) => {
+    if (!token) {
+      // Not logged in → prompt sign in instead of failing silently
+      if (window.confirm(tabStrings.continue_as_guest_login || 'Sign in to delete personas. Go to login?')) {
+        window.location.href = '/login';
       }
-    } catch {
-      alert(tabStrings.delete_failed || 'Delete failed');
+      return;
+    }
+    try {
+      await api.deletePreset(p.id);
+      setPresets(prev => prev.filter(x => x.id !== p.id));
+    } catch (err: any) {
+      toast(tabStrings.delete_failed || 'Delete failed', 'error');
     }
   };
   const handleSwipeDelete = (p: PersonaSummary) => {
-    handleDeletePreset(new MouseEvent('click') as any, p);
+    handleDeletePreset(p);
   };
 
   const filtered = activeCat === "all" ? presets : presets.filter((p) => (p.category || "other") === activeCat);

@@ -112,6 +112,9 @@ export const api = {
   deletePersona: (id: string) =>
     api.request<void>(`/personas/${id}`, { method: "DELETE" }),
 
+  deletePreset: (id: string) =>
+    api.request<{ ok: boolean }>(`/personas/presets/${id}`, { method: "DELETE" }),
+
   // Files
   uploadFiles: async (personaId: string, files: File[], urls: string[] = []) => {
     const formData = new FormData();
