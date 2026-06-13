@@ -1,3 +1,5 @@
+import asyncio
+import random
 """Group chat service — multi-persona conversation with SSE streaming."""
 
 import json
@@ -276,5 +278,67 @@ async def run_group_chat_stream(
                "persona_id": result["persona_id"], "content": result["content"]}
 
 
+
+
+    # ── Round 2: Inter-persona reactions (Group Chemistry) ──
+    if len(active_personas) >= 2:
+        import random
+        # Collect the responses we just generated
+        _recent_replies = [r for r in [await coro for coro in tasks] if "content" in r] if False else []
+        # Actually we need to collect from the already-completed tasks
+        # Let's pick 2 random personas and have each react to the other
+        _reactors = random.sample(active_personas, min(2, len(active_personas)))
+        for _reactor in _reactors:
+            # Pick a target to react to (different persona)
+            _targets = [p for p in active_personas if p["id"] != _reactor["id"]]
+            if not _targets:
+                continue
+            _target = random.choice(_targets)
+            # Get the target's last message
+            _target_msg = await db.execute(
+                select(GroupChatMessage)
+                .where(GroupChatMessage.chat_id == chat_id, GroupChatMessage.sender_id == _target["id"])
+                .order_by(GroupChatMessage.created_at.desc())
+                .limit(1)
+            )
+            _tmsg = _target_msg.scalar_one_or_none()
+            if not _tmsg:
+                continue
+            
+            # Build reaction prompt
+            _rp = (
+                f"You are {_reactor['name']}. In a group chat, {_target['name']} just said:\n"
+                f"\"{_tmsg.content[:200]}\"\n\n"
+                f"Based on your personality ({_reactor['name']}):\n"
+                f"- If you agree, nod along or add ONE additional thought\n"
+                f"- If you disagree, challenge them gently with your own view\n"
+                f"- If you find it funny/interesting, react naturally\n"
+                f"- Keep it to 1-2 SHORT sentences. Don't over-explain.\n"
+                f"- Be in character. Use your signature style.\n"
+                f"Respond NOW (just your message, no quotes, no prefixes):"
+            )
+            try:
+                _sp_short = GROUP_CHAT_SYSTEM_PROMPT.format(
+                    persona_name=_reactor["name"], role=_reactor.get("role", "Participant"),
+                    search_context="", soul_json=json.dumps(_reactor.get("soul", {}), indent=2, ensure_ascii=False)[:2000]
+                )
+                _rr = await asyncio.wait_for(
+                    minimax_client.chat(
+                        [{"role": "system", "content": _sp_short},
+                         {"role": "user", "content": _rp}],
+                        temperature=0.5, max_tokens=200),
+                    timeout=30)
+                _reaction = _sanitize_reply(_rr)
+                if _reaction and len(_reaction) > 5:
+                    _msg = GroupChatMessage(
+                        id=str(uuid.uuid4()), chat_id=chat_id, sender_type="persona",
+                        sender_id=_reactor["id"], sender_name=_reactor["name"],
+                        content=_reaction, round_number=round_num + 1, created_at=_now())
+                    db.add(_msg)
+                    await db.commit()
+                    yield {"type": "message", "persona_name": _reactor["name"],
+                           "persona_id": _reactor["id"], "content": _reaction}
+            except:
+                pass
     await db.flush()
     yield {"type": "done"}
