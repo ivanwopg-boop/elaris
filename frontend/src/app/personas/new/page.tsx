@@ -12,9 +12,9 @@ export default function CreatePersonaPage() {
   const t = translations[lang];
   const router = useRouter();
   const [name, setName] = useState("");
+  const [keywords, setKeywords] = useState("");
   const [stage, setStage] = useState<Stage>("idle");
   const [error, setError] = useState("");
-  const [personaId, setPersonaId] = useState("");
 
   const handleGo = async () => {
     const n = name.trim();
@@ -22,29 +22,20 @@ export default function CreatePersonaPage() {
     setStage("creating");
     setError("");
     try {
-      // Create persona — name is both display name and search source
       const persona = await api.createPersona({ name: n, source_name: n, category: "other" });
-      setPersonaId(persona.id);
       setStage("distilling");
-      // Distill in current language only (faster), other lang follows async
+      if (keywords.trim()) {
+        try { await api.addManualInput(persona.id, { title: keywords.trim(), background: keywords.trim() }) } catch {}
+      }
       await api.distill(persona.id, lang);
       if (lang !== "en") {
         try { await api.distill(persona.id, "en"); } catch {}
       }
-      // Navigate directly to the chat page
       router.push("/chat/" + persona.id);
     } catch (e: any) {
       setStage("error");
       setError(e.message || (t.distill_failed || "Something went wrong"));
     }
-  };
-
-  const stageText: Record<Stage, string> = {
-    idle: "",
-    creating: "Creating...",
-    distilling: "Searching the web and building your conversation partner...",
-    done: "",
-    error: "",
   };
 
   return (
@@ -53,30 +44,39 @@ export default function CreatePersonaPage() {
         {stage === "idle" && (
           <>
             <h1 className="text-xl font-light text-[#1D1D1F] tracking-[-0.01em] mb-2">
-              Who do you want to talk to?
+              Add an AI friend
             </h1>
-            <p className="text-xs text-[#86868B] font-light mb-8">
-              Anyone you can think of.
+            <p className="text-xs text-[#86868B] font-light mb-8 leading-relaxed">
+              An icon. A legend. Someone you are curious about.
             </p>
-            <div className="relative">
-              <input
-                autoFocus
-                value={name}
-                onChange={e => setName(e.target.value)}
-                onKeyDown={e => { if (e.key === "Enter") handleGo(); }}
-                placeholder="Enter a name"
-                className="w-full bg-white border border-[rgba(0,0,0,0.1)] rounded-xl px-5 py-4 text-base text-[#1D1D1F] placeholder-[#86868B] focus:outline-none focus:border-[#1D1D1F] transition-colors font-light text-center"
-              />
-            </div>
+
+            <input
+              autoFocus
+              value={name}
+              onChange={e => setName(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter" && keywords.trim()) handleGo(); }}
+              placeholder="Name"
+              className="w-full bg-white border border-[rgba(0,0,0,0.1)] rounded-xl px-5 py-4 text-base text-[#1D1D1F] placeholder-[#86868B] focus:outline-none focus:border-[#1D1D1F] transition-colors font-light text-center"
+            />
+
+            <textarea
+              value={keywords}
+              onChange={e => setKeywords(e.target.value)}
+              placeholder="What are they known for? (optional)"
+              rows={2}
+              className="mt-2 w-full bg-white border border-[rgba(0,0,0,0.1)] rounded-xl px-5 py-3 text-sm text-[#1D1D1F] placeholder-[#86868B] focus:outline-none focus:border-[#1D1D1F] transition-colors font-light resize-none text-center"
+            />
+
             <button
               onClick={handleGo}
               disabled={!name.trim()}
               className="mt-3 w-full py-3.5 rounded-xl bg-[#1D1D1F] text-white text-sm font-light hover:bg-[#3C3C3E] active:bg-[#000] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             >
-              Go
+              Add
             </button>
+
             <p className="text-[11px] text-[#AEAEB2] font-light mt-4">
-              Musk · Miyazaki · Austen · Turing
+              Taylor Swift · Musk · Feynman · Jobs
             </p>
           </>
         )}
@@ -84,7 +84,11 @@ export default function CreatePersonaPage() {
         {(stage === "creating" || stage === "distilling") && (
           <div className="flex flex-col items-center gap-4">
             <div className="w-8 h-8 border-2 border-[#1D1D1F] border-t-transparent rounded-full animate-spin" />
-            <p className="text-sm text-[#86868B] font-light">{stageText[stage]}</p>
+            <p className="text-sm text-[#1D1D1F] font-light">
+              {stage === "creating"
+                ? "Creating..."
+                : "Searching the web & building your conversation partner..."}
+            </p>
           </div>
         )}
 

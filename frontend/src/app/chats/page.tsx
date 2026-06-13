@@ -534,7 +534,7 @@ function ChatsContent() {
     not_logged_in: t.not_logged_in,
     logout: t.logout,
     my_personas: t.my_personas,
-    create_persona: t.create_persona,
+    add_ai_friend: t.add_ai_friend,
     account_settings: t.account_settings,
     help_feedback: t.help_feedback,
     about: t.about,
@@ -646,8 +646,8 @@ function ChatsContent() {
                     <Sparkles size={20} strokeWidth={1.5} className="text-white" />
                   </div>
                   <div className="text-left flex-1">
-                    <p className="text-sm font-medium text-[#1D1D1F]">{t.create_persona || "New Chat"}</p>
-                    <p className="text-xs text-[#86868B] font-light">Enter a name — anyone you can think of</p>
+                    <p className="text-sm font-medium text-[#1D1D1F]">{t.add_ai_friend || "Add an AI friend"}</p>
+                    <p className="text-xs text-[#86868B] font-light">An icon. A legend. Anyone.</p>
                   </div>
                 </button>
                 <button
