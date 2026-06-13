@@ -69,29 +69,12 @@ def _duckduckgo_search_sync(query: str, max_results: int = 5) -> list[dict]:
 
 
 async def _search_one(query: str) -> list[dict]:
-    """Search one query: SearXNG first, DDG fallback."""
-    # Use news category for time-sensitive queries (detected by keywords)
-    category = "general"
-    time_keywords = ["演唱会", "concert", "tour", "2026", "2025", "最新", "最新消息", "新闻", "announcement", "schedule"]
-    if any(kw in query.lower() for kw in [k.lower() for k in time_keywords]):
-        # Try news first, then general
-        news_results = await _searxng_search(query, "news")
-        if len(news_results) >= 3:
-            return news_results
-        general_results = await _searxng_search(query, "general")
-        # Merge: news first, then general
-        seen = set(r["url"] for r in news_results)
-        for r in general_results:
-            if r["url"] not in seen:
-                news_results.append(r)
-                seen.add(r["url"])
-        return news_results[:MAX_RESULTS]
-    else:
-        results = await _searxng_search(query, "general")
-        if len(results) < 3:
-            ddg = _duckduckgo_search_sync(query)
-            results.extend(ddg)
-        return results
+    """Search one query: SearXNG first, DDG fallback. DDG if SearXNG returns < 3."""
+    results = await _searxng_search(query, "general")
+    if len(results) < 3:
+        ddg = _duckduckgo_search_sync(query)
+        results.extend(ddg)
+    return results
 
 
 # ── Main Search ──────────────────────────────────────────
