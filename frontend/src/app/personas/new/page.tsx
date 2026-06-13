@@ -44,7 +44,7 @@ export default function CreatePersonaPage() {
         {stage === "idle" && (
           <>
             <h1 className="text-xl font-light text-[#1D1D1F] tracking-[-0.01em] mb-2">
-              Add an AI friend
+              Invite someone to chat
             </h1>
             <p className="text-xs text-[#86868B] font-light mb-8 leading-relaxed">
               An icon. A legend. Someone you are curious about.
@@ -72,7 +72,7 @@ export default function CreatePersonaPage() {
               disabled={!name.trim()}
               className="mt-3 w-full py-3.5 rounded-xl bg-[#1D1D1F] text-white text-sm font-light hover:bg-[#3C3C3E] active:bg-[#000] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             >
-              Add
+              Invite
             </button>
 
             <p className="text-[11px] text-[#AEAEB2] font-light mt-4">

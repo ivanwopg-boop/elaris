@@ -440,7 +440,7 @@ function MeTab({ tabStrings }: { tabStrings: Record<string, string> }) {
 
   const menuItems = [
     { label: tabStrings.my_personas, onClick: () => window.location.href = '/personas', icon: <User size={20} strokeWidth={1.5} /> },
-    { label: tabStrings.add_ai_friend || "Add AI Friend", onClick: () => window.location.href = '/personas/new', icon: <Sparkles size={20} strokeWidth={1.5} /> },
+    { label: tabStrings.invite || "Add AI Friend", onClick: () => window.location.href = '/personas/new', icon: <Sparkles size={20} strokeWidth={1.5} /> },
     { label: tabStrings.account_settings, onClick: () => window.location.href = '/settings', icon: <Settings size={20} strokeWidth={1.5} /> },
     { label: tabStrings.help_feedback, onClick: () => window.location.href = 'mailto:support@elaris.ai', icon: <HelpCircle size={20} strokeWidth={1.5} /> },
     { label: tabStrings.about, onClick: () => window.location.href = '/about', icon: <Info size={20} strokeWidth={1.5} /> },
@@ -534,7 +534,7 @@ function ChatsContent() {
     not_logged_in: t.not_logged_in,
     logout: t.logout,
     my_personas: t.my_personas,
-    add_ai_friend: t.add_ai_friend,
+    invite: t.invite,
     account_settings: t.account_settings,
     help_feedback: t.help_feedback,
     about: t.about,
@@ -646,7 +646,7 @@ function ChatsContent() {
                     <Sparkles size={20} strokeWidth={1.5} className="text-white" />
                   </div>
                   <div className="text-left flex-1">
-                    <p className="text-sm font-medium text-[#1D1D1F]">{t.add_ai_friend || "Add an AI friend"}</p>
+                    <p className="text-sm font-medium text-[#1D1D1F]">{t.invite || "Invite someone to chat"}</p>
                     <p className="text-xs text-[#86868B] font-light">An icon. A legend. Anyone.</p>
                   </div>
                 </button>
