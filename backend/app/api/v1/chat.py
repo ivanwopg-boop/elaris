@@ -360,6 +360,27 @@ async def _handle_mode(request: ChatRequest, user_id: str, db: AsyncSession, use
         return ChatResponse(message=safety["message"], sources=["safety"], style_match=0.0)
 
     info = await _get_soul(request.persona_id, db)
+
+    # ── Conversation memory (L1): recent conversation summary ──
+    memory_context = ""
+    try:
+        mem_result = await db.execute(
+            select(ConversationMessage.content, ConversationMessage.role, ConversationMessage.created_at)
+            .join(ConvTable, ConversationMessage.conversation_id == ConvTable.id)
+            .where(ConvTable.user_id == user_id, ConvTable.persona_id == request.persona_id)
+            .order_by(ConversationMessage.created_at.desc())
+            .limit(6)
+        )
+        mem_rows = mem_result.all()
+        if mem_rows:
+            recent = [{"role": r[1], "content": r[0][:200]} for r in reversed(mem_rows) if r[1] == "user"]
+            if recent:
+                memory_context = "You have spoken with this user before. Their recent messages include: " + "; ".join(
+                    [f'"{r["content"]}"' for r in recent[-3:]]
+                )
+    except Exception:
+        pass
+
     search_person_name_ns = info.get('source_name') or info['name']
     search_context = ""
     try:
@@ -383,6 +404,7 @@ async def _handle_mode(request: ChatRequest, user_id: str, db: AsyncSession, use
     system_prompt = CHAT_SYSTEM_PROMPT.format(
         current_date=datetime.now().strftime("%Y-%m-%d"),
         name=info["name"], soul_json=json.dumps(info["soul"], indent=2, ensure_ascii=False),
+        memory_context=memory_context,
         search_context=search_context,
     )
     user_msg = request.message
