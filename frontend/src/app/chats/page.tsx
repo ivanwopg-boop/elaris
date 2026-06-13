@@ -495,6 +495,27 @@ function MeTab({ tabStrings }: { tabStrings: Record<string, string> }) {
   const t = translations[lang];
   const router = useRouter();
   const { user, token, clearAuth, setAuth } = useAuthStore();
+  const { toast } = useToast();
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    // Reset input so same file can be re-selected after error
+    e.target.value = "";
+    setUploadingAvatar(true);
+    try {
+      const res = await api.uploadUserAvatar(file);
+      // Update auth store in-place so Avatar re-renders without page reload
+      setAuth(token || "", { ...(user as any), avatar_url: res.avatar_url });
+      toast(tabStrings.saved || "Avatar updated", "success");
+    } catch (err: any) {
+      const detail = err?._detail || err?.message || String(err);
+      toast((tabStrings.upload_failed || "Upload failed") + ": " + detail, "error");
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
 
   const handleLogout = async () => {
     try { await api.logout(); } catch { /* ignore */ }
@@ -515,20 +536,18 @@ function MeTab({ tabStrings }: { tabStrings: Record<string, string> }) {
       <div className="bg-white rounded-3xl border border-[rgba(0,0,0,0.06)] p-5 mb-4 flex items-center gap-4">
         <label className="cursor-pointer shrink-0 relative group">
           <Avatar name={user?.name || "?"} url={user?.avatar_url} size="lg" className="shrink-0 group-hover:opacity-80 transition-opacity" />
-          <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
-            const file = e.target.files?.[0];
-            if (!file) return;
-            try {
-              const form = new FormData();
-              form.append('file', file);
-              const res = await fetch('/api/v1/auth/me/avatar', { method: 'POST', body: form, headers: { Authorization: 'Bearer ' + token } });
-              if (res.ok) {
-                const data = await res.json();
-                setAuth(token!, { ...user!, avatar_url: data.avatar_url });
-                window.location.reload();
-              }
-            } catch {}
-          }} />
+            {uploadingAvatar && (
+              <div className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center">
+                <div className="w-5 h-5 rounded-full border-2 border-white/40 border-t-white animate-spin" />
+              </div>
+            )}
+          <input
+              type="file"
+              accept="image/png,image/jpeg,image/gif,image/webp"
+              className="hidden"
+              onChange={handleAvatarUpload}
+              disabled={uploadingAvatar}
+            />
         </label>
         <div className="flex-1 min-w-0">
           <p className="text-lg font-medium text-[#1D1D1F]">{user?.name || t.sign_in}</p>

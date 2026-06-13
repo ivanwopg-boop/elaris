@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Response, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
+from pathlib import Path
 from pydantic import BaseModel, EmailStr
 
 from app.database import get_db
@@ -17,6 +18,7 @@ from app.core.auth import (
     decode_token, generate_invite_code,
 )
 from app.core.auth_deps import require_auth
+from app.config import get_settings
 
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
@@ -274,18 +276,34 @@ async def upload_user_avatar(
     user: User = Depends(require_auth),
 ):
     """Upload avatar image for current user."""
+    # Validate
     settings = get_settings()
+    ALLOWED_EXT = {".png", ".jpg", ".jpeg", ".gif", ".webp"}
+    ALLOWED_TYPES = {"image/png", "image/jpeg", "image/gif", "image/webp"}
+    MAX_BYTES = 5 * 1024 * 1024  # 5 MB
+
+    ext = Path(file.filename).suffix.lower() if file.filename else ""
+    if ext not in ALLOWED_EXT:
+        raise HTTPException(status_code=400, detail=f"Unsupported image type '{ext}'. Allowed: png, jpg, jpeg, gif, webp")
+    if file.content_type and file.content_type not in ALLOWED_TYPES:
+        raise HTTPException(status_code=400, detail=f"Invalid content type: {file.content_type}")
+
+    contents = await file.read()
+    if len(contents) > MAX_BYTES:
+        raise HTTPException(status_code=413, detail=f"Avatar too large ({len(contents)//1024}KB). Max 5MB")
+    if len(contents) == 0:
+        raise HTTPException(status_code=400, detail="Empty file")
+
     avatar_dir = Path(settings.UPLOAD_DIR) / "avatars"
     avatar_dir.mkdir(parents=True, exist_ok=True)
-    ext = Path(file.filename).suffix if file.filename else ".png"
     filename = f"{user.id}{ext}"
     filepath = avatar_dir / filename
-    contents = await file.read()
     with open(filepath, "wb") as f:
         f.write(contents)
+
     user.avatar_url = f"/uploads/avatars/{filename}"
-    await db.flush()
-    return {"avatar_url": user.avatar_url}
+    await db.commit()
+    return {"avatar_url": user.avatar_url, "filename": filename}
 
 # ── OAuth placeholders (requires API keys setup) ───────
 @router.get("/google")
