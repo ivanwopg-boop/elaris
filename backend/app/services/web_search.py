@@ -16,7 +16,10 @@ SEARXNG_URL = "http://localhost:8888/search"
 TIMEOUT = 8.0
 MAX_RESULTS = 8
 # Curated stable engines (DDG times out, Google/Startpage CAPTCHA'd on DC IPs)
-SEARXNG_ENGINES = "baidu,sogou,bing,brave,wikipedia,wikidata"
+# Bing handles both Chinese and English. Brave/Wikipedia/Wikidata are English supplements.
+# Baidu/Sogou suspended (CAPTCHA on DC IPs). Google also CAPTCHA'd.
+# DDG always times out. Startpage CAPTCHA'd.
+SEARXNG_ENGINES = "bing,brave,wikipedia,wikidata"
 
 
 async def _searxng_search(query: str) -> list[dict]:
