@@ -24,16 +24,18 @@ MIN_GOOD_RESULTS = 3
 
 # ── SearXNG (Primary, self-hosted) ───────────────────────
 
-async def _searxng_search(query: str, category: str = "general") -> list[dict]:
-    """Search via self-hosted SearXNG — aggregates Google/Bing/Brave/Startpage/Baidu/Sogou/Bilibili/Wikipedia."""
+async def _searxng_search(query: str, category: str = "") -> list[dict]:
+    """Search via self-hosted SearXNG — aggregates all engines (no category filter)."""
     try:
         params = {
             "q": query,
             "format": "json",
             "language": "auto",
-            "categories": category,
             "pageno": 1,
         }
+        # Only add categories if specified (default: all engines)
+        if category:
+            params["categories"] = category
         async with httpx.AsyncClient(timeout=TIMEOUT) as client:
             resp = await client.get(SEARXNG_URL, params=params)
             if resp.status_code != 200:
@@ -136,8 +138,8 @@ async def _search_one(query: str) -> list[dict]:
     If SearXNG times out, use Exa alone.
     If both fail, return empty."""
     
-    # Race both backends simultaneously
-    searx_task = asyncio.create_task(_searxng_search(query))
+    # Race both backends simultaneously (no category filter = all engines)
+    searx_task = asyncio.create_task(_searxng_search(query, category=""))
     exa_task = asyncio.create_task(_exa_search(query))
     
     # Wait for first completion
@@ -243,7 +245,7 @@ async def ensure_web_search_results(persona_id: str, db) -> None:
     now = datetime.now(timezone.utc)
 
     for query in queries:
-        results = await _search_one(query)
+        results = await _searxng_search(query)
         for r in results[:3]:
             ws = WebSearchResult(
                 id=str(uuid.uuid4()),
