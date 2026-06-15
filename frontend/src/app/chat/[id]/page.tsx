@@ -8,6 +8,9 @@ import { Avatar } from "@/components/Avatar";
 import { api, PersonaDetail } from "@/lib/api";
 import { ChevronLeft, Copy, Trash2, X, Check, ClipboardCheck } from "lucide-react";
 
+const LEVEL_COLOR: Record<number, string> = { 1: "#8E8E93", 2: "#34C759", 3: "#007AFF", 4: "#AF52DE", 5: "#FF9500" };
+const LEVEL_LABEL: Record<number, string> = { 1: "Lv1", 2: "Lv2", 3: "Lv3", 4: "Lv4", 5: "Lv5" };
+
 function ft(t: number) {
   if (!t) return "";
   const d = new Date(t);
@@ -31,10 +34,7 @@ function TypeText({ text, speed = 20, animate = false }: { text: string; speed?:
   }, [text, speed, animate]);
 
 
-  useEffect(() => {
-    if (!id) return;
-    api.getIntimacy(id as string).then(setIntimacy).catch(() => {});
-  }, [id]);  return <span>{d}</span>;
+  return <span>{d}</span>;
 }
 
 export default function ChatPage() {
@@ -314,7 +314,7 @@ export default function ChatPage() {
             <button onClick={() => router.push(`/persona/${id}`)} className="shrink-0 active:scale-95 transition-transform" title="View profile">
               <Avatar name={persona?.name || "?"} url={persona?.avatar_url} size="sm" className="shrink-0" />
             </button>
-            <button onClick={() => router.push(`/persona/${id}`)} className="text-sm font-light truncate text-left hover:text-[#0071E3] transition-colors" title="View profile">{n}</button><span className="text-[10px] text-[#AEAEB2] font-light shrink-0">AI persona</span>
+            <button onClick={() => router.push(`/persona/${id}`)} className="text-sm font-light truncate text-left hover:text-[#0071E3] transition-colors" title="View profile">{n}</button>
             {intimacy && intimacy.message_count > 0 && <span className="text-[11px] font-light shrink-0 px-1.5 py-0.5 rounded-full" style={{backgroundColor:LEVEL_COLOR[intimacy.level]||LEVEL_COLOR[1],color:"#fff"}}>{LEVEL_LABEL[intimacy.level]||""} {intimacy.level_name}</span>}
             <div className="flex-1" />
           </div>
