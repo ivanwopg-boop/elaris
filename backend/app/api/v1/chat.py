@@ -251,23 +251,11 @@ async def chat_stream(persona_id: str, message: str, conv: str = None, request: 
 
             if _all_results:
                 _lines = []
-                _has_specific_dates = False
-                import re as _re
                 for i, r in enumerate(_all_results[:10]):
                     _t = r.get('title', '')[:120]
                     _s = r.get('snippet', '')[:250]
                     _lines.append(f"- {_t}\n  {_s}")
-                    # Check if this result contains any date-like or event info
-                    _combined = _t + " " + _s
-                    if _re.search(r'(20\d{2}\s*[年/.-]\s*\d+|\d+\s*[月/.-]\s*\d+|演唱会|巡演|官宣|开票|鸟巢|体育场|体育中心)', _combined):
-                        _has_specific_dates = True
                 search_context = "\n### Latest web results (ordered by relevance):\n" + "\n".join(_lines)
-                # If results don't contain any event/date info, warn the LLM explicitly
-                if not _has_specific_dates:
-                    search_context = "\n⚠️ The search results below contain GENERAL biographical information only. " \
-                        "They do NOT contain specific dates, venues, or event schedules. " \
-                        "When asked about events/dates/venues, you MUST say: " \
-                        "\"I don't have that specific information right now. Let me check again later.\"\n" + search_context
                 _log.info(f"[SEARCH] {len(_all_results)} results -> {len(search_context)} chars")
     except Exception as _search_err:
         import logging; logging.getLogger("uvicorn").error(f"[SEARCH_ERROR] {_search_err}")
