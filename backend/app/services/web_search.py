@@ -32,8 +32,10 @@ async def _searxng_search(query: str, category: str = "") -> list[dict]:
             "format": "json",
             "language": "auto",
             "pageno": 1,
+            # Explicitly list stable engines to avoid DDG timeout / Startpage CAPTCHA
+            # filtering all results
+            "engines": "baidu,sogou,bing,brave,wikipedia,wikidata",
         }
-        # Only add categories if specified (default: all engines)
         if category:
             params["categories"] = category
         async with httpx.AsyncClient(timeout=TIMEOUT) as client:
