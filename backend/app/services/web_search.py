@@ -1,22 +1,31 @@
-"""Search: SearXNG (primary, self-hosted) + DuckDuckGo (fallback)."""
+"""Elaris Search Pipeline: SearXNG (primary) + Exa (fallback).
+
+Architecture:
+  SearXNG ── self-hosted, 246 engines, English+Chinese, timeout 8s
+  Exa     ── semantic search via mcporter, used as fallback
+  Strategy: race both, return first success. SearXNG alone is enough
+  for 90% queries; Exa kicks in when SearXNG is slow or returns <3 results.
+"""
 
 import asyncio
 import logging
+import subprocess
+import json as _json
 from typing import Optional
 import httpx
-from trafilatura import extract
 
 logger = logging.getLogger("uvicorn")
 
 SEARXNG_URL = "http://localhost:8888/search"
 TIMEOUT = 8.0
 MAX_RESULTS = 8
+MIN_GOOD_RESULTS = 3
 
 
 # ── SearXNG (Primary, self-hosted) ───────────────────────
 
 async def _searxng_search(query: str, category: str = "general") -> list[dict]:
-    """Search via self-hosted SearXNG instance — unlimited, aggregates Google/Bing/DDG/Baidu."""
+    """Search via self-hosted SearXNG — aggregates Google/Bing/Brave/Startpage/Baidu/Sogou/Bilibili/Wikipedia."""
     try:
         params = {
             "q": query,
@@ -39,48 +48,156 @@ async def _searxng_search(query: str, category: str = "general") -> list[dict]:
                     "snippet": r.get("content", ""),
                     "engines": r.get("engines", ["searxng"]),
                     "score": r.get("score", 0.8),
+                    "source": "searxng",
                 })
+            logger.info(f"[SearXNG] {len(results)} results for: {query[:60]}")
             return results
+    except asyncio.TimeoutError:
+        logger.warning(f"[SearXNG] Timeout ({TIMEOUT}s) for: {query[:60]}")
+        return []
     except Exception as e:
         logger.warning(f"[SearXNG] Failed for '{query[:60]}': {e}")
         return []
 
 
-# ── DuckDuckGo (Fallback) ────────────────────────────────
+# ── Exa (Fallback, via mcporter) ─────────────────────────
 
-def _duckduckgo_search_sync(query: str, max_results: int = 5) -> list[dict]:
-    """Direct DuckDuckGo search via ddgs library."""
+def _exa_search_sync(query: str, num_results: int = 5) -> list[dict]:
+    """Semantic web search via Exa AI (free tier, mcporter)."""
     try:
-        from ddgs import DDGS
-        results = []
-        with DDGS() as ddgs:
-            for r in ddgs.text(query, max_results=max_results):
-                results.append({
+        cmd = [
+            "mcporter", "call",
+            f'exa.web_search_exa(query: "{query}", numResults: {num_results}, useAutoprompt: true)',
+            "--timeout", "120000"
+        ]
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=15
+        )
+        if result.returncode != 0:
+            # Parse mcporter output which may contain both logs and JSON
+            stdout = result.stdout.strip()
+            if not stdout:
+                logger.warning(f"[Exa] Empty output for: {query[:60]}")
+                return []
+            # Find the JSON part
+            try:
+                data = _json.loads(stdout)
+            except _json.JSONDecodeError:
+                # Try to extract JSON from mixed output
+                for line in stdout.split('\n'):
+                    line = line.strip()
+                    if line.startswith('{'):
+                        try:
+                            data = _json.loads(line)
+                            break
+                        except _json.JSONDecodeError:
+                            continue
+                else:
+                    logger.warning(f"[Exa] Could not parse JSON for: {query[:60]}")
+                    return []
+        else:
+            data = _json.loads(stdout) if stdout else {}
+
+        results = data.get("results", [])
+        if isinstance(results, list):
+            output = []
+            for r in results[:num_results]:
+                output.append({
                     "title": r.get("title", ""),
-                    "url": r.get("href", ""),
-                    "snippet": r.get("body", ""),
-                    "engines": ["duckduckgo"],
-                    "score": 0.5,
+                    "url": r.get("url", ""),
+                    "snippet": r.get("text", "") or " ".join(r.get("highlights", [])),
+                    "engines": ["exa"],
+                    "score": r.get("score", 0.6),
+                    "source": "exa",
                 })
-        return results
+            logger.info(f"[Exa] {len(output)} results for: {query[:60]}")
+            return output
+        return []
+    except subprocess.TimeoutExpired:
+        logger.warning(f"[Exa] Subprocess timeout for: {query[:60]}")
+        return []
     except Exception as e:
-        logger.warning(f"[DDG] Search failed for '{query[:60]}': {e}")
+        logger.warning(f"[Exa] Failed for '{query[:60]}': {e}")
         return []
 
 
+async def _exa_search(query: str, num_results: int = 5) -> list[dict]:
+    """Async wrapper for Exa search."""
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, _exa_search_sync, query, num_results)
+
+
+# ── Combined Search (race SearXNG vs Exa) ─────────────────
+
 async def _search_one(query: str) -> list[dict]:
-    """Search one query: SearXNG first, DDG fallback. DDG if SearXNG returns < 3."""
-    results = await _searxng_search(query, "general")
-    if len(results) < 3:
-        ddg = _duckduckgo_search_sync(query)
-        results.extend(ddg)
-    return results
+    """Search one query: race SearXNG vs Exa, use first with >=MIN_GOOD_RESULTS.
+    
+    If both return but SearXNG has <3 results, merge with Exa.
+    If SearXNG times out, use Exa alone.
+    If both fail, return empty."""
+    
+    # Race both backends simultaneously
+    searx_task = asyncio.create_task(_searxng_search(query))
+    exa_task = asyncio.create_task(_exa_search(query))
+    
+    # Wait for first completion
+    done, pending = await asyncio.wait(
+        [searx_task, exa_task],
+        return_when=asyncio.FIRST_COMPLETED,
+        timeout=TIMEOUT + 2
+    )
+    
+    searx_results = []
+    exa_results = []
+    
+    for task in done:
+        try:
+            result = task.result()
+        except Exception:
+            result = []
+        if task is searx_task:
+            searx_results = result
+        else:
+            exa_results = result
+    
+    # If SearXNG returned enough results, use it
+    if searx_results and len(searx_results) >= MIN_GOOD_RESULTS:
+        # Cancel Exa if still running (save credits)
+        if not exa_task.done():
+            exa_task.cancel()
+        return searx_results
+    
+    # Wait for the other task if still pending
+    if pending:
+        try:
+            remaining_done, _ = await asyncio.wait(pending, timeout=3)
+            for task in remaining_done:
+                try:
+                    result = task.result()
+                except Exception:
+                    result = []
+                if task is searx_task:
+                    searx_results = result
+                else:
+                    exa_results = result
+        except Exception:
+            pass
+    
+    # Merge: SearXNG first, Exa supplements
+    merged = list(searx_results)
+    seen_urls = {r.get("url") for r in merged}
+    for r in exa_results:
+        if r.get("url") not in seen_urls:
+            merged.append(r)
+            seen_urls.add(r.get("url"))
+    
+    return merged[:MAX_RESULTS]
 
 
 # ── Main Search ──────────────────────────────────────────
 
 async def search_web(queries: list[str]) -> list[dict]:
-    """Search multiple queries in parallel via SearXNG + DDG fallback."""
+    """Search multiple queries in parallel via SearXNG + Exa fallback."""
     if not queries:
         return []
     tasks = [_search_one(q) for q in queries]
@@ -139,6 +256,7 @@ async def ensure_web_search_results(persona_id: str, db) -> None:
             db.add(ws)
 
     await db.commit()
+
 
 # ── Full-page content scraping ───────────────────────────
 
