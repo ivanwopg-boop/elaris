@@ -1,43 +1,34 @@
-"""Elaris Search Pipeline: SearXNG (primary) + Exa (fallback).
+"""Elaris Search Pipeline: SearXNG (self-hosted, curated engines).
 
-Architecture:
-  SearXNG ── self-hosted, 246 engines, English+Chinese, timeout 8s
-  Exa     ── semantic search via mcporter, used as fallback
-  Strategy: race both, return first success. SearXNG alone is enough
-  for 90% queries; Exa kicks in when SearXNG is slow or returns <3 results.
+Engines: baidu,sogou,bing,brave,wikipedia,wikidata
+Timeout: 8s
 """
 
 import asyncio
 import logging
-import subprocess
-import json as _json
 from typing import Optional
 import httpx
+from trafilatura import extract
 
 logger = logging.getLogger("uvicorn")
 
 SEARXNG_URL = "http://localhost:8888/search"
 TIMEOUT = 8.0
 MAX_RESULTS = 8
-MIN_GOOD_RESULTS = 3
+# Curated stable engines (DDG times out, Google/Startpage CAPTCHA'd on DC IPs)
+SEARXNG_ENGINES = "baidu,sogou,bing,brave,wikipedia,wikidata"
 
 
-# ── SearXNG (Primary, self-hosted) ───────────────────────
-
-async def _searxng_search(query: str, category: str = "") -> list[dict]:
-    """Search via self-hosted SearXNG — aggregates all engines (no category filter)."""
+async def _searxng_search(query: str) -> list[dict]:
+    """Search via self-hosted SearXNG with curated stable engines."""
     try:
         params = {
             "q": query,
             "format": "json",
             "language": "auto",
             "pageno": 1,
-            # Explicitly list stable engines to avoid DDG timeout / Startpage CAPTCHA
-            # filtering all results
-            "engines": "baidu,sogou,bing,brave,wikipedia,wikidata",
+            "engines": SEARXNG_ENGINES,
         }
-        if category:
-            params["categories"] = category
         async with httpx.AsyncClient(timeout=TIMEOUT) as client:
             resp = await client.get(SEARXNG_URL, params=params)
             if resp.status_code != 200:
@@ -64,144 +55,13 @@ async def _searxng_search(query: str, category: str = "") -> list[dict]:
         return []
 
 
-# ── Exa (Fallback, via mcporter) ─────────────────────────
-
-def _exa_search_sync(query: str, num_results: int = 5) -> list[dict]:
-    """Semantic web search via Exa AI (free tier, mcporter)."""
-    try:
-        cmd = [
-            "mcporter", "call",
-            f'exa.web_search_exa(query: "{query}", numResults: {num_results}, useAutoprompt: true)',
-            "--timeout", "120000"
-        ]
-        result = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=15
-        )
-        if result.returncode != 0:
-            # Parse mcporter output which may contain both logs and JSON
-            stdout = result.stdout.strip()
-            if not stdout:
-                logger.warning(f"[Exa] Empty output for: {query[:60]}")
-                return []
-            # Find the JSON part
-            try:
-                data = _json.loads(stdout)
-            except _json.JSONDecodeError:
-                # Try to extract JSON from mixed output
-                for line in stdout.split('\n'):
-                    line = line.strip()
-                    if line.startswith('{'):
-                        try:
-                            data = _json.loads(line)
-                            break
-                        except _json.JSONDecodeError:
-                            continue
-                else:
-                    logger.warning(f"[Exa] Could not parse JSON for: {query[:60]}")
-                    return []
-        else:
-            data = _json.loads(stdout) if stdout else {}
-
-        results = data.get("results", [])
-        if isinstance(results, list):
-            output = []
-            for r in results[:num_results]:
-                output.append({
-                    "title": r.get("title", ""),
-                    "url": r.get("url", ""),
-                    "snippet": r.get("text", "") or " ".join(r.get("highlights", [])),
-                    "engines": ["exa"],
-                    "score": r.get("score", 0.6),
-                    "source": "exa",
-                })
-            logger.info(f"[Exa] {len(output)} results for: {query[:60]}")
-            return output
-        return []
-    except subprocess.TimeoutExpired:
-        logger.warning(f"[Exa] Subprocess timeout for: {query[:60]}")
-        return []
-    except Exception as e:
-        logger.warning(f"[Exa] Failed for '{query[:60]}': {e}")
-        return []
-
-
-async def _exa_search(query: str, num_results: int = 5) -> list[dict]:
-    """Async wrapper for Exa search."""
-    loop = asyncio.get_event_loop()
-    return await loop.run_in_executor(None, _exa_search_sync, query, num_results)
-
-
-# ── Combined Search (race SearXNG vs Exa) ─────────────────
-
 async def _search_one(query: str) -> list[dict]:
-    """Search one query: race SearXNG vs Exa, use first with >=MIN_GOOD_RESULTS.
-    
-    If both return but SearXNG has <3 results, merge with Exa.
-    If SearXNG times out, use Exa alone.
-    If both fail, return empty."""
-    
-    # Race both backends simultaneously (no category filter = all engines)
-    searx_task = asyncio.create_task(_searxng_search(query, category=""))
-    exa_task = asyncio.create_task(_exa_search(query))
-    
-    # Wait for first completion
-    done, pending = await asyncio.wait(
-        [searx_task, exa_task],
-        return_when=asyncio.FIRST_COMPLETED,
-        timeout=TIMEOUT + 2
-    )
-    
-    searx_results = []
-    exa_results = []
-    
-    for task in done:
-        try:
-            result = task.result()
-        except Exception:
-            result = []
-        if task is searx_task:
-            searx_results = result
-        else:
-            exa_results = result
-    
-    # If SearXNG returned enough results, use it
-    if searx_results and len(searx_results) >= MIN_GOOD_RESULTS:
-        # Cancel Exa if still running (save credits)
-        if not exa_task.done():
-            exa_task.cancel()
-        return searx_results
-    
-    # Wait for the other task if still pending
-    if pending:
-        try:
-            remaining_done, _ = await asyncio.wait(pending, timeout=3)
-            for task in remaining_done:
-                try:
-                    result = task.result()
-                except Exception:
-                    result = []
-                if task is searx_task:
-                    searx_results = result
-                else:
-                    exa_results = result
-        except Exception:
-            pass
-    
-    # Merge: SearXNG first, Exa supplements
-    merged = list(searx_results)
-    seen_urls = {r.get("url") for r in merged}
-    for r in exa_results:
-        if r.get("url") not in seen_urls:
-            merged.append(r)
-            seen_urls.add(r.get("url"))
-    
-    return merged[:MAX_RESULTS]
+    """Search one query via SearXNG."""
+    return await _searxng_search(query)
 
-
-# ── Main Search ──────────────────────────────────────────
 
 async def search_web(queries: list[str]) -> list[dict]:
-    """Search multiple queries in parallel via SearXNG + Exa fallback."""
+    """Search multiple queries in parallel."""
     if not queries:
         return []
     tasks = [_search_one(q) for q in queries]
@@ -215,8 +75,6 @@ async def search_web(queries: list[str]) -> list[dict]:
             output.append({"query": queries[i], "results": []})
     return output
 
-
-# ── Auto-search for distillation ─────────────────────────
 
 async def ensure_web_search_results(persona_id: str, db) -> None:
     """Auto-generate web search results for new personas before distillation."""
@@ -247,7 +105,7 @@ async def ensure_web_search_results(persona_id: str, db) -> None:
     now = datetime.now(timezone.utc)
 
     for query in queries:
-        results = await _searxng_search(query)
+        results = await _search_one(query)
         for r in results[:3]:
             ws = WebSearchResult(
                 id=str(uuid.uuid4()),
@@ -262,11 +120,8 @@ async def ensure_web_search_results(persona_id: str, db) -> None:
     await db.commit()
 
 
-# ── Full-page content scraping ───────────────────────────
-
 async def scrape_top_results(results: list[dict], max_pages: int = 3) -> str:
     """Fetch full content from top search results. Returns formatted text."""
-    import trafilatura
     full_texts = []
     for r in results[:max_pages]:
         try:
