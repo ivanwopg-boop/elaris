@@ -1,12 +1,11 @@
-"""Elaris Search Pipeline: SearXNG (self-hosted, curated engines).
+"""Elaris Search Pipeline: SearXNG via Bing (reliable for both Chinese & English).
 
-Engines: baidu,sogou,bing,brave,wikipedia,wikidata
-Timeout: 8s
+Why Bing-only: Baidu/Sogou/Google CAPTCHA on DC IPs. DDG always times out.
+Bing indexes Chinese content (百度百科, Wikipedia zh, Bilibili, etc.) just fine.
 """
 
 import asyncio
 import logging
-from typing import Optional
 import httpx
 from trafilatura import extract
 
@@ -15,22 +14,14 @@ logger = logging.getLogger("uvicorn")
 SEARXNG_URL = "http://localhost:8888/search"
 TIMEOUT = 8.0
 MAX_RESULTS = 8
-# Curated stable engines (DDG times out, Google/Startpage CAPTCHA'd on DC IPs)
-# Bing handles both Chinese and English. Sogou added via EdgeTunnel proxy for Chinese content.
-# Brave/Wikipedia/Wikidata are English supplements.
-# Baidu still CAPTCHA'd even through proxy. Google/DDG/Startpage also blocked.
-SEARXNG_ENGINES = "sogou,bing,brave,wikipedia,wikidata"
+SEARXNG_ENGINES = "bing"
 
 
 async def _searxng_search(query: str) -> list[dict]:
-    """Search via self-hosted SearXNG with curated stable engines."""
     try:
         params = {
-            "q": query,
-            "format": "json",
-            "language": "auto",
-            "pageno": 1,
-            "engines": SEARXNG_ENGINES,
+            "q": query, "format": "json", "language": "auto",
+            "pageno": 1, "engines": SEARXNG_ENGINES,
         }
         async with httpx.AsyncClient(timeout=TIMEOUT) as client:
             resp = await client.get(SEARXNG_URL, params=params)
@@ -51,7 +42,7 @@ async def _searxng_search(query: str) -> list[dict]:
             logger.info(f"[SearXNG] {len(results)} results for: {query[:60]}")
             return results
     except asyncio.TimeoutError:
-        logger.warning(f"[SearXNG] Timeout ({TIMEOUT}s) for: {query[:60]}")
+        logger.warning(f"[SearXNG] Timeout for: {query[:60]}")
         return []
     except Exception as e:
         logger.warning(f"[SearXNG] Failed for '{query[:60]}': {e}")
@@ -59,28 +50,42 @@ async def _searxng_search(query: str) -> list[dict]:
 
 
 async def _search_one(query: str) -> list[dict]:
-    """Search one query via SearXNG."""
     return await _searxng_search(query)
 
 
 async def search_web(queries: list[str]) -> list[dict]:
-    """Search multiple queries in parallel."""
     if not queries:
         return []
-    tasks = [_search_one(q) for q in queries]
-    all_raw = await asyncio.gather(*tasks, return_exceptions=True)
-
-    output = []
-    for i, results in enumerate(all_raw):
-        if isinstance(results, list):
-            output.append({"query": queries[i], "results": results})
-        else:
-            output.append({"query": queries[i], "results": []})
-    return output
+    tasks = [asyncio.create_task(_search_one(q)) for q in queries]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    return [{"query": queries[i], "results": r if isinstance(r, list) else []} for i, r in enumerate(results)]
 
 
+async def scrape_top_results(results: list[dict], max_pages: int = 3) -> str:
+    full_texts = []
+    for r in results[:max_pages]:
+        try:
+            url = r.get("url", "")
+            if not url or any(d in url for d in ["passport.weibo", "xiaohongshu.com"]):
+                continue
+            async with httpx.AsyncClient(timeout=5) as client:
+                resp = await client.get(url, follow_redirects=True,
+                    headers={"User-Agent": "Mozilla/5.0 ElarisSearch/1.0"})
+                text = extract(resp.text)
+                if text and len(text) > 200:
+                    title = r.get("title", "")[:80]
+                    full_texts.append(f"### {title}\n{text[:2000]}")
+        except Exception:
+            pass
+        if len(full_texts) >= 2:
+            break
+    if full_texts:
+        return "\n\n### Full article content (auto-scraped):\n" + "\n---\n".join(full_texts)
+    return ""
+
+
+# keep ensure_web_search_results for distillation
 async def ensure_web_search_results(persona_id: str, db) -> None:
-    """Auto-generate web search results for new personas before distillation."""
     import uuid, json
     from datetime import datetime, timezone
     from sqlalchemy import select
@@ -103,46 +108,15 @@ async def ensure_web_search_results(persona_id: str, db) -> None:
         "thinking style beliefs quotes",
         "personality legacy impact",
     ]]
-
     batch = str(uuid.uuid4())
     now = datetime.now(timezone.utc)
-
     for query in queries:
         results = await _search_one(query)
         for r in results[:3]:
             ws = WebSearchResult(
-                id=str(uuid.uuid4()),
-                persona_id=persona_id,
-                query=query,
+                id=str(uuid.uuid4()), persona_id=persona_id, query=query,
                 results_json=json.dumps([r], ensure_ascii=False),
-                search_batch=batch,
-                created_at=now,
+                search_batch=batch, created_at=now,
             )
             db.add(ws)
-
     await db.commit()
-
-
-async def scrape_top_results(results: list[dict], max_pages: int = 3) -> str:
-    """Fetch full content from top search results. Returns formatted text."""
-    full_texts = []
-    for r in results[:max_pages]:
-        try:
-            url = r.get("url", "")
-            if not url or any(d in url for d in ["passport.weibo", "xiaohongshu.com"]):
-                continue
-            async with httpx.AsyncClient(timeout=5) as client:
-                resp = await client.get(url, follow_redirects=True,
-                    headers={"User-Agent": "Mozilla/5.0 ElarisSearch/1.0"})
-                text = trafilatura.extract(resp.text)
-                if text and len(text) > 200:
-                    title = r.get("title", "")[:80]
-                    full_texts.append(f"### {title}\n{text[:2000]}")
-        except Exception:
-            pass
-        if len(full_texts) >= 2:
-            break
-
-    if full_texts:
-        return "\n\n### Full article content (auto-scraped):\n" + "\n---\n".join(full_texts)
-    return ""
