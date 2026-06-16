@@ -22,7 +22,13 @@ from trafilatura import extract
 logger = logging.getLogger("uvicorn")
 
 SEARXNG_URL = "http://localhost:8888/search"
-SEARXNG_ENGINES = "bing,brave,startpage,duckduckgo,google"
+# Brave + DuckDuckGo engines are NOT used:
+#   - Brave: 429 suspended every 3min (rate limited from this IP)
+#   - DuckDuckGo (html.duckduckgo.com): connect timeout (firewalled)
+#   - Bing: solid for both EN and ZH
+#   - Google: solid for EN, weak for ZH but Bing covers it
+#   - Startpage: solid backup
+SEARXNG_ENGINES = "bing,google,startpage"
 SEARXNG_TIMEOUT = 15.0
 MAX_RESULTS = 8
 
