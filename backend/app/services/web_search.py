@@ -94,6 +94,7 @@ async def _searxng_search(query: str, time_range: str = "", categories: str = ""
 # ── Obscura (Layer 2 — fallback) ───────────────────────────────
 
 OBSCURA_BIN = "/tmp/obscura/target/release/obscura"
+OBSCURA_PROXY = "http://127.0.0.1:7890"  # sing-box → Edgetunnel VLESS → Cloudflare IP
 
 _BAIDU_EVAL = (
     "(function(){"
@@ -135,6 +136,7 @@ async def _obscura_fetch(url: str, eval_js: str, timeout: int = 15) -> list[dict
         proc = await asyncio.create_subprocess_exec(
             OBSCURA_BIN, "fetch", url,
             "--stealth",
+            "--proxy", OBSCURA_PROXY,
             "--eval", eval_js,
             "--wait-until", "load",
             "--allow-private-network",
