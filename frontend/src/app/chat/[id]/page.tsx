@@ -6,8 +6,7 @@ import { useLangStore, translations } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/Avatar";
 import { api, PersonaDetail } from "@/lib/api";
-import { ChevronLeft, Copy, Trash2, X, Check, ClipboardCheck, Wifi, WifiOff, Crown } from "lucide-react";
-import { useAuthStore } from "@/lib/auth-store";
+import { ChevronLeft, Copy, Trash2, X, Check, ClipboardCheck, Wifi } from "lucide-react";
 
 const LEVEL_COLOR: Record<number, string> = { 1: "#8E8E93", 2: "#34C759", 3: "#007AFF", 4: "#AF52DE", 5: "#FF9500" };
 const LEVEL_LABEL: Record<number, string> = { 1: "Lv1", 2: "Lv2", 3: "Lv3", 4: "Lv4", 5: "Lv5" };
@@ -52,9 +51,7 @@ export default function ChatPage() {
   const [building, setBuilding] = useState(false);
   const [streamError, setStreamError] = useState<string | null>(null);
   const [searchHint, setSearchHint] = useState<string | null>(null);
-  const user = useAuthStore((s) => s.user);
-  const isPremium = user?.tier === "premium" || user?.tier === "admin";
-  const [searchEnabled, setSearchEnabled] = useState(isPremium);
+  const [searchEnabled, setSearchEnabled] = useState(true);
   const [intimacy, setIntimacy] = useState<{level:number;level_name:string;xp:number;next_level_xp:number;message_count:number} | null>(null);
   const [liveContent, setLiveContent] = useState("");
   const ref = useRef<HTMLDivElement>(null);
@@ -327,30 +324,20 @@ export default function ChatPage() {
             <button onClick={() => router.push("/chats")} className="text-[#86868B] hover:text-[#1D1D1F] p-1.5 -ml-1.5 rounded-full hover:bg-[rgba(0,0,0,0.04)] active:bg-[rgba(0,0,0,0.08)] transition-colors">
               <ChevronLeft size={20} strokeWidth={1.5} />
             </button>
-            <button onClick={() => router.push(`/persona/${id}`)} className="shrink-0 active:scale-95 transition-transform" title="View profile">
+            <button onClick={() => router.push(`/persona/${id}`)} className={`shrink-0 active:scale-95 transition-transform ${searchEnabled ? "p-0.5 rounded-full ring-2 ring-[#34C759] ring-offset-1 shadow-[0_0_8px_rgba(52,199,89,0.3)]" : ""}`} title="View profile">
               <Avatar name={persona?.name || "?"} url={persona?.avatar_url} size="sm" className="shrink-0" />
             </button>
             <button onClick={() => router.push(`/persona/${id}`)} className="text-sm font-light truncate text-left hover:text-[#0071E3] transition-colors" title="View profile">{n}</button>
             {intimacy && intimacy.message_count > 0 && <span className="text-[11px] font-light shrink-0 px-1.5 py-0.5 rounded-full" style={{backgroundColor:LEVEL_COLOR[intimacy.level]||LEVEL_COLOR[1],color:"#fff"}}>{LEVEL_LABEL[intimacy.level]||""} {intimacy.level_name}</span>}
             <div className="flex-1" />
             {/* Web search toggle */}
-            {isPremium ? (
-              <button
-                onClick={() => setSearchEnabled(!searchEnabled)}
-                className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-light transition-colors ${searchEnabled ? "bg-blue-50 text-blue-600" : "bg-gray-100 text-gray-400"}`}
-              >
-                {searchEnabled ? <Wifi size={13} strokeWidth={1.5} /> : <WifiOff size={13} strokeWidth={1.5} />}
-                {searchEnabled ? tl.web_search_on || "Search on" : tl.web_search_off || "Search off"}
-              </button>
-            ) : (
-              <button
-                onClick={() => router.push("/settings")}
-                className="flex items-center gap-1 px-2 py-1 rounded-full text-xs font-light bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-colors"
-              >
-                <Crown size={12} strokeWidth={1.5} />
-                {tl.upgrade || "Upgrade"}
-              </button>
-            )}
+            <button
+              onClick={() => setSearchEnabled(!searchEnabled)}
+              className={`p-1.5 rounded-full transition-all ${searchEnabled ? "text-[#34C759] bg-[#34C759]/10" : "text-[#C7C7CC] hover:text-[#8E8E93]"}`}
+              title={searchEnabled ? "联网搜索已开启" : "联网搜索已关闭"}
+            >
+              <Wifi size={16} strokeWidth={1.5} />
+            </button>
           </div>
         )}
       </header>
