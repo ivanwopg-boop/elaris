@@ -357,6 +357,13 @@ async def chat_stream(persona_id: str, message: str, conv: str = None, request: 
                 if _r.get("source") == "searxng:news": _s += 1
                 return _s
             _all_results.sort(key=_score, reverse=True)
+            # Boost News-mode results: pull up to top-3 news results to position
+            # 1-3 BEFORE the keyword re-rank, regardless of CJK match. Otherwise
+            # English news (which won't match CJK keywords) get buried under
+            # Chinese web results that match the persona-name keyword.
+            _news_boost = [r for r in _all_results if r.get("source") == "searxng:news"]
+            _non_news = [r for r in _all_results if r.get("source") != "searxng:news"]
+            _all_results = _news_boost[:3] + _non_news
             _log.info(f"[SEARCH_RANK] re-ranked by {_kw_all}, top: {_all_results[0].get('title','')[:50] if _all_results else 'none'}")
             _all_results = _all_results[:12]
 
