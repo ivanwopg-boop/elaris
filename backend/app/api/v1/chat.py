@@ -232,23 +232,33 @@ async def chat_stream(persona_id: str, message: str, conv: str = None, request: 
             # Belt-and-suspenders: ALWAYS include a search query that combines
             # persona name + raw user message + year. This ensures critical tokens
             # (dates like "19号", names, numbers) survive the LLM rewrite step.
-            # Without the persona name, queries like "你跟伊朗的协议是不是19号签的"
-            # get mis-anchored (e.g. returned wedding dress results from Mozambique).
             #
-            # Also: respect the user's query language. We tried generating
-            # bilingual (CN + EN transliterated) queries, but the EN ones
-            # returned junk (mixed CN chars inside, weak results). Chinese
-            # Bing/Startpage actually has FRESHER Chinese-language news
-            # (NYT Chinese, Xinhua, CCTV) than English Bing for many topics.
-            # So: if user wrote Chinese, just keep the original message.
+            # Bilingual: if user wrote in Chinese, ALSO generate an English
+            # version using the persona's source_name (English original name
+            # stored at distillation time, e.g. "Donald Trump" not "特朗普").
+            # The English Bing index often has fresher Western news; the
+            # Chinese Bing/Startpage has fresher Chinese news. Both together
+            # give much better coverage than either alone.
             _year = datetime.now().year
             if _search_msg:
                 _has_cjk = any('\u4e00' <= ch <= '\u9fff' for ch in _search_msg)
                 if _has_cjk:
-                    # User wrote Chinese → keep original, just add year
+                    # Chinese-anchored (persona name as user wrote it)
                     _cn_q = f"{search_person_name} {_search_msg} {_year}"
                     if _cn_q not in _search_queries:
                         _search_queries.append(_cn_q)
+                    # English-anchored using persona source_name
+                    _en_persona = info.get('source_name') or search_person_name
+                    # Strip CN pronouns/question particles (they don't help search)
+                    _msg_en = _search_msg
+                    for _ch in ["你", "我", "吗", "的", "是", "？", "?", "！", "!"]:
+                        _msg_en = _msg_en.replace(_ch, " ")
+                    _msg_en = " ".join(_msg_en.split())
+                    if _en_persona and _msg_en:
+                        _en_q = f"{_en_persona} {_msg_en} {_year}".strip()
+                        # Only add if different from CN query
+                        if _en_q and _en_q != _cn_q and _en_q not in _search_queries:
+                            _search_queries.append(_en_q)
                 else:
                     _en_q = f"{search_person_name} {_search_msg} {_year}"
                     if _en_q not in _search_queries:

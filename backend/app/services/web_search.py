@@ -56,7 +56,7 @@ def _record_success(n: int):
     _empty_streak = 0
 
 
-async def _searxng_search(query: str) -> list[dict]:
+async def _searxng_search(query: str, time_range: str = "", categories: str = "") -> list[dict]:
     import httpx
     try:
         # NOTE: do NOT pass language=auto — it returns 0 for non-ASCII queries.
@@ -65,6 +65,10 @@ async def _searxng_search(query: str) -> list[dict]:
             "q": query, "format": "json",
             "pageno": 1, "engines": SEARXNG_ENGINES,
         }
+        if time_range:
+            params["time_range"] = time_range  # day|week|month|year
+        if categories:
+            params["categories"] = categories   # news|general|images...
         async with httpx.AsyncClient(timeout=SEARXNG_TIMEOUT) as client:
             resp = await client.get(SEARXNG_URL, params=params)
             if resp.status_code != 200:
@@ -98,20 +102,99 @@ async def _searxng_search(query: str) -> list[dict]:
         return []
 
 
-async def _search_one(query: str) -> list[dict]:
-    return await _searxng_search(query)
+async def _search_one(query: str, time_range: str = "", categories: str = "") -> list[dict]:
+    return await _searxng_search(query, time_range=time_range, categories=categories)
 
 
-async def search_web(queries: list[str]) -> list[dict]:
-    """Run multiple search queries in parallel.
+# Time-sensitive keywords (zh + en) that suggest the user wants recent news
+_TIME_KEYWORDS_ZH = [
+    "今天", "今天早上", "今晚", "昨晚", "刚刚", "刚才", "最新", "近期", "最近",
+    "这周", "本周", "昨天", "前天", "上周", "今日", "刚出", "刚发", "刚发佈",
+    "刚刚发生", "今天刚", "刚发生", "刚公布", "刚签", "刚释出",
+    "新闻", "动态", "进展", "更新", "现场", "正在",
+    "2026", "2025",  # year mentions imply recency
+    "1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月",
+    "一号", "二号", "三号", "四号", "五号", "六号", "七号", "八号", "九号", "十号",
+    "11号", "12号", "13号", "14号", "15号", "16号", "17号", "18号", "19号", "20号",
+    "21号", "22号", "23号", "24号", "25号", "26号", "27号", "28号", "29号", "30号", "31号",
+]
+_TIME_KEYWORDS_EN = [
+    "today", "tonight", "yesterday", "just now", "just in", "latest", "recent",
+    "this week", "last week", "breaking", "news", "update", "new", "live",
+    "signed", "happened", "announced", "released", "launched", "out now",
+    str(datetime.now().year), str(datetime.now().year - 1),
+]
 
-    Returns a list of {query, results}. Never raises; logs warnings only.
+
+def _is_time_sensitive(query: str) -> bool:
+    """Heuristic: does this query look like it needs fresh news?"""
+    q = query.lower()
+    has_cjk = any('\u4e00' <= ch <= '\u9fff' for ch in query)
+    keywords = _TIME_KEYWORDS_ZH if has_cjk else _TIME_KEYWORDS_EN
+    for kw in keywords:
+        if kw in query or kw.lower() in q:
+            return True
+    return False
+
+
+async def search_web(queries: list[str], force_time_sensitive: bool = False) -> list[dict]:
+    """Run multiple search queries in parallel with mode-aware dual-track.
+
+    For each query:
+      - if it's time-sensitive AND in English: also do a News-mode parallel search
+        (time_range=week, categories=news) and merge results
+      - if it's in Chinese: do NOT add News mode (SearXNG CN + time_range = 0 results)
+
+    Results from all modes are deduped by URL, source tag includes mode.
+    Returns a list of {query, results, modes} per input query.
     """
     if not queries:
         return []
-    tasks = [asyncio.create_task(_search_one(q)) for q in queries]
-    results = await asyncio.gather(*tasks, return_exceptions=True)
-    return [{"query": queries[i], "results": r if isinstance(r, list) else []} for i, r in enumerate(results)]
+    tasks = []
+    meta = []  # parallel to tasks: (query_idx, mode_label)
+    for qi, q in enumerate(queries):
+        # Track 1: regular web
+        tasks.append(asyncio.create_task(_search_one(q)))
+        meta.append((qi, "web"))
+        # Track 2: News mode (only for English-dominant + time-sensitive)
+        # CJK + time_range doesn't work in SearXNG (returns 0 results).
+        # But English with time_range+categories=news works great.
+        is_ts = force_time_sensitive or _is_time_sensitive(q)
+        cjk_count = sum(1 for ch in q if '\u4e00' <= ch <= '\u9fff')
+        total_chars = len([c for c in q if not c.isspace()])
+        cjk_ratio = cjk_count / total_chars if total_chars else 0
+        # If query is mostly ASCII (CJK < 40% of chars), try News mode.
+        # Threshold 0.4 lets through mixed CN+EN queries like
+        # "Donald Trump 跟伊朗 协议 19号签 2026" which still benefit
+        # from English News mode (the CJK parts get ignored by English
+        # Bing but English keywords are enough for matching).
+        if is_ts and cjk_ratio < 0.4:
+            tasks.append(asyncio.create_task(_search_one(q, time_range="week", categories="news")))
+            meta.append((qi, "news"))
+    raw = await asyncio.gather(*tasks, return_exceptions=True)
+    # Bucket back by query
+    out = {qi: {"results": [], "seen_urls": set(), "modes": set()} for qi in range(len(queries))}
+    for (qi, mode), r in zip(meta, raw):
+        if not isinstance(r, list):
+            continue
+        for hit in r:
+            url = hit.get("url", "")
+            if not url or url in out[qi]["seen_urls"] or not hit.get("snippet"):
+                continue
+            out[qi]["seen_urls"].add(url)
+            hit = dict(hit)
+            hit["source"] = f"searxng:{mode}"
+            out[qi]["results"].append(hit)
+        if r:
+            out[qi]["modes"].add(mode)
+    return [
+        {
+            "query": queries[qi],
+            "results": out[qi]["results"][:MAX_RESULTS * 2],  # allow up to 16 after dedupe
+            "modes": list(out[qi]["modes"]),
+        }
+        for qi in range(len(queries))
+    ]
 
 
 async def scrape_top_results(results: list[dict], max_pages: int = 3) -> str:
