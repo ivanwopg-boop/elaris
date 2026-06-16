@@ -70,6 +70,16 @@ async def _searxng_search(query: str, time_range: str = "", categories: str = ""
     try:
         # NOTE: do NOT pass language=auto — it returns 0 for non-ASCII queries.
         # SearXNG default is "all" which works for both Chinese and English.
+        # CRITICAL: must set User-Agent. Without it, SearXNG's upstream
+        # engines (Bing) treat the request as a bot and return random/
+        # unrelated results (Instagram links, bank login pages, etc.) — same
+        # query with proper UA returns the real news. Verified 2026-06-16.
+        headers = {
+            "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+                          "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.5,zh;q=0.5",
+        }
         params = {
             "q": query, "format": "json",
             "pageno": 1, "engines": SEARXNG_ENGINES,
@@ -79,7 +89,7 @@ async def _searxng_search(query: str, time_range: str = "", categories: str = ""
         if categories:
             params["categories"] = categories   # news|general|images...
         async with httpx.AsyncClient(timeout=SEARXNG_TIMEOUT) as client:
-            resp = await client.get(SEARXNG_URL, params=params)
+            resp = await client.get(SEARXNG_URL, params=params, headers=headers)
             if resp.status_code != 200:
                 logger.warning(f"[SearXNG] HTTP {resp.status_code} for: {query[:60]}")
                 _record_empty()
