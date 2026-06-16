@@ -28,16 +28,21 @@ SEARXNG_URL = "http://localhost:8888/search"
 #   - Bing: solid for both EN and ZH
 #   - Google: solid for EN, weak for ZH but Bing covers it
 #   - Startpage: solid backup
-# baidu added 2026-06-16: Baidu News has fresher Chinese news than Bing
-# (returns '美伊达成和平协议,6月19日签署' on Trump+Iran+19 query where
-# Bing/Google returned nothing).
-# - Brave: 429 suspended every 3min
-# - DuckDuckGo: ConnectTimeout (firewalled)
+# Engine matrix (2026-06-16):
 # - Bing: solid for EN+ZH web, weak for fresh Chinese news
-# - Google: solid for EN
-# - Startpage: solid backup
-# - Baidu: solid for Chinese news (时效性比 Bing 中文好)
-SEARXNG_ENGINES = "bing,google,startpage,baidu"
+# - Google: solid for EN, but rate-limited from this IP
+# - Startpage: solid backup, but rate-limited
+# - baidu: previously used, but PERMANENTLY CAPTCHA-blocked on this IP
+#   (suspended_time=3600 followed by permanent blacklist, 2026-06-16)
+# - sogou: Chinese web search, working (7-8 results per query)
+# - 360search: Chinese web search, working (7 results)
+# - so: 360-owned, working (7 results)
+# - brave: 429 suspended every 3min
+# - duckduckgo: ConnectTimeout (firewalled)
+# Result: bing covers EN+general, sogou+360+so cover Chinese
+# (no single CN engine needed — pool of 3 small engines gives
+# better coverage than 1 big engine and is harder to block all at once)
+SEARXNG_ENGINES = "bing,sogou,360search,so"
 SEARXNG_TIMEOUT = 15.0
 MAX_RESULTS = 8
 
