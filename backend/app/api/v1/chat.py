@@ -247,17 +247,58 @@ async def chat_stream(persona_id: str, message: str, conv: str = None, request: 
                     _cn_q = f"{search_person_name} {_search_msg} {_year}"
                     if _cn_q not in _search_queries:
                         _search_queries.append(_cn_q)
-                    # English-anchored using persona source_name
+                    # English-anchored: translate the CN message to a short EN
+                    # search query. We tried asking the LLM to translate, but
+                    # the model refuses direct translation and rephrases the
+                    # instruction instead. So: simple keyword extraction.
+                    # Keep: English words, numbers, dates, country names, and
+                    #       proper nouns from a small CN→EN map. The LLM
+                    #       pre-translated questions (e.g. "Tesla robotaxi")
+                    #       pass through unchanged.
+                    _CN_KW = {
+                        "伊朗": "Iran", "美国": "US", "中国": "China",
+                        "日本": "Japan", "韩国": "Korea", "俄罗斯": "Russia",
+                        "乌克兰": "Ukraine", "以色列": "Israel",
+                        "协议": "deal", "条约": "treaty", "停火": "ceasefire",
+                        "签署": "sign", "签": "sign", "签订": "sign",
+                        "会议": "summit", "谈判": "negotiation",
+                        "巡演": "tour", "演唱会": "concert",
+                        "电影": "movie", "发布": "launch", "发布": "release",
+                        "什么时候": "when", "啥时候": "when", "几点": "when",
+                        "怎么": "how", "为什么": "why", "什么": "what",
+                        "是": "is", "在": "at", "有": "have", "的": "",
+                        "去": "go", "来": "come", "了": "", "吗": "",
+                        "你": "you", "我": "I", "他": "he", "她": "she", "它": "it",
+                    }
                     _en_persona = info.get('source_name') or search_person_name
-                    # Strip CN pronouns/question particles (they don't help search)
-                    _msg_en = _search_msg
-                    for _ch in ["你", "我", "吗", "的", "是", "？", "?", "！", "!"]:
-                        _msg_en = _msg_en.replace(_ch, " ")
-                    _msg_en = " ".join(_msg_en.split())
-                    if _en_persona and _msg_en:
-                        _en_q = f"{_en_persona} {_msg_en} {_year}".strip()
-                        # Only add if different from CN query
-                        if _en_q and _en_q != _cn_q and _en_q not in _search_queries:
+                    _en_tokens = []
+                    # Preserve persona's English name as anchor
+                    if _en_persona and not any('\u4e00' <= ch <= '\u9fff' for ch in _en_persona):
+                        _en_tokens.append(_en_persona)
+                    # Walk through original message, extract English + map Chinese
+                    import re as _re2
+                    _buf = ""
+                    for _ch in _search_msg + " ":
+                        if _re2.match(r'[a-zA-Z0-9\-\.\']', _ch):
+                            _buf += _ch
+                        else:
+                            if _buf.strip():
+                                _en_tokens.append(_buf.strip())
+                            _buf = ""
+                            if '\u4e00' <= _ch <= '\u9fff' and _ch in _CN_KW:
+                                _mapped = _CN_KW[_ch]
+                                if _mapped.strip():
+                                    _en_tokens.append(_mapped)
+                    # Dedupe consecutive duplicates and join
+                    _seen = set()
+                    _final_tokens = []
+                    for t in _en_tokens:
+                        if t.lower() not in _seen:
+                            _seen.add(t.lower())
+                            _final_tokens.append(t)
+                    if _final_tokens:
+                        _en_q = " ".join(_final_tokens + [str(_year)])
+                        if _en_q and _en_q not in _search_queries:
                             _search_queries.append(_en_q)
                 else:
                     _en_q = f"{search_person_name} {_search_msg} {_year}"
@@ -294,6 +335,29 @@ async def chat_stream(persona_id: str, message: str, conv: str = None, request: 
                     if _url and _url not in _seen_urls and r.get("snippet"):
                         _seen_urls.add(_url)
                         _all_results.append(r)
+            # Re-rank: results that contain user-message keywords (CN+EN) bubble
+            # to the top. SearXNG's default ordering puts Wikipedia/portal pages
+            # first for any famous-person query, drowning the actual news.
+            # This scoring is essential for the LLM to see the relevant snippet.
+            import re as _re_rank
+            _msg_lower = message.lower()
+            # Extract: lowercase English words (3+ chars) + CJK characters
+            _kw_en = set(w for w in _re_rank.findall(r'[a-z]{3,}', _msg_lower))
+            _kw_cn = set(_re_rank.findall(r'[\u4e00-\u9fff]', message))
+            _kw_all = _kw_en | _kw_cn
+            def _score(_r):
+                _t = (_r.get("title","") + " " + _r.get("snippet","")).lower()
+                _t_cn = _r.get("title","") + " " + _r.get("snippet","")
+                _s = 0
+                for _k in _kw_en:
+                    if _k in _t: _s += 2
+                for _k in _kw_cn:
+                    if _k in _t_cn: _s += 2
+                # News source is a strong recency signal
+                if _r.get("source") == "searxng:news": _s += 1
+                return _s
+            _all_results.sort(key=_score, reverse=True)
+            _log.info(f"[SEARCH_RANK] re-ranked by {_kw_all}, top: {_all_results[0].get('title','')[:50] if _all_results else 'none'}")
             _all_results = _all_results[:12]
 
             if _all_results:

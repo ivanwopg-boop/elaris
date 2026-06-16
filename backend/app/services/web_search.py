@@ -56,7 +56,7 @@ def _record_success(n: int):
     _empty_streak = 0
 
 
-async def _searxng_search(query: str, time_range: str = "", categories: str = "") -> list[dict]:
+async def _searxng_search(query: str, time_range: str = "", categories: str = "", _retries: int = 0) -> list[dict]:
     import httpx
     try:
         # NOTE: do NOT pass language=auto — it returns 0 for non-ASCII queries.
@@ -89,9 +89,16 @@ async def _searxng_search(query: str, time_range: str = "", categories: str = ""
             if results:
                 _record_success(len(results))
                 logger.info(f"[SearXNG] {len(results)} results for: {query[:60]}")
+                return results
             else:
                 _record_empty()
-            return results
+                # Bing News engine intermittently returns 0 with "Document is
+                # empty" internal error. Retry up to 2 times before giving up.
+                if categories == "news" and _retries < 2:
+                    logger.info(f"[SearXNG] News mode empty, retry {_retries+1}/2: {query[:50]}")
+                    await asyncio.sleep(0.5 * (_retries + 1))
+                    return await _searxng_search(query, time_range=time_range, categories=categories, _retries=_retries+1)
+                return []
     except asyncio.TimeoutError:
         logger.warning(f"[SearXNG] Timeout for: {query[:60]}")
         _record_empty()
