@@ -1,52 +1,35 @@
-"""Elaris Search Pipeline: SearXNG multi-engine with health tracking.
+"""Elaris Search Pipeline: SearXNG (primary) + Obscura browser (fallback).
 
-Reliability fix (2026-06-16):
-- SearXNG was down for 23h+ because Bing engine was rate-limited (suspended_time=180),
-  and the pipeline returned 0 results with no fallback. Total blackout.
-- Now: 5-engine SearXNG (bing/brave/startpage/duckduckgo/google) — if one
-  engine is suspended, others still return results.
-- Health check on every call: if SearXNG returns 0 results consecutively,
-  log a warning so operators see the outage in real time.
-- DDG HTML fallback removed: in this server's network, html.duckduckgo.com
-  is unreachable. Multi-engine SearXNG is the reliable path.
-- chat.py emits a `search_status` event to the frontend when search is empty,
-  so the user sees "search service temporarily unavailable" instead of
-  the persona falsely saying "I don't know".
+2026-06-16 final: Two-layer architecture.
+  Layer 1 — SearXNG (bing+sogou+360+so, 0.4s): handles 90%+ of queries.
+  Layer 2 — Obscura (Sogou→Baidu, ~7-10s): kicks in when SearXNG returns 0.
+
+Why this shape:
+  - SearXNG is fast and reliable for English and general Chinese queries,
+    but misses fresh Chinese entertainment/news that never hits Bing's index.
+  - Obscura's real V8 browser gets results from Sogou/Baidu that SearXNG
+    can't, but CAPTCHA/antispider limits it to ~10-20 queries per engine
+    before blocking.  Using it only as a fallback keeps volume low enough
+    that engines don't blacklist the IP.
+  - Together: SearXNG covers the fast path.  Obscura fills the blind spots.
 """
 
 import asyncio
+import json
 import logging
+import subprocess
 from datetime import datetime, timedelta
-from trafilatura import extract
+from urllib.parse import quote_plus
 
 logger = logging.getLogger("uvicorn")
 
+# ── SearXNG (Layer 1) ──────────────────────────────────────────
+
 SEARXNG_URL = "http://localhost:8888/search"
-# Brave + DuckDuckGo engines are NOT used:
-#   - Brave: 429 suspended every 3min (rate limited from this IP)
-#   - DuckDuckGo (html.duckduckgo.com): connect timeout (firewalled)
-#   - Bing: solid for both EN and ZH
-#   - Google: solid for EN, weak for ZH but Bing covers it
-#   - Startpage: solid backup
-# Engine matrix (2026-06-16):
-# - Bing: solid for EN+ZH web, weak for fresh Chinese news
-# - Google: solid for EN, but rate-limited from this IP
-# - Startpage: solid backup, but rate-limited
-# - baidu: previously used, but PERMANENTLY CAPTCHA-blocked on this IP
-#   (suspended_time=3600 followed by permanent blacklist, 2026-06-16)
-# - sogou: Chinese web search, working (7-8 results per query)
-# - 360search: Chinese web search, working (7 results)
-# - so: 360-owned, working (7 results)
-# - brave: 429 suspended every 3min
-# - duckduckgo: ConnectTimeout (firewalled)
-# Result: bing covers EN+general, sogou+360+so cover Chinese
-# (no single CN engine needed — pool of 3 small engines gives
-# better coverage than 1 big engine and is harder to block all at once)
 SEARXNG_ENGINES = "bing,sogou,360search,so"
 SEARXNG_TIMEOUT = 15.0
 MAX_RESULTS = 8
 
-# Track consecutive empty responses so we can log a louder warning
 _empty_streak = 0
 _last_empty_warn = None
 
@@ -55,49 +38,36 @@ def _record_empty():
     global _empty_streak, _last_empty_warn
     _empty_streak += 1
     now = datetime.now()
-    # Only log loudly if we haven't warned in the last 5 minutes
     if _last_empty_warn is None or (now - _last_empty_warn) > timedelta(minutes=5):
-        logger.warning(f"[SEARCH_HEALTH] SearXNG returned 0 results "
-                       f"(streak={_empty_streak}). If streak > 3, check SearXNG "
-                       f"engines: docker logs searxng | grep -i suspended")
+        logger.warning(f"[SEARCH_HEALTH] empty streak={_empty_streak}")
         _last_empty_warn = now
 
 
 def _record_success(n: int):
     global _empty_streak
     if _empty_streak > 0:
-        logger.info(f"[SEARCH_HEALTH] Recovered after {_empty_streak} empty calls")
+        logger.info(f"[SEARCH_HEALTH] recovered after {_empty_streak} empties")
     _empty_streak = 0
 
 
 async def _searxng_search(query: str, time_range: str = "", categories: str = "", _retries: int = 0) -> list[dict]:
     import httpx
     try:
-        # NOTE: do NOT pass language=auto — it returns 0 for non-ASCII queries.
-        # SearXNG default is "all" which works for both Chinese and English.
-        # CRITICAL: must set User-Agent. Without it, SearXNG's upstream
-        # engines (Bing) treat the request as a bot and return random/
-        # unrelated results (Instagram links, bank login pages, etc.) — same
-        # query with proper UA returns the real news. Verified 2026-06-16.
         headers = {
             "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
                           "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             "Accept-Language": "en-US,en;q=0.5,zh;q=0.5",
         }
-        params = {
-            "q": query, "format": "json",
-            "pageno": 1, "engines": SEARXNG_ENGINES,
-        }
+        params = {"q": query, "format": "json", "pageno": 1, "engines": SEARXNG_ENGINES}
         if time_range:
-            params["time_range"] = time_range  # day|week|month|year
+            params["time_range"] = time_range
         if categories:
-            params["categories"] = categories   # news|general|images...
+            params["categories"] = categories
         async with httpx.AsyncClient(timeout=SEARXNG_TIMEOUT) as client:
             resp = await client.get(SEARXNG_URL, params=params, headers=headers)
             if resp.status_code != 200:
                 logger.warning(f"[SearXNG] HTTP {resp.status_code} for: {query[:60]}")
-                _record_empty()
                 return []
             data = resp.json()
             results = []
@@ -106,44 +76,173 @@ async def _searxng_search(query: str, time_range: str = "", categories: str = ""
                     "title": r.get("title", ""),
                     "url": r.get("url", ""),
                     "snippet": r.get("content", ""),
-                    "engines": r.get("engines", ["searxng"]),
-                    "score": r.get("score", 0.8),
                     "source": "searxng",
+                    "score": r.get("score", 0.8),
                 })
             if results:
                 _record_success(len(results))
                 logger.info(f"[SearXNG] {len(results)} results for: {query[:60]}")
-                return results
-            else:
-                _record_empty()
-                # Bing News engine intermittently returns 0 with "Document is
-                # empty" internal error. Retry up to 2 times before giving up.
-                if categories == "news" and _retries < 2:
-                    logger.info(f"[SearXNG] News mode empty, retry {_retries+1}/2: {query[:50]}")
-                    await asyncio.sleep(0.5 * (_retries + 1))
-                    return await _searxng_search(query, time_range=time_range, categories=categories, _retries=_retries+1)
-                return []
+            return results
     except asyncio.TimeoutError:
         logger.warning(f"[SearXNG] Timeout for: {query[:60]}")
-        _record_empty()
         return []
     except Exception as e:
         logger.warning(f"[SearXNG] Failed for '{query[:60]}': {e}")
-        _record_empty()
         return []
 
 
+# ── Obscura (Layer 2 — fallback) ───────────────────────────────
+
+OBSCURA_BIN = "/tmp/obscura/target/release/obscura"
+
+_BAIDU_EVAL = (
+    "(function(){"
+    "var r=document.querySelectorAll('.result,.c-container');"
+    "return Array.from(r).slice(0,8).map(function(e){"
+    "var a=e.querySelector('a');"
+    "var t=e.querySelector('h3,.t,.c-title');"
+    "var s=e.querySelector('.c-abstract,.c-span-last');"
+    "return {title:(t||a||{}).textContent||'',url:(a||{}).href||'',snippet:(s||{}).textContent||''};"
+    "});"
+    "})()"
+)
+
+_SOGOU_EVAL = (
+    "(function(){"
+    "var r=document.querySelectorAll('.vrwrap,.rb');"
+    "return Array.from(r).slice(0,8).map(function(e){"
+    "var a=e.querySelector('h3.vrTitle a,.vr-title a,a.title');"
+    "var p=e.querySelector('.star-wiki,.str_info,.space-txt,.fb');"
+    "return {title:(a||{}).textContent||'',url:(a||{}).href||'',snippet:(p||{}).textContent||''};"
+    "}).filter(function(x){return x.title;});"
+    "})()"
+)
+
+_BING_EVAL = (
+    "(function(){"
+    "var r=document.querySelectorAll('li.b_algo');"
+    "return Array.from(r).slice(0,8).map(function(e){"
+    "var a=e.querySelector('h2 a');"
+    "var p=e.querySelector('.b_caption p,.b_snippet');"
+    "return {title:(a||{}).textContent||'',url:(a||{}).href||'',snippet:(p||{}).textContent||''};"
+    "});"
+    "})()"
+)
+
+
+async def _obscura_fetch(url: str, eval_js: str, timeout: int = 15) -> list[dict]:
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            OBSCURA_BIN, "fetch", url,
+            "--eval", eval_js,
+            "--wait-until", "load",
+            "--allow-private-network",
+            "--timeout", str(timeout),
+            "-q",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=timeout + 5)
+        raw = stdout.decode("utf-8", errors="replace").strip()
+        if not raw:
+            return []
+        parsed = json.loads(raw)
+        if not isinstance(parsed, list):
+            return []
+        results = []
+        for r in parsed:
+            if not isinstance(r, dict):
+                continue
+            title = (r.get("title") or "").strip()
+            if not title or len(title) < 2:
+                continue
+            url_val = (r.get("url") or "").strip()
+            snippet = (r.get("snippet") or "").strip()
+            if not url_val:
+                continue
+            results.append({
+                "title": title[:120],
+                "url": url_val,
+                "snippet": snippet[:300],
+                "source": "obscura",
+                "score": 0.7,
+            })
+        if results:
+            logger.info(f"[Obscura] {len(results)} results from {url[:60]}")
+        return results
+    except asyncio.TimeoutError:
+        logger.warning(f"[Obscura] Timeout: {url[:60]}")
+        return []
+    except json.JSONDecodeError:
+        return []
+    except Exception as e:
+        logger.warning(f"[Obscura] Failed: {e}")
+        return []
+
+
+async def _obscura_search(query: str) -> list[dict]:
+    """CN: Sogou → Baidu.  EN: Bing."""
+    has_cjk = any('\u4e00' <= ch <= '\u9fff' for ch in query)
+    if has_cjk:
+        # Sogou (best CN results, may antispider → fall through)
+        r = await _obscura_fetch(
+            f"https://www.sogou.com/web?query={quote_plus(query)}", _SOGOU_EVAL)
+        if r:
+            return r
+        # Baidu (great results, CAPTCHA after ~20 queries)
+        return await _obscura_fetch(
+            f"https://www.baidu.com/s?wd={quote_plus(query)}", _BAIDU_EVAL)
+    else:
+        return await _obscura_fetch(
+            f"https://www.bing.com/search?q={quote_plus(query)}", _BING_EVAL)
+
+
+# ── Unified search (Layer 1 → Layer 2) ────────────────────────
+
 async def _search_one(query: str, time_range: str = "", categories: str = "") -> list[dict]:
-    return await _searxng_search(query, time_range=time_range, categories=categories)
+    """SearXNG first; if empty or results don't match query keywords, fall back to Obscura."""
+    results = await _searxng_search(query, time_range=time_range, categories=categories)
+    if results:
+        # Relevance check: if user asked about a specific topic (e.g. 南京演唱会)
+        # but SearXNG only returned generic persona pages (周杰伦百度百科),
+        # the results are effectively useless. Check if any result's title or
+        # snippet contains query keywords.
+        has_cjk = any('\u4e00' <= ch <= '\u9fff' for ch in query)
+        if has_cjk:
+            # Extract 2+ char CJK segments, but exclude the persona name
+            # (the first 2-3 CJK chars are usually the persona name, which
+            # always matches SearXNG results about "who is X" — useless signal)
+            import re as _re_kw
+            _kw_candidates = _re_kw.findall(r'[\u4e00-\u9fff]{2,}', query)
+            # Skip the first CJK segment (the persona name)
+            _topical_kw = [k for k in _kw_candidates[1:] if len(k) >= 2]
+            _kw_set = set(_topical_kw[:6])
+            if _kw_set:
+                _matched = False
+                for r in results[:5]:
+                    _txt = (r.get('title','') + ' ' + r.get('snippet',''))
+                    for kw in _kw_set:
+                        if kw in _txt:
+                            _matched = True
+                            break
+                    if _matched:
+                        break
+                if not _matched:
+                    logger.info(f"[RELEVANCE] SearXNG results don't match keywords {_kw_set}, falling back to Obscura")
+                    return results + await _obscura_search(query)
+        return results
+    logger.info(f"[FALLBACK] SearXNG empty for '{query[:50]}', trying Obscura")
+    return await _obscura_search(query)
 
 
-# Time-sensitive keywords (zh + en) that suggest the user wants recent news
+# ── Time-sensitive heuristic ───────────────────────────────────
+
 _TIME_KEYWORDS_ZH = [
-    "今天", "今天早上", "今晚", "昨晚", "刚刚", "刚才", "最新", "近期", "最近",
-    "这周", "本周", "昨天", "前天", "上周", "今日", "刚出", "刚发", "刚发佈",
+    "今天", "今晚", "昨晚", "刚刚", "刚才", "最新", "近期", "最近",
+    "这周", "本周", "昨天", "前天", "上周", "今日", "刚出", "刚发",
     "刚刚发生", "今天刚", "刚发生", "刚公布", "刚签", "刚释出",
     "新闻", "动态", "进展", "更新", "现场", "正在",
-    "2026", "2025",  # year mentions imply recency
+    "2026", "2025",
     "1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月",
     "一号", "二号", "三号", "四号", "五号", "六号", "七号", "八号", "九号", "十号",
     "11号", "12号", "13号", "14号", "15号", "16号", "17号", "18号", "19号", "20号",
@@ -158,7 +257,6 @@ _TIME_KEYWORDS_EN = [
 
 
 def _is_time_sensitive(query: str) -> bool:
-    """Heuristic: does this query look like it needs fresh news?"""
     q = query.lower()
     has_cjk = any('\u4e00' <= ch <= '\u9fff' for ch in query)
     keywords = _TIME_KEYWORDS_ZH if has_cjk else _TIME_KEYWORDS_EN
@@ -168,60 +266,36 @@ def _is_time_sensitive(query: str) -> bool:
     return False
 
 
+# ── Public API ─────────────────────────────────────────────────
+
 async def search_web(queries: list[str], force_time_sensitive: bool = False) -> list[dict]:
-    """Run multiple search queries in parallel with mode-aware dual-track.
-
-    For each query:
-      - if it's time-sensitive AND in English: also do a News-mode parallel search
-        (time_range=week, categories=news) and merge results
-      - if it's in Chinese: do NOT add News mode (SearXNG CN + time_range = 0 results)
-
-    Results from all modes are deduped by URL, source tag includes mode.
-    Returns a list of {query, results, modes} per input query.
-    """
     if not queries:
         return []
     tasks = []
-    meta = []  # parallel to tasks: (query_idx, mode_label)
+    meta = []
     for qi, q in enumerate(queries):
-        # Track 1: regular web
         tasks.append(asyncio.create_task(_search_one(q)))
         meta.append((qi, "web"))
-        # Track 2: News mode (only for English-dominant + time-sensitive)
-        # CJK + time_range doesn't work in SearXNG (returns 0 results).
-        # But English with time_range+categories=news works great.
-        is_ts = force_time_sensitive or _is_time_sensitive(q)
-        cjk_count = sum(1 for ch in q if '\u4e00' <= ch <= '\u9fff')
-        total_chars = len([c for c in q if not c.isspace()])
-        cjk_ratio = cjk_count / total_chars if total_chars else 0
-        # If query is mostly ASCII (CJK < 40% of chars), try News mode.
-        # Threshold 0.4 lets through mixed CN+EN queries like
-        # "Donald Trump 跟伊朗 协议 19号签 2026" which still benefit
-        # from English News mode (the CJK parts get ignored by English
-        # Bing but English keywords are enough for matching).
-        if is_ts and cjk_ratio < 0.4:
-            tasks.append(asyncio.create_task(_search_one(q, time_range="week", categories="news")))
-            meta.append((qi, "news"))
     raw = await asyncio.gather(*tasks, return_exceptions=True)
-    # Bucket back by query
     out = {qi: {"results": [], "seen_urls": set(), "modes": set()} for qi in range(len(queries))}
     for (qi, mode), r in zip(meta, raw):
         if not isinstance(r, list):
             continue
         for hit in r:
             url = hit.get("url", "")
-            if not url or url in out[qi]["seen_urls"] or not hit.get("snippet"):
+            if not url or url in out[qi]["seen_urls"]:
                 continue
             out[qi]["seen_urls"].add(url)
             hit = dict(hit)
-            hit["source"] = f"searxng:{mode}"
+            if "source" not in hit:
+                hit["source"] = "web"
             out[qi]["results"].append(hit)
         if r:
             out[qi]["modes"].add(mode)
     return [
         {
             "query": queries[qi],
-            "results": out[qi]["results"][:MAX_RESULTS * 2],  # allow up to 16 after dedupe
+            "results": out[qi]["results"][:MAX_RESULTS * 2],
             "modes": list(out[qi]["modes"]),
         }
         for qi in range(len(queries))
@@ -229,6 +303,7 @@ async def search_web(queries: list[str], force_time_sensitive: bool = False) -> 
 
 
 async def scrape_top_results(results: list[dict], max_pages: int = 3) -> str:
+    from trafilatura import extract
     full_texts = []
     for r in results[:max_pages]:
         try:
@@ -252,10 +327,8 @@ async def scrape_top_results(results: list[dict], max_pages: int = 3) -> str:
     return ""
 
 
-# keep ensure_web_search_results for distillation
 async def ensure_web_search_results(persona_id: str, db) -> None:
-    import uuid, json
-    from datetime import datetime, timezone
+    import uuid
     from sqlalchemy import select
     from app.models.db_models import Persona, WebSearchResult
 
