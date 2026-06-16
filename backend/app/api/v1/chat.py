@@ -229,8 +229,44 @@ async def chat_stream(persona_id: str, message: str, conv: str = None, request: 
             except:
                 pass
 
+            # Belt-and-suspenders: ALWAYS include a search query that combines
+            # persona name + raw user message + year. This ensures critical tokens
+            # (dates like "19号", names, numbers) survive the LLM rewrite step.
+            # Without the persona name, queries like "你跟伊朗的协议是不是19号签的"
+            # get mis-anchored (e.g. returned wedding dress results from Mozambique).
+            #
+            # Also: respect the user's query language. We tried generating
+            # bilingual (CN + EN transliterated) queries, but the EN ones
+            # returned junk (mixed CN chars inside, weak results). Chinese
+            # Bing/Startpage actually has FRESHER Chinese-language news
+            # (NYT Chinese, Xinhua, CCTV) than English Bing for many topics.
+            # So: if user wrote Chinese, just keep the original message.
+            _year = datetime.now().year
+            if _search_msg:
+                _has_cjk = any('\u4e00' <= ch <= '\u9fff' for ch in _search_msg)
+                if _has_cjk:
+                    # User wrote Chinese → keep original, just add year
+                    _cn_q = f"{search_person_name} {_search_msg} {_year}"
+                    if _cn_q not in _search_queries:
+                        _search_queries.append(_cn_q)
+                else:
+                    _en_q = f"{search_person_name} {_search_msg} {_year}"
+                    if _en_q not in _search_queries:
+                        _search_queries.append(_en_q)
+
             if not _search_queries:
-                _search_queries = [f"{search_person_name} {_search_msg[:30]} {datetime.now().year}"]
+                # LLM rewrite failed or returned no usable lines.
+                # Fallback: use the original message verbatim (not truncated) so
+                # critical info like dates ("19号", "June 19") is preserved.
+                # We send TWO queries in parallel:
+                #   1) persona + full user message + year
+                #   2) raw user message + year (no persona name, in case the topic
+                #      is a third party — Trump/Iran — not the persona itself)
+                _year = datetime.now().year
+                _search_queries = [
+                    f"{search_person_name} {_search_msg} {_year}",
+                    f"{_search_msg} {_year}",
+                ]
 
             _log.info(f"[SEARCH_Q] msg={message[:30]!r} ctx={'yes' if _search_ctx else 'no'} -> {_search_queries}")
         else:
