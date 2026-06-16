@@ -134,6 +134,7 @@ async def _obscura_fetch(url: str, eval_js: str, timeout: int = 15) -> list[dict
     try:
         proc = await asyncio.create_subprocess_exec(
             OBSCURA_BIN, "fetch", url,
+            "--stealth",
             "--eval", eval_js,
             "--wait-until", "load",
             "--allow-private-network",
