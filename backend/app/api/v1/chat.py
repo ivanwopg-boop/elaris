@@ -343,7 +343,16 @@ async def chat_stream(persona_id: str, message: str, conv: str = None, request: 
             _msg_lower = message.lower()
             # Extract: lowercase English words (3+ chars) + CJK characters
             _kw_en = set(w for w in _re_rank.findall(r'[a-z]{3,}', _msg_lower))
-            _kw_cn = set(_re_rank.findall(r'[\u4e00-\u9fff]', message))
+            # Extract CJK n-grams (2-3 chars, overlapping) as topical keywords.
+            # Without word boundaries, single-char matching makes every result
+            # look relevant ('演' matches Wikipedia AND concert listings).
+            _cn_ngrams = set()
+            _cn_chars = [c for c in message if '\u4e00' <= c <= '\u9fff']
+            _cn_str = ''.join(_cn_chars)
+            for _n in (2, 3):
+                for _i in range(len(_cn_str) - _n + 1):
+                    _cn_ngrams.add(_cn_str[_i:_i + _n])
+            _kw_cn = _cn_ngrams
             _kw_all = _kw_en | _kw_cn
             def _score(_r):
                 _t = (_r.get("title","") + " " + _r.get("snippet","")).lower()
@@ -353,16 +362,16 @@ async def chat_stream(persona_id: str, message: str, conv: str = None, request: 
                     if _k in _t: _s += 2
                 for _k in _kw_cn:
                     if _k in _t_cn: _s += 2
-                # News source is a strong recency signal
-                if _r.get("source") == "searxng:news": _s += 1
+                # News or Obscura source is a strong recency/relevance signal
+                if _r.get("source") in ("searxng:news", "obscura"): _s += 3
                 return _s
             _all_results.sort(key=_score, reverse=True)
             # Boost News-mode results: pull up to top-3 news results to position
             # 1-3 BEFORE the keyword re-rank, regardless of CJK match. Otherwise
             # English news (which won't match CJK keywords) get buried under
             # Chinese web results that match the persona-name keyword.
-            _news_boost = [r for r in _all_results if r.get("source") == "searxng:news"]
-            _non_news = [r for r in _all_results if r.get("source") != "searxng:news"]
+            _news_boost = [r for r in _all_results if r.get("source") in ("searxng:news", "obscura")]
+            _non_news = [r for r in _all_results if r.get("source") not in ("searxng:news", "obscura")]
             _all_results = _news_boost[:3] + _non_news
             _log.info(f"[SEARCH_RANK] re-ranked by {_kw_all}, top: {_all_results[0].get('title','')[:50] if _all_results else 'none'}")
             _all_results = _all_results[:12]

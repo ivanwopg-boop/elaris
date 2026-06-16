@@ -230,7 +230,8 @@ async def _search_one(query: str, time_range: str = "", categories: str = "") ->
                         break
                 if not _matched:
                     logger.info(f"[RELEVANCE] SearXNG results don't match keywords {_kw_set}, falling back to Obscura")
-                    return results + await _obscura_search(query)
+                    # Obscura results FIRST (they contain what the user actually asked)
+                    return await _obscura_search(query) + results
         return results
     logger.info(f"[FALLBACK] SearXNG empty for '{query[:50]}', trying Obscura")
     return await _obscura_search(query)
