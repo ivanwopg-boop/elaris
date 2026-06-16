@@ -6,7 +6,7 @@ import { useLangStore, translations } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/Avatar";
 import { api, PersonaDetail } from "@/lib/api";
-import { ChevronLeft, Copy, Trash2, X, Check, ClipboardCheck, Wifi } from "lucide-react";
+import { ChevronLeft, Copy, Trash2, X, Check, ClipboardCheck } from "lucide-react";
 
 const LEVEL_COLOR: Record<number, string> = { 1: "#8E8E93", 2: "#34C759", 3: "#007AFF", 4: "#AF52DE", 5: "#FF9500" };
 const LEVEL_LABEL: Record<number, string> = { 1: "Lv1", 2: "Lv2", 3: "Lv3", 4: "Lv4", 5: "Lv5" };
@@ -330,13 +330,13 @@ export default function ChatPage() {
             <button onClick={() => router.push(`/persona/${id}`)} className="text-sm font-light truncate text-left hover:text-[#0071E3] transition-colors" title="View profile">{n}</button>
             {intimacy && intimacy.message_count > 0 && <span className="text-[11px] font-light shrink-0 px-1.5 py-0.5 rounded-full" style={{backgroundColor:LEVEL_COLOR[intimacy.level]||LEVEL_COLOR[1],color:"#fff"}}>{LEVEL_LABEL[intimacy.level]||""} {intimacy.level_name}</span>}
             <div className="flex-1" />
-            {/* Web search toggle */}
+            {/* Apple-style toggle switch */}
             <button
               onClick={() => setSearchEnabled(!searchEnabled)}
-              className={`p-1.5 rounded-full transition-all ${searchEnabled ? "text-[#34C759] bg-[#34C759]/10" : "text-[#C7C7CC] hover:text-[#8E8E93]"}`}
+              className={`relative w-11 h-6 rounded-full transition-colors duration-200 ${searchEnabled ? "bg-[#34C759]" : "bg-[#E5E5EA]"}`}
               title={searchEnabled ? "联网搜索已开启" : "联网搜索已关闭"}
             >
-              <Wifi size={16} strokeWidth={1.5} />
+              <span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${searchEnabled ? "translate-x-5" : "translate-x-0"}`} />
             </button>
           </div>
         )}

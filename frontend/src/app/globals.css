@@ -78,12 +78,12 @@ a, button {
 
 @keyframes breath {
   0%, 100% {
-    box-shadow: 0 0 8px rgba(52,199,89,0.3), 0 0 16px rgba(52,199,89,0.1);
+    box-shadow: 0 0 6px rgba(52,199,89,0.25), 0 0 12px rgba(52,199,89,0.08);
     transform: scale(1);
   }
   50% {
-    box-shadow: 0 0 16px rgba(52,199,89,0.5), 0 0 32px rgba(52,199,89,0.2);
-    transform: scale(1.05);
+    box-shadow: 0 0 10px rgba(52,199,89,0.35), 0 0 20px rgba(52,199,89,0.12);
+    transform: scale(1.02);
   }
 }
 
