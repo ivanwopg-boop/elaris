@@ -16,6 +16,7 @@ export default function CreatePersonaPage() {
   const [stage, setStage] = useState<Stage>("idle");
   const [error, setError] = useState("");
   const [progress, setProgress] = useState(0);
+  const [searchEnabled, setSearchEnabled] = useState(true);
   const progressRef = useRef<number>(0);
   const frameRef = useRef<number>(0);
 
@@ -53,10 +54,12 @@ export default function CreatePersonaPage() {
       if (keywords.trim()) {
         try { await api.addManualInput(persona.id, { title: keywords.trim(), background: keywords.trim() }) } catch {}
       }
-      setStage("distilling");
-      await api.distill(persona.id, lang);
-      if (lang !== "en") {
-        try { await api.distill(persona.id, "en"); } catch {}
+      if (searchEnabled) {
+        setStage("distilling");
+        await api.distill(persona.id, lang);
+        if (lang !== "en") {
+          try { await api.distill(persona.id, "en"); } catch {}
+        }
       }
       try { await api.addContact(persona.id); } catch {}
       setProgress(100);
@@ -110,6 +113,18 @@ export default function CreatePersonaPage() {
             >
               {t.create_button || "Create"}
             </button>
+            {/* Web search toggle */}
+            <div className="flex items-center justify-center gap-2 mt-3">
+              <span className="text-xs font-light text-[#86868B]">
+                {lang === "zh-CN" ? "联网蒸馏" : "Online distill"}
+              </span>
+              <button
+                onClick={() => setSearchEnabled(!searchEnabled)}
+                className={`relative w-[26px] h-4 rounded-full transition-colors duration-200 ${searchEnabled ? "bg-[#34C759]" : "bg-[#E5E5EA]"}`}
+              >
+                <span className={`absolute top-[1.5px] left-[1.5px] w-[13px] h-[13px] rounded-full bg-white shadow-sm transition-transform duration-200 ${searchEnabled ? "translate-x-[10px]" : "translate-x-0"}`} />
+              </button>
+            </div>
             <p className="text-[10px] text-[#B0B0B5] font-light mt-5 leading-relaxed">
               {lang === "zh-CN"
                 ? "所有分身均为AI模拟。不代表、未声称是、不为任何真实人物发言。不暗示任何背书。"
