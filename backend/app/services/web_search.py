@@ -28,7 +28,16 @@ SEARXNG_URL = "http://localhost:8888/search"
 #   - Bing: solid for both EN and ZH
 #   - Google: solid for EN, weak for ZH but Bing covers it
 #   - Startpage: solid backup
-SEARXNG_ENGINES = "bing,google,startpage"
+# baidu added 2026-06-16: Baidu News has fresher Chinese news than Bing
+# (returns '美伊达成和平协议,6月19日签署' on Trump+Iran+19 query where
+# Bing/Google returned nothing).
+# - Brave: 429 suspended every 3min
+# - DuckDuckGo: ConnectTimeout (firewalled)
+# - Bing: solid for EN+ZH web, weak for fresh Chinese news
+# - Google: solid for EN
+# - Startpage: solid backup
+# - Baidu: solid for Chinese news (时效性比 Bing 中文好)
+SEARXNG_ENGINES = "bing,google,startpage,baidu"
 SEARXNG_TIMEOUT = 15.0
 MAX_RESULTS = 8
 
