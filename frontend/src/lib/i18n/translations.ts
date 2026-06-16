@@ -328,6 +328,7 @@ clarity_vs_impress_label: "Clarity vs. Impress",
     messages: "messages",
     rounds: "rounds",
     error_occurred: "Error occurred",
+    search_unavailable: "Search service is temporarily unavailable. Answering with what I know.",
 
     // Group chat
     group_chat: "Group Chat",
@@ -746,6 +747,7 @@ clarity_vs_impress_label: "清晰vs.展示",
     messages: "消息",
     rounds: "轮",
     error_occurred: "发生错误",
+    search_unavailable: "搜索服务暂时不可用，仅根据已有认知回答。",
 
     group_chat: "群聊",
     new_group: "新建群聊",

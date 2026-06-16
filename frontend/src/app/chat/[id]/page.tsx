@@ -50,6 +50,7 @@ export default function ChatPage() {
   const [sending, setSending] = useState(false);
   const [building, setBuilding] = useState(false);
   const [streamError, setStreamError] = useState<string | null>(null);
+  const [searchHint, setSearchHint] = useState<string | null>(null);
   const [intimacy, setIntimacy] = useState<{level:number;level_name:string;xp:number;next_level_xp:number;message_count:number} | null>(null);
   const [liveContent, setLiveContent] = useState("");
   const ref = useRef<HTMLDivElement>(null);
@@ -109,7 +110,7 @@ export default function ChatPage() {
     setStreamError(null);
     if (!input.trim() || sending) return;
     if (selectMode) return; // Don't send in select mode
-    const text = input.trim(); setInput(""); setSending(true); setLiveContent("");
+    const text = input.trim(); setInput(""); setSending(true); setLiveContent(""); setSearchHint(null);
     esRef.current?.close();
     setMsgs((p) => [...p, { role: "user", content: text, id: `u-${Date.now()}`, time: Date.now() }]);
 
@@ -118,6 +119,15 @@ export default function ChatPage() {
 
     es.addEventListener("chat_message", (e) => {
       try { const ev = JSON.parse(e.data); const c = ev.content || ev.text || ""; setLiveContent(c); liveRef.current = c; } catch {}
+    });
+
+    es.addEventListener("search_status", (e) => {
+      try {
+        const ev = JSON.parse(e.data);
+        if (ev.status === "empty" || ev.status === "error") {
+          setSearchHint(tl.search_unavailable || "Search service is temporarily unavailable. Answering with what I know.");
+        }
+      } catch {}
     });
 
     es.addEventListener("done", (e) => {
@@ -150,6 +160,8 @@ export default function ChatPage() {
       liveRef.current = "";
       setStreamError(tl.error_occurred || "Connection lost. Please try again.");
     };
+
+    es.addEventListener("done", () => { setSearchHint(null); });
   };
 
   // ── Selection model ──
@@ -394,6 +406,11 @@ export default function ChatPage() {
           {streamError && (
     <div className="fixed top-12 left-0 right-0 z-30 px-4 py-2 bg-red-50 border-b border-red-200 text-red-700 text-xs font-light text-center">
       {streamError}
+    </div>
+  )}
+  {searchHint && !streamError && (
+    <div className="fixed top-12 left-0 right-0 z-30 px-4 py-2 bg-amber-50 border-b border-amber-200 text-amber-800 text-xs font-light text-center">
+      {searchHint}
     </div>
   )}
   {sending && !liveContent && (

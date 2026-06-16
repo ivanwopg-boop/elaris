@@ -237,6 +237,7 @@ async def chat_stream(persona_id: str, message: str, conv: str = None, request: 
             _log.info(f"[SEARCH_Q] skipped (greeting): {message[:30]!r}")
 
         # Step 3: Execute searches in parallel
+        _search_status = "ok"  # ok | empty | error
         sr = await search_web(_search_queries)
         if sr:
             _seen_urls = set()
@@ -257,11 +258,31 @@ async def chat_stream(persona_id: str, message: str, conv: str = None, request: 
                     _lines.append(f"- {_t}\n  {_s}")
                 search_context = "\n### Latest web results (ordered by relevance):\n" + "\n".join(_lines)
                 _log.info(f"[SEARCH] {len(_all_results)} results -> {len(search_context)} chars")
+            else:
+                _search_status = "empty"
+        else:
+            _search_status = "empty"
     except Exception as _search_err:
         import logging; logging.getLogger("uvicorn").error(f"[SEARCH_ERROR] {_search_err}")
+        _search_status = "error"
 
 
-    import logging; logging.getLogger("uvicorn").info(f"[SEARCH_DEBUG] context_len={len(search_context)}, preview={repr(search_context[:150])}")
+    import logging; logging.getLogger("uvicorn").info(f"[SEARCH_DEBUG] context_len={len(search_context)}, status={_search_status}, preview={repr(search_context[:150])}")
+    # When web search returned nothing, tell the persona to acknowledge this
+    # (so user sees "search service temporarily unavailable" framing, not a
+    # bare "I don't know" that looks like the persona has no info).
+    _search_unavailable_note = ""
+    if _search_status in ("empty", "error"):
+        _search_unavailable_note = (
+            "\n9. WEB SEARCH UNAVAILABLE: The search service did not return any "
+            "results for this query (SearXNG and DuckDuckGo fallback both empty). "
+            "If the user asks about something that would normally need fresh web "
+            "info (current events, recent tours, latest news, upcoming schedules), "
+            "briefly mention that the search service is temporarily unavailable "
+            "and answer with what you already know from your soul/training. Do "
+            "NOT pretend to have fetched results you don't have. Do NOT make up "
+            "specific dates, venues, or schedules."
+        )
     # Restricted mode: gentle session reminder
     restricted_reminder = ""
     if user_id:
@@ -277,7 +298,7 @@ async def chat_stream(persona_id: str, message: str, conv: str = None, request: 
     system_prompt = CHAT_SYSTEM_PROMPT.format(
             current_date=datetime.now().strftime("%Y-%m-%d"),
         name=info["name"],
-        search_context=search_context + restricted_reminder,
+        search_context=search_context + restricted_reminder + _search_unavailable_note,
         soul_json=json.dumps(info["soul"], indent=2, ensure_ascii=False),
         memory_context=_memory_ctx,
     )
@@ -331,6 +352,9 @@ Please factor in the above information when responding."""
     async def event_gen():
         nonlocal user_msg_id
         try:
+            # Emit search status so the frontend can show a hint when search was empty
+            if _search_status in ("empty", "error"):
+                yield await _sse_event("search_status", {"status": _search_status, "queries": _search_queries if '_search_queries' in dir() else []})
             reply = await minimax_client.chat(msgs, temperature=0.4, max_tokens=10000)
             reply = _sanitize_reply(reply)
             # Safety filter: check output for boundary violations
