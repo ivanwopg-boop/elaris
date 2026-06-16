@@ -26,7 +26,7 @@ logger = logging.getLogger("uvicorn")
 # ── SearXNG (Layer 1) ──────────────────────────────────────────
 
 SEARXNG_URL = "http://localhost:8888/search"
-SEARXNG_ENGINES = "bing,sogou,360search,so"
+SEARXNG_ENGINES = "bing,google,startpage,baidu"
 SEARXNG_TIMEOUT = 15.0
 MAX_RESULTS = 8
 
