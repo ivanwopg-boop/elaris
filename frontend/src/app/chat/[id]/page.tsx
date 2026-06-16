@@ -324,7 +324,7 @@ export default function ChatPage() {
             <button onClick={() => router.push("/chats")} className="text-[#86868B] hover:text-[#1D1D1F] p-1.5 -ml-1.5 rounded-full hover:bg-[rgba(0,0,0,0.04)] active:bg-[rgba(0,0,0,0.08)] transition-colors">
               <ChevronLeft size={20} strokeWidth={1.5} />
             </button>
-            <button onClick={() => router.push(`/persona/${id}`)} className={`shrink-0 active:scale-95 transition-transform ${searchEnabled ? "p-0.5 rounded-full ring-2 ring-[#34C759] ring-offset-1 shadow-[0_0_8px_rgba(52,199,89,0.3)]" : ""}`} title="View profile">
+            <button onClick={() => router.push(`/persona/${id}`)} className={`shrink-0 active:scale-95 transition-transform ${searchEnabled ? "p-0.5 rounded-full ring-2 ring-[#34C759] ring-offset-1 search-glow" : ""}`} title="View profile">
               <Avatar name={persona?.name || "?"} url={persona?.avatar_url} size="sm" className="shrink-0" />
             </button>
             <button onClick={() => router.push(`/persona/${id}`)} className="text-sm font-light truncate text-left hover:text-[#0071E3] transition-colors" title="View profile">{n}</button>
