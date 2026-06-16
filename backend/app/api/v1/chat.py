@@ -185,6 +185,17 @@ async def chat_stream(persona_id: str, message: str, conv: str = None, request: 
         _pure_greeting = bool(_re.match(r'^(hi|hello|hey|你好|大家好|哈喽|嗨|yo|sup|好|ok|嗯+|哈哈+)[!!.?？~～]*$', _clean, _re.IGNORECASE))
         _search_msg = None if _pure_greeting else (_clean if len(_clean) >= 2 else None)
 
+        # ── Premium gate: free users skip web search ──
+        if _search_msg and user_id:
+            try:
+                _ur = await db.execute(select(User).where(User.id == user_id))
+                _u = _ur.scalars().first()
+                if _u and _u.tier not in ("premium", "admin"):
+                    _search_msg = None
+                    _log.info(f"[SEARCH_Q] skipped (tier={_u.tier}): {message[:30]!r}")
+            except:
+                pass  # If DB query fails, allow search (fail open)
+
         # Build search context from recent conversation (for follow-up questions)
         _search_ctx = ""
         if conv:

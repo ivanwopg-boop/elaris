@@ -6,7 +6,8 @@ import { useLangStore, translations } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/Avatar";
 import { api, PersonaDetail } from "@/lib/api";
-import { ChevronLeft, Copy, Trash2, X, Check, ClipboardCheck } from "lucide-react";
+import { ChevronLeft, Copy, Trash2, X, Check, ClipboardCheck, Wifi, WifiOff, Crown } from "lucide-react";
+import { useAuthStore } from "@/lib/auth-store";
 
 const LEVEL_COLOR: Record<number, string> = { 1: "#8E8E93", 2: "#34C759", 3: "#007AFF", 4: "#AF52DE", 5: "#FF9500" };
 const LEVEL_LABEL: Record<number, string> = { 1: "Lv1", 2: "Lv2", 3: "Lv3", 4: "Lv4", 5: "Lv5" };
@@ -51,6 +52,9 @@ export default function ChatPage() {
   const [building, setBuilding] = useState(false);
   const [streamError, setStreamError] = useState<string | null>(null);
   const [searchHint, setSearchHint] = useState<string | null>(null);
+  const user = useAuthStore((s) => s.user);
+  const isPremium = user?.tier === "premium" || user?.tier === "admin";
+  const [searchEnabled, setSearchEnabled] = useState(isPremium);
   const [intimacy, setIntimacy] = useState<{level:number;level_name:string;xp:number;next_level_xp:number;message_count:number} | null>(null);
   const [liveContent, setLiveContent] = useState("");
   const ref = useRef<HTMLDivElement>(null);
@@ -114,7 +118,7 @@ export default function ChatPage() {
     esRef.current?.close();
     setMsgs((p) => [...p, { role: "user", content: text, id: `u-${Date.now()}`, time: Date.now() }]);
 
-    const es = new EventSource(`/api/v1/chat/${id}/stream?message=${encodeURIComponent(text)}${convId ? "&conv=" + convId : ""}`);
+    const es = new EventSource(`/api/v1/chat/${id}/stream?message=${encodeURIComponent(text)}${convId ? "&conv=" + convId : ""}${!searchEnabled ? "&search=0" : ""}`);
     esRef.current = es;
 
     es.addEventListener("chat_message", (e) => {
@@ -329,6 +333,24 @@ export default function ChatPage() {
             <button onClick={() => router.push(`/persona/${id}`)} className="text-sm font-light truncate text-left hover:text-[#0071E3] transition-colors" title="View profile">{n}</button>
             {intimacy && intimacy.message_count > 0 && <span className="text-[11px] font-light shrink-0 px-1.5 py-0.5 rounded-full" style={{backgroundColor:LEVEL_COLOR[intimacy.level]||LEVEL_COLOR[1],color:"#fff"}}>{LEVEL_LABEL[intimacy.level]||""} {intimacy.level_name}</span>}
             <div className="flex-1" />
+            {/* Web search toggle */}
+            {isPremium ? (
+              <button
+                onClick={() => setSearchEnabled(!searchEnabled)}
+                className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-light transition-colors ${searchEnabled ? "bg-blue-50 text-blue-600" : "bg-gray-100 text-gray-400"}`}
+              >
+                {searchEnabled ? <Wifi size={13} strokeWidth={1.5} /> : <WifiOff size={13} strokeWidth={1.5} />}
+                {searchEnabled ? tl.web_search_on || "Search on" : tl.web_search_off || "Search off"}
+              </button>
+            ) : (
+              <button
+                onClick={() => router.push("/settings")}
+                className="flex items-center gap-1 px-2 py-1 rounded-full text-xs font-light bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-colors"
+              >
+                <Crown size={12} strokeWidth={1.5} />
+                {tl.upgrade || "Upgrade"}
+              </button>
+            )}
           </div>
         )}
       </header>
