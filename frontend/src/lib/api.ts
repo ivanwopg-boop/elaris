@@ -71,7 +71,7 @@ export const api = {
 
   getMe: () =>
     api.request<any>("/auth/me"),
-  updateProfile: (data: { name?: string; avatar_url?: string }) => api.request<any>("/auth/profile", { method: "PUT", body: JSON.stringify(data) }),
+  updateProfile: (data: { name?: string; avatar_url?: string }) => api.request<any>("/auth/me", { method: "PATCH", body: JSON.stringify(data) }),
 
   uploadUserAvatar: async (file: File) => {
     const formData = new FormData();
@@ -81,7 +81,7 @@ export const api = {
       body: formData,
     });
   },
-  changePassword: (data: { old_password: string; new_password: string }) => api.request<any>("/auth/change-password", { method: "POST", body: JSON.stringify(data) }),
+  changePassword: (data: { old_password: string; new_password: string }) => api.request<any>("/auth/password", { method: "PUT", body: JSON.stringify(data) }),
 
 
   // Personas

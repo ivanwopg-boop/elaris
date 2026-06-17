@@ -258,8 +258,8 @@ async def update_me(request: Request, user: User = Depends(require_auth), db: As
 @router.put("/password")
 async def change_password(request: Request, user: User = Depends(require_auth), db: AsyncSession = Depends(get_db)):
     """PUT /auth/password - change password"""
-    from passlib.context import CryptContext
-    pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
+    import bcrypt
+
     data = await request.json()
     old_pw = data.get("old_password", "")
     new_pw = data.get("new_password", "")
@@ -271,9 +271,10 @@ async def change_password(request: Request, user: User = Depends(require_auth), 
     db_user = result.scalar_one_or_none()
     if not db_user:
         raise HTTPException(status_code=404, detail="User not found")
-    if not pwd_ctx.verify(old_pw, db_user.hashed_password):
+    if not db_user.password_hash: raise HTTPException(status_code=400, detail="Account has no password")
+    if not bcrypt.checkpw(old_pw.encode(), db_user.password_hash.encode()):
         raise HTTPException(status_code=400, detail="Incorrect current password")
-    db_user.hashed_password = pwd_ctx.hash(new_pw)
+    db_user.password_hash = bcrypt.hashpw(new_pw.encode(), bcrypt.gensalt()).decode()
     await db.commit()
     return {"ok": True}
 @router.post("/me/avatar", status_code=status.HTTP_200_OK)
