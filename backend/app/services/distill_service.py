@@ -184,7 +184,10 @@ def _validate_soul_quality(soul_data: dict) -> tuple[bool, str]:
     
     cog = soul_data.get("cognitive_architecture", {})
     if not cog.get("core_beliefs") and not cog.get("axioms"):
-        return False, "AI couldn't extract any core beliefs — try adding keywords (e.g., 'innovation, storytelling, control') to give the LLM more to work with."
+        # Accept but mark as incomplete — better an imperfect soul than no soul
+        soul_data["_warnings"] = soul_data.get("_warnings", []) + ["core_beliefs empty — try adding richer keywords"]
+        if "core_beliefs" not in cog:
+            cog["core_beliefs"] = []
     
     # Count filled string fields and array lengths
     total = 0
