@@ -182,7 +182,7 @@ if (loading) {
           </div>
         </div>
         <div className="flex gap-2">
-          <Button variant="primary" size="sm" className="sm:size-md" onClick={() => window.location.href = token ? `/chat/${id}` : '/login'}>{t.chat || "Chat"}</Button>
+          <Button variant="primary" size="sm" className="sm:size-md" onClick={() => router.push(token ? `/chat/${id}` : '/login')}>{t.chat || "Chat"}</Button>
         </div>
       </div>
 

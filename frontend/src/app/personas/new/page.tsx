@@ -63,7 +63,11 @@ export default function CreatePersonaPage() {
       }
       try { await api.addContact(persona.id); } catch {}
       setProgress(100);
-      router.replace("/chat/" + persona.id);
+      setStage("done");
+      // Brief pause so user sees completion
+      setTimeout(() => {
+        router.replace("/persona/" + persona.id);
+      }, 800);
     } catch (e: any) {
       try { await api.deletePersona(persona.id); } catch {}
       setStage("error");
@@ -154,6 +158,20 @@ export default function CreatePersonaPage() {
               {lang === "zh-CN"
                 ? "AI正在搜索公开信息并构建认知图谱，请稍候。"
                 : "AI is searching public information and building a cognitive profile. Please wait."}
+            </p>
+          </div>
+        )}
+
+        {stage === "done" && (
+          <div className="flex flex-col items-center gap-4 w-full max-w-[280px]">
+            <div className="w-12 h-12 rounded-full bg-[#34C759] flex items-center justify-center">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            </div>
+            <p className="text-sm text-[#1D1D1F] font-light">
+              {lang === "zh-CN" ? "\u5206\u8eab\u521b\u5efa\u6210\u529f\uff01" : "Persona created!"}
+            </p>
+            <p className="text-xs text-[#AEAEB2] font-light">
+              {lang === "zh-CN" ? "\u6b63\u5728\u8df3\u8f6c..." : "Redirecting..."}
             </p>
           </div>
         )}
