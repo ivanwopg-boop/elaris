@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 """Group chat API routes — multi-persona conversation."""
 
 import asyncio
@@ -25,7 +26,7 @@ def _now():
 router = APIRouter(prefix="/group-chat", tags=["Group Chat"])
 
 # ── Per-chat processing lock ──
-_chat_locks: set[str] = set()
+_chat_locks: dict[str, datetime] = {}
 
 
 async def _sse_event(event_name: str, data: dict) -> str:
@@ -93,7 +94,7 @@ async def group_chat_send_stream(
             yield await _sse_event("error", {"message": "Previous round still in progress, please wait"})
         return StreamingResponse(err_gen(), media_type="text/event-stream")
 
-    _chat_locks.add(chat_id)
+    _chat_locks[chat_id] = datetime.now(timezone.utc)
 
     async def event_generator():
         try:
@@ -115,61 +116,10 @@ async def group_chat_send_stream(
                 pass
             yield await _sse_event("error", {"message": str(e)})
         finally:
-            _chat_locks.discard(chat_id)
+            _chat_locks.pop(chat_id, None)
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
-
-
-async def group_chat_send_stream(
-    chat_id: str,
-    data: GroupChatSendRequest,
-    user: User = Depends(require_auth),
-    db: AsyncSession = Depends(get_db),
-):
-    """Save user message + stream persona responses as SSE (one event per message).
-
-    Each message is yielded as soon as the persona finishes — frontend gets a
-    real-time "one by one" feed, no batched "all at once" reveal.
-    """
-    from app.services.group_chat_service import add_user_message, run_group_chat_stream
-
-    # Check per-chat lock
-    if chat_id in _chat_locks:
-        # Stream a single error event then return
-        async def err_gen():
-            yield await _sse_event("error", {"message": "Previous round still in progress, please wait"})
-        return StreamingResponse(err_gen(), media_type="text/event-stream")
-
-    _chat_locks.add(chat_id)
-    user_id = user.id
-
-    async def event_generator():
-        try:
-            # Save user message first
-            await add_user_message(chat_id, data.message, db)
-            await db.commit()
-
-            # Run persona responses, yielding each as it completes
-            async for event in run_group_chat_stream(chat_id, data.message, db):
-                ev_type = event.get("type")
-                if ev_type == "message":
-                    # Commit so the listen SSE can also see it
-                    try:
-                        await db.commit()
-                    except Exception:
-                        pass
-                yield await _sse_event(ev_type or "message", event)
-        except Exception as e:
-            try:
-                await db.rollback()
-            except Exception:
-                pass
-            yield await _sse_event("error", {"message": str(e)})
-        finally:
-            _chat_locks.discard(chat_id)
-
-    return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 
 @router.get("/{chat_id}/sse")
