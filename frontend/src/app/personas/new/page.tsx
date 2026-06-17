@@ -52,15 +52,13 @@ export default function CreatePersonaPage() {
     let persona: any = null;
     try {
       persona = await api.createPersona({ name: n, source_name: n, category: "other" });
+      setCreatedPersonaId(persona.id);
       if (keywords.trim()) {
         try { await api.addManualInput(persona.id, { title: keywords.trim(), background: keywords.trim() }) } catch {}
       }
       if (searchEnabled) {
         setStage("distilling");
         await api.distill(persona.id, lang);
-        if (lang !== "en") {
-          try { await api.distill(persona.id, "en"); } catch {}
-        }
       }
       try { await api.addContact(persona.id); } catch {}
       setProgress(100);
