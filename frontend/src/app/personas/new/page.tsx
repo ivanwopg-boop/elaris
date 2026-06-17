@@ -17,6 +17,7 @@ export default function CreatePersonaPage() {
   const [error, setError] = useState("");
   const [progress, setProgress] = useState(0);
   const [searchEnabled, setSearchEnabled] = useState(true);
+  const [createdPersonaId, setCreatedPersonaId] = useState<string | null>(null);
   const progressRef = useRef<number>(0);
   const frameRef = useRef<number>(0);
 
@@ -69,7 +70,6 @@ export default function CreatePersonaPage() {
         router.replace("/persona/" + persona.id);
       }, 800);
     } catch (e: any) {
-      try { await api.deletePersona(persona.id); } catch {}
       setStage("error");
       let msg = e._detail || e.message || (t.distill_failed || "Something went wrong");
       if (typeof msg === 'string') {
@@ -179,12 +179,20 @@ export default function CreatePersonaPage() {
         {stage === "error" && (
           <div className="flex flex-col items-center gap-4">
             <p className="text-sm text-red-500 font-light">{error}</p>
-            <button
-              onClick={() => setStage("idle")}
-              className="text-sm text-[#1D1D1F] hover:underline font-light"
-            >
-              {t.try_again || "Try again"}
-            </button>
+            <div className="flex gap-3">
+              <button
+                onClick={() => createdPersonaId ? router.replace("/persona/" + createdPersonaId) : setStage("idle")}
+                className="text-sm px-5 py-2 rounded-xl bg-[#1D1D1F] text-white font-light hover:bg-[#3C3C3E] transition-colors"
+              >
+                {lang === "zh-CN" ? "查看分身" : "View Persona"}
+              </button>
+              <button
+                onClick={() => setStage("idle")}
+                className="text-sm text-[#1D1D1F] hover:underline font-light"
+              >
+                {t.try_again || "Try again"}
+              </button>
+            </div>
           </div>
         )}
       </div>

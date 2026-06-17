@@ -226,7 +226,7 @@ async def run_distillation(
         )
     except ValueError as e:
         await db.rollback()
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
         await db.rollback()
         import traceback
