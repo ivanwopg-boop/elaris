@@ -470,3 +470,59 @@ class CognitiveProfileV2(BaseModel):
     relationship_dynamics: RelationshipDynamics = RelationshipDynamics()
     voice_samples: VoiceSamples = VoiceSamples()
     temporal_profile: TemporalProfile = TemporalProfile()
+
+
+# ── Momentum / Watch Topics ────────────────────────────
+class WatchTopicCreate(BaseModel):
+    topic: str
+    source_lang: str = "en"
+
+
+class WatchTopicOut(BaseModel):
+    id: str
+    persona_id: str
+    topic: str
+    source_lang: str
+    is_auto_generated: bool
+    is_active: bool
+    created_at: datetime
+
+
+class WatchTopicUpdate(BaseModel):
+    topic: str | None = None
+    is_active: bool | None = None
+
+
+# ── Momentum / Moments ─────────────────────────────────
+class MomentOut(BaseModel):
+    id: str
+    persona_id: str
+    persona_name: str | None = None
+    persona_avatar_url: str | None = None
+    watch_topic_id: str | None
+    watch_topic: str | None = None
+    source_url: str
+    source_title: str
+    source_published_at: datetime | None
+    source_lang: str
+    persona_comment: str
+    emotion: str | None
+    hook_question: str | None
+    status: str
+    created_at: datetime
+    read_at: datetime | None
+    expires_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class MomentListResponse(BaseModel):
+    moments: list[MomentOut]
+    unread_count: int
+    daily_viewed_count: int
+    daily_viewed_limit: int | None  # None for paid tiers (unlimited)
+    is_paid: bool
+
+
+class MomentReadRequest(BaseModel):
+    pass  # no body needed, just mark as read

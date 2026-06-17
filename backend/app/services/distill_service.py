@@ -678,6 +678,27 @@ async def distill_bilingual(persona_id: str, db, version_increment: int = 1) -> 
             print(f"[distill_bilingual] translate to {other} failed: {e}", flush=True)
             import traceback; traceback.print_exc()
 
+    # ── Momentum hook: auto-populate watch topics for this persona ──
+    # Only run for languages that have a soul row, to avoid wasted LLM calls.
+    try:
+        from app.services.momentum_service import auto_populate_watch_topics
+        from app.models.db_models import PersonaSoul
+
+        persona_row = await db.get(Persona, persona_id)
+        if persona_row is not None:
+            # Get all langs that have a soul row for this persona
+            langs_res = await db.execute(
+                select(PersonaSoul.lang)
+                .where(PersonaSoul.persona_id == persona_id)
+                .distinct()
+            )
+            persona_langs = [r[0] for r in langs_res.all()]
+            for lang in persona_langs:
+                await auto_populate_watch_topics(persona_row, db, lang=lang)
+    except Exception as e:
+        print(f"[momentum] hook failed for {persona_id}: {e}", flush=True)
+        import traceback; traceback.print_exc()
+
     return {
         "primary_lang": primary_lang,
         "secondary_lang": other_langs[0] if other_langs else None,

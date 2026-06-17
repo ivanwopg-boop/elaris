@@ -111,13 +111,7 @@ async def create_persona(data: PersonaCreate, db: AsyncSession = Depends(get_db)
 
 @router.get("", response_model=list[PersonaOut])
 async def list_personas(lang: str = Query("en"), user: User = Depends(require_auth_optional), db: AsyncSession = Depends(get_db)):
-    return await persona_service.list_personas(db, user_id=user.id if user else None, include_presets=False, lang=lang)
-
-
-@router.get("/presets", response_model=list[PersonaOut])
-async def list_presets(lang: str = Query("en"), user: User = Depends(require_auth_optional), db: AsyncSession = Depends(get_db)):
-    """List preset personas (user_id=NULL) for the Discover tab — exclude current user's own personas."""
-    return await persona_service.list_personas(db, user_id=None, include_presets=True, lang=lang)
+    return await persona_service.list_personas(db, user_id=user.id if user else None, lang=lang)
 
 
 @router.post("/contacts/{persona_id}")
@@ -165,20 +159,6 @@ async def list_contacts(user = Depends(require_auth), db: AsyncSession = Depends
         id=p.id, name=p.name, description=p.description,
         avatar_url=p.avatar_url, created_at=p.created_at, updated_at=p.updated_at
     ) for p in personas]
-
-
-@router.delete("/presets/{persona_id}")
-async def delete_preset(persona_id: str, user = Depends(require_auth), db: AsyncSession = Depends(get_db)):
-    """Delete a preset persona from Discover tab."""
-    from app.models.db_models import Persona, PersonaUserMemory
-    from sqlalchemy import select, delete
-    result = await db.execute(select(Persona).where(Persona.id == persona_id, Persona.user_id == None))
-    preset = result.scalar_one_or_none()
-    if not preset:
-        raise HTTPException(status_code=404, detail="Preset not found")
-    await db.execute(delete(Persona).where(Persona.id == persona_id))
-    await db.commit()
-    return {"ok": True}
 
 
 @router.get("/{persona_id}", response_model=PersonaDetail)

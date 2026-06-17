@@ -88,18 +88,12 @@ async def get_persona(persona_id: str, db: AsyncSession, user_id: str | None = N
     }
 
 
-async def list_personas(db: AsyncSession, user_id: str | None = None, include_presets: bool = False, lang: str = "en") -> list[dict]:
-    query = select(Persona)
-    if user_id:
-        if include_presets:
-            query = query.where((Persona.user_id == user_id) | (Persona.user_id == None))  # noqa: E711
-        else:
-            query = query.where(Persona.user_id == user_id)
-    elif include_presets:
-        query = query.where(Persona.user_id == None)  # noqa: E711
-    else:
-        pass  # no filter, return all (for admin/public listing)
-    query = query.order_by(Persona.created_at.desc())
+async def list_personas(db: AsyncSession, user_id: str | None = None, lang: str = "en") -> list[dict]:
+    """List personas owned by the given user. No preset personas (decision 2026-06-17)."""
+    if not user_id:
+        # Without user_id we used to return all/presets; now return nothing
+        return []
+    query = select(Persona).where(Persona.user_id == user_id).order_by(Persona.created_at.desc())
     result = await db.execute(query)
     personas = result.scalars().all()
 

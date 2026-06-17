@@ -18,7 +18,7 @@ import asyncio
 import json
 import logging
 import subprocess
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from urllib.parse import quote_plus
 
 logger = logging.getLogger("uvicorn")

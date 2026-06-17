@@ -118,7 +118,7 @@ export default function GroupChatRoom() {
 
   const startListening = useCallback(() => {
     if (esRef.current) return; // already listening
-    const es = new EventSource(`/api/v1/group-chat/${id}/listen`);
+    const es = new EventSource(`/api/proxy/group-chat/${id}/listen`);
     esRef.current = es;
 
     const applyNew = (m: any) => {
@@ -218,7 +218,7 @@ export default function GroupChatRoom() {
     if (!input.trim() || sending) return;
     const text = input.trim(); setInput(""); setSending(true);
     // Count active personas: parse @mentions to show accurate thinking text
-    const atMentions = text.match(/@([\w一-龥]+)/g);
+    const atMentions = text.match(/@([\w\u4e00-\u9fa5]+)/g);
     const activeCount = atMentions
       ? atMentions.filter(t => t !== "@all").length
       : (chat?.persona_ids?.length || 1);
@@ -227,32 +227,65 @@ export default function GroupChatRoom() {
       : t.waiting;
     setThinking(thinkingText);
     lastCount.current += 1;
+    // Optimistic insert of user message
     setAllMsgs((p) => [...p, { id: `u-${Date.now()}`, sender_type: "user", sender_name: userName, content: text }]);
     try {
-      await fetch(`/api/v1/group-chat/${id}/send-blocking`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
+      // Streaming POST: we proxy through /api/proxy/.../send which passes the
+      // SSE stream through verbatim. Append ONE message at a time as it arrives.
+      const token = useAuthStore.getState().token;
+      const resp = await fetch(`/api/proxy/group-chat/${id}/send`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({ message: text }),
       });
-    } catch {}
-    // Safety net: re-fetch full chat to ensure messages appear
-    // even if the SSE listener hasn't delivered them yet.
-    try {
-      const updated = await api.getGroupChat(id);
-      if (updated.messages.length > allMsgs.length) {
-        setAllMsgs(updated.messages);
-        lastCount.current = updated.messages.length;
-        // Update persona name map from new messages
-        updated.messages.forEach((m: any) => {
-          if (m.sender_type === "persona" && m.sender_id && m.sender_name) {
-            setPersonaNameMap((prev) => {
-              const next = { ...prev };
-              next[m.sender_id] = { name: m.sender_name, avatar_url: prev[m.sender_id]?.avatar_url };
-              return next;
-            });
+      if (!resp.body) { setSending(false); setThinking(null); return; }
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const frames = buf.split("\n\n");
+        buf = frames.pop() ?? "";
+        for (const frame of frames) {
+          const lineEvent = frame.split("\n").find(l => l.startsWith("event: "));
+          const lineData = frame.split("\n").find(l => l.startsWith("data: "));
+          if (!lineData) continue;
+          const evName = lineEvent ? lineEvent.slice(7).trim() : "message";
+          let data: any = null;
+          try { data = JSON.parse(lineData.slice(6)); } catch { continue; }
+          if (evName === "message" && data?.content) {
+            const m = {
+              id: `p-${Date.now()}-${Math.random().toString(36).slice(2,6)}`,
+              sender_type: "persona",
+              sender_id: data.persona_id,
+              sender_name: data.persona_name,
+              content: data.content,
+            };
+            setAllMsgs((prev) => prev.some(x => x.id === m.id) ? prev : [...prev, m]);
+            if (m.sender_id && m.sender_name) {
+              setPersonaNameMap((prev) => {
+                const next = { ...prev };
+                const ex = next[m.sender_id];
+                next[m.sender_id] = { name: m.sender_name, avatar_url: ex?.avatar_url };
+                return next;
+              });
+            }
+            lastCount.current = (lastCount.current || 0) + 1;
+          } else if (evName === "thinking" && data?.persona_name) {
+            setThinking(`${data.persona_name} 正在输入…`);
+          } else if (evName === "error") {
+            console.warn("[group-chat] stream error:", data?.message);
           }
-        });
+        }
       }
-    } catch {}
+    } catch (e) {
+      console.error("[group-chat] send failed:", e);
+    }
     setSending(false); setThinking(null);
   };
 

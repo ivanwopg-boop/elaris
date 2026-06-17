@@ -226,9 +226,16 @@ async def logout(response: Response):
 @router.get("/me", response_model=AuthResponse)
 async def get_me(user: User = Depends(require_auth), db: AsyncSession = Depends(get_db)):
     """Get current user info. Requires access_token cookie or Bearer token."""
+    # Count user personas
+    from app.models.db_models import Persona
+    count_res = await db.execute(
+        select(func.count(Persona.id)).where(Persona.user_id == user.id)
+    )
+    persona_count = count_res.scalar() or 0
     return AuthResponse(
         id=user.id, email=user.email, name=user.name,
         tier=user.tier, avatar_url=user.avatar_url,
+        persona_count=persona_count,
     )
 
 

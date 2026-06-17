@@ -41,7 +41,7 @@ function RegisterForm() {
     }
     setLoading(true);
     try {
-      const res = await api.register(name.trim(), email.trim(), password, undefined, birthDate);
+      const res = await api.register(email.trim(), password, name.trim(), undefined, birthDate);
       setAuth(res.access_token, res.user);
       window.location.href = '/chats';
     } catch (err: any) {
@@ -91,6 +91,21 @@ function RegisterForm() {
               placeholder={t.password || 'Password'}
               autoComplete="new-password"
             /><button type="button" onClick={() => setShowPassword(s => !s)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#86868B] hover:text-[#1D1D1F] p-1" tabIndex={-1}>{showPassword ? <EyeOff size={16} strokeWidth={1.5} /> : <Eye size={16} strokeWidth={1.5} />}</button></div>
+
+            <div>
+              <label className="block text-xs text-[#86868B] font-light mb-1.5 ml-1">
+                {t.date_of_birth || 'Date of birth'} <span className="text-[#AEAEB2]">· {t.age_verification || 'for age verification'}</span>
+              </label>
+              <input
+                type="date"
+                value={birthDate}
+                onChange={e => setBirthDate(e.target.value)}
+                max={new Date().toISOString().slice(0, 10)}
+                className="w-full bg-white border border-[rgba(0,0,0,0.1)] rounded-xl px-4 py-3.5 text-sm text-[#1D1D1F] placeholder-[#86868B] focus:outline-none focus:border-[#1D1D1F] transition-colors font-light"
+                required
+              />
+            </div>
+
             <button
               type="submit"
               disabled={loading}

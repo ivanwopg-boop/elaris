@@ -73,42 +73,103 @@ async def get_group_chat(chat_id: str, user: User = Depends(require_auth), db: A
     )
 
 
-@router.post("/{chat_id}/send-blocking")
-async def group_chat_send_blocking(
+@router.post("/{chat_id}/send")
+async def group_chat_send_stream(
     chat_id: str,
     data: GroupChatSendRequest,
+    user: User = Depends(require_auth),
     db: AsyncSession = Depends(get_db),
 ):
-    """Save user message + run all persona responses synchronously."""
+    """Save user message + stream persona responses as SSE (one event per message).
+
+    Each message is yielded as soon as the persona finishes — frontend gets a
+    real-time "one by one" feed, no batched "all at once" reveal.
+    """
     from app.services.group_chat_service import add_user_message, run_group_chat_stream
 
     # Check per-chat lock
     if chat_id in _chat_locks:
-        return {"status": "busy", "message": "Previous round still in progress, please wait"}
+        async def err_gen():
+            yield await _sse_event("error", {"message": "Previous round still in progress, please wait"})
+        return StreamingResponse(err_gen(), media_type="text/event-stream")
 
     _chat_locks.add(chat_id)
-    try:
-        # Save user message
-        await add_user_message(chat_id, data.message, db)
 
-        # NOTE: Web search is now done PER PERSONA inside _call_one.
+    async def event_generator():
+        try:
+            await add_user_message(chat_id, data.message, db)
+            await db.commit()
 
-        # Run all persona responses — continue even if some fail
-        has_error = False
-        async for event in run_group_chat_stream(chat_id, data.message, db):
-            ev_type = event.get("type")
-            if ev_type in ("message",):
-                await db.commit()
-            elif ev_type == "error":
-                has_error = True
-                await db.commit()  # Still commit so far
+            async for event in run_group_chat_stream(chat_id, data.message, db):
+                ev_type = event.get("type")
+                if ev_type == "message":
+                    try:
+                        await db.commit()
+                    except Exception:
+                        pass
+                yield await _sse_event(ev_type or "message", event)
+        except Exception as e:
+            try:
+                await db.rollback()
+            except Exception:
+                pass
+            yield await _sse_event("error", {"message": str(e)})
+        finally:
+            _chat_locks.discard(chat_id)
 
-        await db.commit()
-        if has_error:
-            return {"status": "partial", "message": "Some personas failed to respond"}
-        return {"status": "completed"}
-    finally:
-        _chat_locks.discard(chat_id)
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
+
+async def group_chat_send_stream(
+    chat_id: str,
+    data: GroupChatSendRequest,
+    user: User = Depends(require_auth),
+    db: AsyncSession = Depends(get_db),
+):
+    """Save user message + stream persona responses as SSE (one event per message).
+
+    Each message is yielded as soon as the persona finishes — frontend gets a
+    real-time "one by one" feed, no batched "all at once" reveal.
+    """
+    from app.services.group_chat_service import add_user_message, run_group_chat_stream
+
+    # Check per-chat lock
+    if chat_id in _chat_locks:
+        # Stream a single error event then return
+        async def err_gen():
+            yield await _sse_event("error", {"message": "Previous round still in progress, please wait"})
+        return StreamingResponse(err_gen(), media_type="text/event-stream")
+
+    _chat_locks.add(chat_id)
+    user_id = user.id
+
+    async def event_generator():
+        try:
+            # Save user message first
+            await add_user_message(chat_id, data.message, db)
+            await db.commit()
+
+            # Run persona responses, yielding each as it completes
+            async for event in run_group_chat_stream(chat_id, data.message, db):
+                ev_type = event.get("type")
+                if ev_type == "message":
+                    # Commit so the listen SSE can also see it
+                    try:
+                        await db.commit()
+                    except Exception:
+                        pass
+                yield await _sse_event(ev_type or "message", event)
+        except Exception as e:
+            try:
+                await db.rollback()
+            except Exception:
+                pass
+            yield await _sse_event("error", {"message": str(e)})
+        finally:
+            _chat_locks.discard(chat_id)
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 
 @router.get("/{chat_id}/sse")

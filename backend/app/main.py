@@ -13,7 +13,6 @@ from fastapi.staticfiles import StaticFiles
 from app.config import get_settings
 from app.database import init_db, async_session, get_db
 from app.api.router import api_router
-from app.services.seed_service import seed_presets
 from app.models.db_models import Persona
 
 settings = get_settings()
@@ -23,11 +22,6 @@ settings = get_settings()
 async def lifespan(app: FastAPI):
     """Initialize database on startup."""
     await init_db()
-    # Seed preset personas
-    async with async_session() as session:
-        count = await seed_presets(session)
-        if count:
-            print(f"Seeded {count} preset personas")
     yield
 
 

@@ -61,6 +61,8 @@ class ConversationListOut(BaseModel):
     persona_name: str
     persona_avatar: str | None
     last_message: str | None
+    message_count: int | None = None
+    created_at: datetime | None = None
     updated_at: datetime
     type: str = "single"
     name: str | None = None
@@ -827,12 +829,21 @@ async def list_conversations(user: User = Depends(require_auth), db: AsyncSessio
                 participant_ids = json.loads(conv.participant_ids)
             except:
                 pass
+        # Count messages for this conversation
+        count_res = await db.execute(
+            select(func.count(ConversationMessage.id)).where(
+                ConversationMessage.conversation_id == conv.id
+            )
+        )
+        msg_count = count_res.scalar() or 0
         conversations.append(ConversationListOut(
             id=conv.id,
             persona_id=conv.persona_id,
             persona_name=conv.name if conv.type == "group" else persona.name,
             persona_avatar=persona.avatar_url if conv.type != "group" else None,
             last_message=last_msg,
+            message_count=msg_count,
+            created_at=conv.created_at,
             updated_at=conv.updated_at,
             type=conv.type or "single",
             name=conv.name,

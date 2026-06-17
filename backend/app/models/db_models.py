@@ -298,3 +298,54 @@ class ProactiveLog(Base):
     __table_args__ = (
         UniqueConstraint("persona_id", "user_id", "trigger_type", "sent_at", name="uq_proactive_log_dedup"),
     )
+
+
+# ── PersonaWatchTopic (Momentum) ────────────────────────
+class PersonaWatchTopic(Base):
+    __tablename__ = "persona_watch_topics"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    persona_id: Mapped[str] = mapped_column(String(36), ForeignKey("personas.id", ondelete="CASCADE"), nullable=False)
+    topic: Mapped[str] = mapped_column(String(256), nullable=False)
+    source_lang: Mapped[str] = mapped_column(String(10), nullable=False, default="en")
+    is_auto_generated: Mapped[bool] = mapped_column(Boolean, default=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
+
+
+# ── PersonaMoment (Momentum) ────────────────────────────
+class PersonaMoment(Base):
+    __tablename__ = "persona_moments"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    persona_id: Mapped[str] = mapped_column(String(36), ForeignKey("personas.id", ondelete="CASCADE"), nullable=False)
+    user_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    watch_topic_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
+
+    # News source
+    source_url: Mapped[str] = mapped_column(String(1024), nullable=False)
+    source_title: Mapped[str] = mapped_column(String(512), nullable=False)
+    source_content: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_published_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    source_lang: Mapped[str] = mapped_column(String(10), nullable=False, default="en")
+
+    # Persona digestion
+    persona_comment: Mapped[str] = mapped_column(Text, nullable=False)
+    emotion: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    hook_question: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Status
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="unread")
+    # "unread" | "read" | "dismissed" | "replied" | "expired"
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+    read_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    dismissed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+
+    # De-dup
+    source_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("persona_id", "source_hash", name="uq_moments_persona_source"),
+    )

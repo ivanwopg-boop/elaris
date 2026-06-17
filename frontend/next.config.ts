@@ -12,7 +12,9 @@ const nextConfig: NextConfig = {
   async rewrites() {
     return [
       {
-        source: "/api/:path*",
+        // /api/proxy/* is handled by our local Route Handler (for streaming passthrough)
+        // so exclude it from the rewrite-to-backend.
+        source: "/api/:path((?!proxy/).*)",
         destination: `${process.env.BACKEND_URL || "http://localhost:8000"}/api/:path*`,
       },
       {
