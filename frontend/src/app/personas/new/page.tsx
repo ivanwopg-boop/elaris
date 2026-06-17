@@ -21,24 +21,27 @@ export default function CreatePersonaPage() {
   const progressRef = useRef<number>(0);
   const frameRef = useRef<number>(0);
 
-  // Dynamic smooth progress bar
+  // Smooth organic progress bar — never feels stuck
   useEffect(() => {
     if (stage !== "creating" && stage !== "distilling") {
       setProgress(0);
       return;
     }
     const startTime = Date.now();
-    const totalDuration = 40000; // 40s estimate
+    // Sigmoid curve: slow → fast → slow, naturally approaches 99%
+    // Real distillation takes 70-80s, so target 80s for full curve
+    const totalDuration = 80000; // 80s sigmoid midpoint
     const tick = () => {
       const elapsed = Date.now() - startTime;
-      // Ease-out curve: fast at start, slows toward end
-      const raw = Math.min(elapsed / totalDuration, 1);
-      const eased = 1 - Math.pow(1 - raw, 2.5); // ease-out cubic-like
-      const pct = Math.min(eased * 92, 92); // cap at 92% (never 100% until done)
+      const t = Math.min(elapsed / totalDuration, 1.5); // allow overshoot past midpoint
+      // Logistic sigmoid: smooth S-curve, 0→99% over ~80s
+      // k=6 gives gentle slope, midpoint at 0.4 (32s to 50%)
+      const sigmoid = 99 / (1 + Math.exp(-6 * (t - 0.4)));
+      // Very slow creep after 85% so it never looks frozen
+      const pct = Math.min(sigmoid, 99);
       setProgress(pct);
-      if (elapsed < totalDuration * 1.2) {
-        frameRef.current = requestAnimationFrame(tick);
-      }
+      // Keep animating until stage changes (cleanup handles stop)
+      frameRef.current = requestAnimationFrame(tick);
     };
     frameRef.current = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frameRef.current);
@@ -140,10 +143,9 @@ export default function CreatePersonaPage() {
             {/* Progress bar */}
             <div className="w-full h-1.5 bg-[#E8E8ED] rounded-full overflow-hidden">
               <div
-                className="h-full bg-gradient-to-r from-[#1D1D1F] to-[#3C3C3E] rounded-full"
+                className={`h-full rounded-full transition-all duration-1000 ${progress > 85 ? "animate-pulse bg-gradient-to-r from-[#34C759] to-[#1D1D1F]" : "bg-gradient-to-r from-[#1D1D1F] to-[#3C3C3E]"}`}
                 style={{
                   width: `${progress}%`,
-                  transition: "width 0.8s cubic-bezier(0.4, 0, 0.2, 1)",
                 }}
               />
             </div>
