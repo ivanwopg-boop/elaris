@@ -242,10 +242,19 @@ async def _check_search_results_exist(persona_id: str, db) -> tuple[bool, int, s
 async def distill_persona(persona_id: str, db: AsyncSession, lang: str = "en",
                         use_v2: bool = False) -> dict:
     """Run distillation for a persona, returns the new soul."""
-    # 0. Check web search results exist (otherwise distillation will produce empty soul)
+    # 0. Check web search results exist. If not, auto-fallback to ensure_web_search_results
+    # so distillation never blocks just because frontend forgot to pre-search.
     has_results, count, err = await _check_search_results_exist(persona_id, db)
     if not has_results:
-        raise ValueError(err)
+        from app.services.web_search import ensure_web_search_results
+        try:
+            await ensure_web_search_results(persona_id, db)
+            has_results, count, err = await _check_search_results_exist(persona_id, db)
+        except Exception as e:
+            import logging
+            logging.getLogger("uvicorn").warning(f"ensure_web_search_results fallback failed: {e}")
+        if not has_results:
+            raise ValueError(err)
     
     # 1. Load persona
     result = await db.execute(select(Persona).where(Persona.id == persona_id))
@@ -312,6 +321,18 @@ async def distill_persona(persona_id: str, db: AsyncSession, lang: str = "en",
             "personality traits from text materials. "
         )
     system_msg += lang_instruction
+    # Strict schema constraint — LLM tends to wrap answers in {"text":...}.
+    # Force it to start with schema_version and fill all required fields.
+    if use_v2:
+        system_msg += (
+            "\n\nCRITICAL OUTPUT FORMAT:\n"
+            "- Your response MUST be a single JSON object starting with {\"schema_version\":\"3.0\",...}\n"
+            "- Top-level keys REQUIRED: schema_version, greeting_message, _ai_persona_disclaimer, "
+            "identity, cognitive_architecture, expertise, voice, emotional_map, desires, fears, "
+            "relationships, turning_points, peak_moment, rock_bottom, evolution, legacy.\n"
+            "- DO NOT wrap your output in any outer object (e.g. {\"text\":...} or {\"response\":...}).\n"
+            "- Return ONLY the JSON object. No prose, no markdown fences, no commentary."
+        )
     messages = [
         {"role": "system", "content": system_msg},
         {"role": "user", "content": prompt},

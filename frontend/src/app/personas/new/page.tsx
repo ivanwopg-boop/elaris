@@ -61,6 +61,15 @@ export default function CreatePersonaPage() {
       }
       if (searchEnabled) {
         setStage("distilling");
+        // Always trigger web search first — backend requires search results
+        // in web_search_results table before allowing distillation.
+        try {
+          const queries = [n, keywords.trim() ? `${n} ${keywords.trim()}` : n].filter(Boolean);
+          await api.triggerWebSearch(persona.id, queries);
+        } catch (e) {
+          // Non-fatal: backend has fallback (ensure_web_search_results)
+          console.warn("web search pre-trigger failed:", e);
+        }
         await api.distill(persona.id, lang);
       }
       try { await api.addContact(persona.id); } catch {}
