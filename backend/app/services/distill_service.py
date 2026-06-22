@@ -8,9 +8,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 
 from app.models.db_models import (
-    Persona, PersonaFile, PersonaManualInput,
-    WebSearchResult, PersonaSoul, DistillationLog,
+    DistillationLog,
+    Persona,
+    PersonaFile,
+    PersonaManualInput,
+    PersonaSoul,
+    WebSearchResult,
 )
+
 from app.models.schemas import PersonaProfile, CognitiveProfileV2
 from app.core.minimax_client import minimax_client
 from app.core.prompts import (
@@ -650,7 +655,6 @@ async def distill_bilingual(persona_id: str, db, version_increment: int = 1) -> 
     "primary_soul": ..., "secondary_soul": ..., "version": int, "sources_used": int}
     Used by both the distill endpoint and auto-distill background task.
     """
-    from app.models.db_models import Persona, PersonaSoul
     import re as _re, json as _json, uuid, datetime as _dt
 
     pr = await db.execute(select(Persona).where(Persona.id == persona_id))
@@ -706,7 +710,6 @@ async def distill_bilingual(persona_id: str, db, version_increment: int = 1) -> 
     # Only run for languages that have a soul row, to avoid wasted LLM calls.
     try:
         from app.services.momentum_service import auto_populate_watch_topics
-        from app.models.db_models import PersonaSoul
 
         persona_row = await db.get(Persona, persona_id)
         if persona_row is not None:

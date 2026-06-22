@@ -9,7 +9,8 @@ from sqlalchemy import select
 
 from app.core.auth_deps import require_auth
 from app.database import get_db_with_retry as get_db
-from app.models.db_models import Persona, WebSearchResult, PersonaSoul, PersonaManualInput, User
+from app.models.db_models import Persona, PersonaManualInput, PersonaSoul, User, WebSearchResult
+
 from app.models.schemas import (
     WebSearchRequest, WebSearchResultOut,
     DistillResponse, SoulOut, ManualInputCreate, ManualInputOut,
@@ -177,7 +178,6 @@ async def run_distillation(
                 )
                 # Update persona record
                 from sqlalchemy import update
-                from app.models.db_models import Persona
                 await db.execute(
                     update(Persona).where(Persona.id == persona_id).values(
                         category=cat, is_public=True
@@ -193,7 +193,6 @@ async def run_distillation(
         name_options: list[str] = []
         try:
             from sqlalchemy import select as _selx, update
-            from app.models.db_models import Persona
             pr = await db.execute(_selx(Persona).where(Persona.id == persona_id))
             p = pr.scalar_one_or_none()
             if p:

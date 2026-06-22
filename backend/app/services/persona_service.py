@@ -5,7 +5,8 @@ import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from app.models.db_models import Persona, PersonaSoul
+from app.models.db_models import Persona, PersonaFile, PersonaSoul
+
 from app.models.schemas import PersonaCreate, PersonaUpdate
 
 
@@ -64,7 +65,6 @@ async def get_persona(persona_id: str, db: AsyncSession, user_id: str | None = N
             souls_by_lang[lang] = {"version": 0, "has_soul": False, "soul": None}
 
     # Get file count
-    from app.models.db_models import PersonaFile
     file_count_result = await db.execute(
         select(PersonaFile).where(PersonaFile.persona_id == persona_id)
     )

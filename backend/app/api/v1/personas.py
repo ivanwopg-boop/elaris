@@ -10,7 +10,8 @@ from sqlalchemy import select, func
 
 from app.database import get_db
 from app.models.schemas import PersonaCreate, PersonaUpdate, PersonaOut, PersonaDetail
-from app.models.db_models import Persona, PersonaUserMemory, User
+from app.models.db_models import Contact, Persona, PersonaFile, PersonaSoul, PersonaUserMemory, User, WebSearchResult
+
 from app.services import persona_service
 from app.config import get_settings
 from app.core.auth_deps import require_auth, require_auth_optional, require_premium
@@ -38,7 +39,6 @@ async def create_persona(data: PersonaCreate, db: AsyncSession = Depends(get_db)
     # not just the single most-recently-created soul row.
     if data.source_id:
         from sqlalchemy import select
-        from app.models.db_models import Persona, PersonaUserMemorySoul, PersonaFile, WebSearchResult
         from datetime import datetime
 
         # 1. Copy latest soul per lang (en, zh-CN) — preserves bilingual coverage.
@@ -117,7 +117,6 @@ async def list_personas(lang: str = Query("en"), user: User = Depends(require_au
 @router.post("/contacts/{persona_id}")
 async def add_contact(persona_id: str, user: User = Depends(require_auth), db: AsyncSession = Depends(get_db)):
     """Add a preset persona to the current user's contacts."""
-    from app.models.db_models import Contact, Persona
     from sqlalchemy import select
     # Verify persona exists
     result = await db.execute(select(Persona).where(Persona.id == persona_id))
@@ -139,7 +138,6 @@ from app.models.db_models import User
 @router.delete("/contacts/{persona_id}")
 async def remove_contact(persona_id: str, user = Depends(require_auth), db: AsyncSession = Depends(get_db)):
     """Remove a persona from the current user's contacts."""
-    from app.models.db_models import Contact
     from sqlalchemy import delete
     await db.execute(delete(Contact).where(Contact.user_id == user.id, Contact.persona_id == persona_id))
     await db.commit()
@@ -149,7 +147,6 @@ async def remove_contact(persona_id: str, user = Depends(require_auth), db: Asyn
 @router.get("/contacts", response_model=list[PersonaOut])
 async def list_contacts(user = Depends(require_auth), db: AsyncSession = Depends(get_db)):
     """List all contacts for the current user."""
-    from app.models.db_models import Contact, Persona
     from sqlalchemy import select
     result = await db.execute(
         select(Persona).join(Contact, Contact.persona_id == Persona.id).where(Contact.user_id == user.id)

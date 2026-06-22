@@ -11,7 +11,8 @@ from pathlib import Path
 from pydantic import BaseModel, EmailStr
 
 from app.database import get_db
-from app.models.db_models import User, Session, InviteCode
+from app.models.db_models import InviteCode, Persona, Session, User
+
 from app.core.auth import (
     hash_password, verify_password,
     create_access_token, create_refresh_token,
@@ -227,7 +228,6 @@ async def logout(response: Response):
 async def get_me(user: User = Depends(require_auth), db: AsyncSession = Depends(get_db)):
     """Get current user info. Requires access_token cookie or Bearer token."""
     # Count user personas
-    from app.models.db_models import Persona
     count_res = await db.execute(
         select(func.count(Persona.id)).where(Persona.user_id == user.id)
     )

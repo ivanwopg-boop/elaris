@@ -6,6 +6,14 @@ MAX_LOG_LINES=1000
 [ -f "$LOG" ] && tail -n $MAX_LOG_LINES "$LOG" > "${LOG}.tmp" && mv "${LOG}.tmp" "$LOG"
 echo "$(date '+%Y-%m-%d %H:%M:%S'): checking" >> "$LOG"
 
+# Lint guard: 禁止函数内 from app.models import (06-22 创建分身 bug 根因)
+cd /opt/elaris/backend
+LINT_OUT=$(python3 lint_imports.py 2>&1)
+if [ $? -ne 0 ]; then
+  echo "$(date '+%Y-%m-%d %H:%M:%S'): LINT_FAIL: $LINT_OUT" >> "$LOG"
+  # 严重：代码有雷区，发告警（不自动修，避免破坏性回滚）
+fi
+
 FE_OK=$(timeout 5 curl -s -o /dev/null -w '%{http_code}' http://localhost:3000 2>/dev/null || echo '000')
 BE_OK=$(timeout 5 curl -s -o /dev/null -w '%{http_code}' http://localhost:8000/health 2>/dev/null || echo '000')
 

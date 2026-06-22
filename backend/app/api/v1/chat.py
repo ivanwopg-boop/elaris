@@ -10,7 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, delete
 
 from app.database import get_db
-from app.models.db_models import Persona, PersonaSoul, Conversation as ConvTable, ConversationMessage
+from app.models.db_models import Conversation, ConversationMessage, Persona, PersonaSoul, User
+
 from app.models.schemas import ChatRequest, ChatResponse
 from app.core.minimax_client import minimax_client
 from app.core.prompts import CHAT_SYSTEM_PROMPT
@@ -156,7 +157,6 @@ async def chat_stream(persona_id: str, message: str, conv: str = None, request: 
     user_id = _get_user_from_request(request)
     if not user_id:
         # Guest: verify persona is a preset (user_id=NULL)
-        from app.models.db_models import Persona
         pr = await db.execute(select(Persona).where(Persona.id == persona_id))
         persona = pr.scalars().first()
         if not persona or persona.user_id is not None:
@@ -424,7 +424,6 @@ async def chat_stream(persona_id: str, message: str, conv: str = None, request: 
     # Restricted mode: gentle session reminder
     restricted_reminder = ""
     if user_id:
-        from app.models.db_models import User as _UM
         _ur2 = await db.execute(select(_UM).where(_UM.id == user_id))
         _u2 = _ur2.scalars().first()
         if _u2 and _u2.tier == "restricted":
@@ -455,7 +454,6 @@ async def chat_stream(persona_id: str, message: str, conv: str = None, request: 
             _needs_context = True  # safe default: include history on failure
         
         if _needs_context:
-            from app.models.db_models import ConversationMessage
             hres = await db.execute(
                 select(ConversationMessage).where(ConversationMessage.conversation_id == conv)
                 .order_by(ConversationMessage.created_at.desc()).limit(10)
@@ -501,7 +499,6 @@ Please factor in the above information when responding."""
                 reply = out_check["message"]
             # Restricted mode: extra checks for 13-16 users
             if user_id:
-                from app.models.db_models import User
                 _ur = await db.execute(select(User).where(User.id == user_id))
                 _u = _ur.scalars().first()
                 if _u and _u.tier == "restricted":

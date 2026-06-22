@@ -20,6 +20,8 @@ import logging
 import subprocess
 from datetime import datetime, timedelta, timezone
 from urllib.parse import quote_plus
+from app.models.db_models import Persona, WebSearchResult
+
 
 logger = logging.getLogger("uvicorn")
 
@@ -334,7 +336,6 @@ async def scrape_top_results(results: list[dict], max_pages: int = 3) -> str:
 async def ensure_web_search_results(persona_id: str, db) -> None:
     import uuid
     from sqlalchemy import select
-    from app.models.db_models import Persona, WebSearchResult
 
     result = await db.execute(select(WebSearchResult).where(
         WebSearchResult.persona_id == persona_id

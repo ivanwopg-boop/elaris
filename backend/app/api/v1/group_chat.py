@@ -12,6 +12,7 @@ from sqlalchemy import select, func
 
 from app.database import get_db
 from app.models.db_models import GroupChat, GroupChatMessage, Persona, User
+
 from app.core.auth_deps import require_auth, require_premium
 from app.models.schemas import (
     GroupChatCreate, GroupChatOut, GroupChatMessageOut,
@@ -330,7 +331,6 @@ async def delete_group_chat(chat_id: str, user: User = Depends(require_auth), db
 
 
 async def _chat_to_out(chat: GroupChat, msg_count: int = 0, db: AsyncSession = None) -> GroupChatOut:
-    from app.models.db_models import Persona
     from sqlalchemy import select
     pids = json.loads(chat.persona_ids)
     names = {}
