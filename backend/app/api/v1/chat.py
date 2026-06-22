@@ -423,7 +423,7 @@ async def chat_stream(persona_id: str, message: str, conv: str = None, request: 
     # Restricted mode: gentle session reminder
     restricted_reminder = ""
     if user_id:
-        _ur2 = await db.execute(select(_UM).where(_UM.id == user_id))
+        _ur2 = await db.execute(select(User).where(User.id == user_id))
         _u2 = _ur2.scalars().first()
         if _u2 and _u2.tier == "restricted":
             restricted_reminder = "\n8. USER IS A MINOR (13-16): Keep responses age-appropriate. Avoid mature themes. Gently suggest breaks every so often."

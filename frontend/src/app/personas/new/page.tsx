@@ -81,9 +81,16 @@ export default function CreatePersonaPage() {
       }, 800);
     } catch (e: any) {
       setStage("error");
+      // 2026-06-22 fix: backend EMPTY_SOUL returns structured {code, message, action} object,
+      // not a string. Normalize both to a human-readable string for safe rendering.
       let msg = e._detail || e.message || (t.distill_failed || "Something went wrong");
+      if (typeof msg === 'object' && msg !== null) {
+        msg = msg.message || msg.action || JSON.stringify(msg);
+      }
       if (typeof msg === 'string') {
         msg = msg.replace(/^API error \d+:\s*/, '').replace(/^Distillation failed:\s*/, '').trim();
+      } else {
+        msg = String(msg);
       }
       setError(msg);
     }
