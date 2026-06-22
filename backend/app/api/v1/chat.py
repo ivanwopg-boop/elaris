@@ -21,7 +21,6 @@ from app.services.memory_service import get_memory_context, generate_memory_summ
 from app.core.auth_deps import require_auth, require_auth_optional
 from app.core.safety_filter import check_input, check_output, check_restricted_output
 from app.core.auth import decode_token
-from app.models.db_models import User
 
 # === Output sanitizer: remove bracketed stage directions ===
 import re as _re
@@ -76,13 +75,13 @@ class ConversationListOut(BaseModel):
 async def _get_or_create_conversation(user_id: str, persona_id: str, db: AsyncSession) -> str:
     """Get existing conversation or create a new one. Returns conversation_id."""
     result = await db.execute(
-        select(ConvTable).where(ConvTable.user_id == user_id, ConvTable.persona_id == persona_id)
+        select(Conversation).where(Conversation.user_id == user_id, Conversation.persona_id == persona_id)
     )
     conv = result.scalar_one_or_none()
     if conv:
         return conv.id
     conv_id = str(uuid.uuid4())
-    conv = ConvTable(id=conv_id, user_id=user_id, persona_id=persona_id)
+    conv = Conversation(id=conv_id, user_id=user_id, persona_id=persona_id)
     db.add(conv)
     await db.flush()
     return conv_id
@@ -108,7 +107,7 @@ async def _save_message(
     )
     db.add(msg)
     # Update conversation updated_at
-    result = await db.execute(select(ConvTable).where(ConvTable.id == conversation_id))
+    result = await db.execute(select(Conversation).where(Conversation.id == conversation_id))
     conv = result.scalar_one()
     conv.updated_at = datetime.utcnow()
     await db.flush()
@@ -594,8 +593,8 @@ async def _handle_mode(request: ChatRequest, user_id: str, db: AsyncSession, use
     try:
         mem_result = await db.execute(
             select(ConversationMessage.content, ConversationMessage.role, ConversationMessage.created_at)
-            .join(ConvTable, ConversationMessage.conversation_id == ConvTable.id)
-            .where(ConvTable.user_id == user_id, ConvTable.persona_id == request.persona_id)
+            .join(Conversation, ConversationMessage.conversation_id == Conversation.id)
+            .where(Conversation.user_id == user_id, Conversation.persona_id == request.persona_id)
             .order_by(ConversationMessage.created_at.desc())
             .limit(10)
         )
@@ -761,7 +760,7 @@ async def create_conversation(
     if conv_type == "group":
         # For group chat, primary persona_id is the first participant or null
         primary_persona_id = participant_ids[0] if participant_ids else None
-        conversation = ConvTable(
+        conversation = Conversation(
             id=f"grp_{uuid.uuid4().hex[:24]}",
             user_id=user.id,
             persona_id=primary_persona_id,
@@ -773,7 +772,7 @@ async def create_conversation(
         persona_id = request.get("persona_id")
         if not persona_id:
             raise HTTPException(status_code=400, detail="persona_id required for single chat")
-        conversation = ConvTable(
+        conversation = Conversation(
             id=f"conv_{uuid.uuid4().hex[:24]}",
             user_id=user.id,
             persona_id=persona_id,
@@ -802,10 +801,10 @@ async def create_conversation(
 async def list_conversations(user: User = Depends(require_auth), db: AsyncSession = Depends(get_db)):
     """List all conversations for the current user, with last message preview."""
     result = await db.execute(
-        select(ConvTable, Persona)
-        .join(Persona, ConvTable.persona_id == Persona.id)
-        .where(ConvTable.user_id == user.id)
-        .order_by(ConvTable.updated_at.desc())
+        select(Conversation, Persona)
+        .join(Persona, Conversation.persona_id == Persona.id)
+        .where(Conversation.user_id == user.id)
+        .order_by(Conversation.updated_at.desc())
     )
     rows = result.all()
     conversations = []
@@ -855,7 +854,7 @@ async def delete_conversation(conversation_id: str, user: User = Depends(require
     """Delete a conversation and all its messages."""
     # Verify ownership
     result = await db.execute(
-        select(ConvTable).where(ConvTable.id == conversation_id, ConvTable.user_id == user.id)
+        select(Conversation).where(Conversation.id == conversation_id, Conversation.user_id == user.id)
     )
     conv = result.scalar_one_or_none()
     if not conv:
@@ -863,7 +862,7 @@ async def delete_conversation(conversation_id: str, user: User = Depends(require
     # Delete messages first
     await db.execute(delete(ConversationMessage).where(ConversationMessage.conversation_id == conversation_id))
     # Delete conversation
-    await db.execute(delete(ConvTable).where(ConvTable.id == conversation_id))
+    await db.execute(delete(Conversation).where(Conversation.id == conversation_id))
     await db.flush()
 
 @router.post("/conversations/{conversation_id}/mark-read")
@@ -895,7 +894,7 @@ async def get_conversation_messages(
     logger.info(f"[GET_MESSAGES] conv_id={conversation_id}, user_id={user.id if user else None}")
     # Verify ownership
     result = await db.execute(
-        select(ConvTable).where(ConvTable.id == conversation_id, ConvTable.user_id == user.id)
+        select(Conversation).where(Conversation.id == conversation_id, Conversation.user_id == user.id)
     )
     if not result.scalar_one_or_none():
         logger.warning(f"[GET_MESSAGES] Conversation {conversation_id} not found for user {user.id if user else None}")
@@ -928,7 +927,7 @@ async def delete_message(
 ):
     """Delete a single message from a conversation."""
     result = await db.execute(
-        select(ConvTable).where(ConvTable.id == conversation_id, ConvTable.user_id == user.id)
+        select(Conversation).where(Conversation.id == conversation_id, Conversation.user_id == user.id)
     )
     if not result.scalar_one_or_none():
         raise HTTPException(status_code=404, detail="Conversation not found")
