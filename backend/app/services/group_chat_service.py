@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 
 from app.models.db_models import Persona, PersonaSoul, GroupChat, GroupChatMessage
+from app.services.web_search import search_web
 from app.core.minimax_client import minimax_client
 from app.core.group_chat_prompts import (
     GROUP_CHAT_SYSTEM_PROMPT,
@@ -176,7 +177,6 @@ async def run_group_chat_stream(
             should_search = (not mentioned) or (persona["id"] in mentioned)
             if should_search:
                 try:
-                    from app.services.web_search import search_web
                     import logging
                     _log = logging.getLogger("uvicorn")
                     from datetime import datetime as _dt; _tp = _dt.now(); _today = _tp.strftime("%Y-%m-%d")

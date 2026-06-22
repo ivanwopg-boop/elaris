@@ -15,7 +15,7 @@ from app.models.schemas import (
     WebSearchRequest, WebSearchResultOut,
     DistillResponse, SoulOut, ManualInputCreate, ManualInputOut,
 )
-from app.services.distill_service import distill_persona
+from app.services.distill_service import distill_persona, distill_bilingual, EmptySoulError, infer_category
 from app.services.web_search import search_web, ensure_web_search_results
 
 router = APIRouter(prefix="/personas/{persona_id}", tags=["Distill"])
@@ -147,14 +147,45 @@ async def run_distillation(
 ):
     """Run distillation for both en and zh-CN synchronously."""
     await _check_persona(persona_id, user.id, db)
-    try:
+
+    # 2026-06-22: EmptySoulError retry policy — if LLM returns empty shell,
+    # try once more with broader keywords via web_search re-run, then surface failure.
+    from sqlalchemy import delete as _del
+
+    async def _do_distill():
         await ensure_web_search_results(persona_id, db)
+        return await distill_bilingual(persona_id, db)
+
+    try:
+        try:
+            bi = await _do_distill()
+        except EmptySoulError as ese:
+            # 1st attempt returned empty shell. Force-refresh web search results
+            # (broader query variants) and retry once. If still empty, raise.
+            _log_retry = __import__("logging").getLogger("uvicorn")
+            _log_retry.warning(f"[DISTILL_RETRY] Empty soul first attempt, refreshing search and retrying: {ese}")
+            try:
+                # Delete old weak results to force fresh broader search
+                await db.execute(_del(WebSearchResult).where(WebSearchResult.persona_id == persona_id))
+                await db.commit()
+                bi = await _do_distill()
+            except EmptySoulError as ese2:
+                # Both attempts failed — surface as 422 with action hint
+                raise HTTPException(
+                    status_code=422,
+                    detail={
+                        "code": "EMPTY_SOUL",
+                        "message": "Distillation produced empty results even after retry. "
+                                   "The search sources were too sparse for the LLM to characterize this person.",
+                        "action": "Please add manual-input about this person (occupation, era, key works, "
+                                  "famous quotes) and re-distill. This gives the LLM concrete material to work with.",
+                        "persona_id": persona_id,
+                        "attempts": 2,
+                    }
+                )
         souls = {}
         version = 0
         sources_used = 0
-        # Bilingual distillation: distill once in primary lang, translate to other.
-        from app.services.distill_service import distill_bilingual
-        bi = await distill_bilingual(persona_id, db)
         primary_lang = bi["primary_lang"]
         primary_soul = bi["primary_soul"]
         souls[primary_lang] = primary_soul
@@ -167,7 +198,6 @@ async def run_distillation(
         en_soul = souls.get("en", {})
         if en_soul:
             try:
-                from app.services.distill_service import infer_category
                 identity = en_soul.get("identity", {})
                 expertise = en_soul.get("expertise", {})
                 domains = (expertise.get("deep_domains") or []) + (expertise.get("competent_domains") or [])

@@ -14,6 +14,12 @@ if [ $? -ne 0 ]; then
   # 严重：代码有雷区，发告警（不自动修，避免破坏性回滚）
 fi
 
+# Soul integrity guard: 扫 DB 中空壳 soul (06-22 Soul 页面空白 bug 根因)
+SOUL_OUT=$(python3 lint_souls.py 2>&1)
+if [ $? -ne 0 ]; then
+  echo "$(date '+%Y-%m-%d %H:%M:%S'): SOUL_LINT_FAIL: $SOUL_OUT" >> "$LOG"
+fi
+
 FE_OK=$(timeout 5 curl -s -o /dev/null -w '%{http_code}' http://localhost:3000 2>/dev/null || echo '000')
 BE_OK=$(timeout 5 curl -s -o /dev/null -w '%{http_code}' http://localhost:8000/health 2>/dev/null || echo '000')
 

@@ -87,7 +87,6 @@ async def group_chat_send_stream(
     Each message is yielded as soon as the persona finishes — frontend gets a
     real-time "one by one" feed, no batched "all at once" reveal.
     """
-    from app.services.group_chat_service import add_user_message, run_group_chat_stream
 
     # Check per-chat lock
     if chat_id in _chat_locks:

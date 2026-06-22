@@ -38,6 +38,31 @@ export function SoulCard({ soul, version, name }: SoulCardProps) {
   const isZh = lang === "zh-CN";
   if (!soul) return <Card className="text-center py-16"><p className="text-sm font-light text-[#86868B]">{t.not_distilled_soul || "Not yet ready"}</p></Card>;
 
+  // 2026-06-22: detect empty-shell soul (schema frame but all content fields empty).
+  // The backend now rejects these at write time, but legacy rows from before the
+  // fix may still exist. Surface them clearly so the user knows to re-distill.
+  const _ident = obj(soul.identity);
+  const _hasContent =
+    str(_ident.name).trim() ||
+    str(_ident.life_arc).trim() ||
+    str(_ident.title).trim() ||
+    arr(soul.cognitive_architecture?.core_beliefs).length > 0 ||
+    arr(soul.expertise?.deep_domains).length > 0 ||
+    str(soul.communication_profile?.default_register).trim() ||
+    str(soul.voice?.natural_register).trim();
+  if (!_hasContent) {
+    return (
+      <Card className="text-center py-12 px-6 border-amber-200 bg-amber-50/30">
+        <p className="text-sm font-medium text-[#1D1D1F] mb-1">Soul is incomplete</p>
+        <p className="text-xs font-light text-[#86868B] leading-relaxed">
+          {isZh
+            ? "这个分身的灵魂资料不完整（蒸馏时信息源不足）。请在补充资料中加入职业、时代、代表作、名言等关键信息后重新蒸馏。"
+            : "This persona's soul is incomplete (insufficient distillation sources). Add manual-input about occupation, era, key works, or famous quotes, then re-distill."}
+        </p>
+      </Card>
+    );
+  }
+
   const ident = obj(soul.identity);
   const cog = obj(soul.cognitive_architecture);
   const voice = obj(soul.voice);

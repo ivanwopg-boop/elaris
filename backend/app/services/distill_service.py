@@ -2,6 +2,7 @@
 
 import json
 import uuid
+import logging
 from datetime import datetime, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,7 +24,62 @@ from app.core.prompts import (
     UPDATE_DISTILL_PROMPT, SEARCH_ANALYSIS_PROMPT,
     FIRST_DISTILL_PROMPT_V3, FIRST_DISTILL_PROMPT_V2, UPDATE_DISTILL_PROMPT_V2,
 )
-from app.services.web_search import search_web
+from app.services.web_search import ensure_web_search_results, search_web
+from app.services.momentum_service import auto_populate_watch_topics
+
+
+_log = logging.getLogger("uvicorn")
+
+
+class EmptySoulError(Exception):
+    """蒸馏返回的 soul_json 是个空壳（schema 框架但内容全空）。
+    2026-06-22 Ivan 报告爱因斯坦空壳 soul 静默入库，导致 Soul 页面空白。
+    现在抛出异常防止写入，前端能感知并引导用户重试或补充资料。"""
+    pass
+
+
+# 需要至少 3 个核心字段非空才算充实 soul（不是空壳）
+EMPTY_SOUL_MIN_FILLED = 3
+
+def _is_empty_soul(soul_data: dict) -> tuple[bool, int, int]:
+    """检测 soul_json 是否是空壳。
+    返回 (is_empty, filled_count, total_checked)。
+    12 个核心字段，至少 3 个有真实内容才算充实。"""
+    if not isinstance(soul_data, dict):
+        return True, 0, 12
+
+    identity = soul_data.get("identity") or {}
+    cog = soul_data.get("cognitive_architecture") or {}
+    perceptual = soul_data.get("perceptual_frameworks") or {}
+    emotional = soul_data.get("emotional_reactive_system") or {}
+    expertise = soul_data.get("expertise") or {}
+    comm = soul_data.get("communication_profile") or {}
+    voice = soul_data.get("voice_sample") or {}
+
+    checks = [
+        # identity 3 项
+        bool(identity.get("name") and str(identity.get("name")).strip()),
+        bool(identity.get("title") and str(identity.get("title")).strip()),
+        bool(identity.get("life_arc") and str(identity.get("life_arc")).strip()),
+        # cognitive 2 项
+        isinstance(cog.get("core_beliefs"), list) and len(cog.get("core_beliefs", [])) >= 2,
+        isinstance(cog.get("axioms"), list) and len(cog.get("axioms", [])) >= 1,
+        # expertise 1 项
+        isinstance(expertise.get("deep_domains"), list) and len(expertise.get("deep_domains", [])) >= 2,
+        # perceptual 1 项
+        bool(perceptual.get("primary_lens") and str(perceptual.get("primary_lens")).strip()),
+        # emotional 1 项
+        bool(emotional.get("under_stress") and str(emotional.get("under_stress")).strip()),
+        # comm 2 项
+        bool(comm.get("default_register") and str(comm.get("default_register")).strip()),
+        isinstance(comm.get("signature_expressions"), list) and len(comm.get("signature_expressions", [])) >= 2,
+        # voice 1 项
+        bool(voice.get("natural_register") and str(voice.get("natural_register")).strip()) or bool(voice.get("default_tone") and str(voice.get("default_tone")).strip()),
+        # knowledge 1 项
+        bool((soul_data.get("knowledge_boundaries") or {}).get("responds_to_uncertainty_with") and str((soul_data.get("knowledge_boundaries") or {}).get("responds_to_uncertainty_with")).strip()),
+    ]
+    filled = sum(1 for c in checks if c)
+    return filled < EMPTY_SOUL_MIN_FILLED, filled, len(checks)
 
 
 def _build_source_bio(name: str, identity_summary: str = "") -> str:
@@ -251,7 +307,6 @@ async def distill_persona(persona_id: str, db: AsyncSession, lang: str = "en",
     # so distillation never blocks just because frontend forgot to pre-search.
     has_results, count, err = await _check_search_results_exist(persona_id, db)
     if not has_results:
-        from app.services.web_search import ensure_web_search_results
         try:
             await ensure_web_search_results(persona_id, db)
             has_results, count, err = await _check_search_results_exist(persona_id, db)
@@ -414,6 +469,16 @@ async def distill_persona(persona_id: str, db: AsyncSession, lang: str = "en",
     file_count = fc or 0
     search_count = sc or 0
     total_sources = file_count + search_count
+
+    # 8. INTEGRITY CHECK before saving (06-22 root-cause for "空壳 soul 静默写入" bug)
+    is_empty, filled_count, total_checked = _is_empty_soul(soul_data if isinstance(soul_data, dict) else json.loads(soul_json))
+    if is_empty:
+        # Don't write empty shell. Raise specific error so frontend can surface it.
+        raise EmptySoulError(
+            f"Distilled soul is empty shell ({filled_count}/{total_checked} core fields filled, "
+            f"sources_used={total_sources}). Likely cause: insufficient search results or LLM "
+            f"returned schema frame only. Try re-distill with manual-input or different keywords."
+        )
 
     # 8. Save new soul
     new_version = (existing_soul.version + 1) if existing_soul else 1
@@ -709,7 +774,6 @@ async def distill_bilingual(persona_id: str, db, version_increment: int = 1) -> 
     # ── Momentum hook: auto-populate watch topics for this persona ──
     # Only run for languages that have a soul row, to avoid wasted LLM calls.
     try:
-        from app.services.momentum_service import auto_populate_watch_topics
 
         persona_row = await db.get(Persona, persona_id)
         if persona_row is not None:

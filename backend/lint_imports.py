@@ -1,14 +1,19 @@
 #!/usr/bin/env python3
 """
 lint_imports.py - 永久护栏
-禁止任何函数/方法内 'from app.models import ...' 或 'import app.models.X ...' 形式。
+禁止任何函数/方法内 'from app.* import ...' 或 'import app.*' 形式。
 
 为什么有这个：
-2026-06-22 Ivan 报"创建分身报错"+"历史对话列表没了"。
+2026-06-22 Ivan 报"创建分身报错"+"历史对话列表没了"+ 爱因斯坦 soul 空壳。
 - 创建分身根因：chat.py:458 函数内 'from app.models.db_models import ConversationMessage'
 - 对话列表 500 根因：'from app.models.db_models import Conversation as ConvTable' 是函数内
   别名 import，被之前的清理删掉，留下了孤儿 ConvTable 引用。
-第一遍修复只扫了无别名 from ... import，漏了 'as 别名' 形式，结果 17 处修了又出 15 处 ConvTable 孤儿引用。
+- 重蒸爱因斯坦 500 根因：distill.py 我自己写了局部 'from app.services.distill_service import
+  distill_bilingual'，又踩同一个家族——证明不仅是 app.models, 所有 app.* 都要扫。
+- 第一遍 lint_imports.py 只扫 'from app.models'，漏了 'from app.services' 'from app.core' 形式。
+  
+扫描范围：本脚本现在拦截任何 'from app.X' 'import app.X'，含 app.models, app.services,
+app.core, app.api, app.database, app.config 等所有子模块。
 
 这个脚本扫描所有 app/ 下 .py，违反任何一种形式都非零退出。
 """
@@ -20,19 +25,19 @@ BACKEND = Path("/opt/elaris/backend/app")
 
 # 形式 1：单行函数内 from app.models(.X)? import Y [, Y2] [as Z]
 LOCAL_FROM_RE = re.compile(
-    r"^[ \t]+from app\.models(?:\.[\w]+)? import [^\n]+",
+    r"^[ \t]+from app\.\w+(?:\.\w+)* import [^\n]+",
     re.MULTILINE
 )
 
 # 形式 2：单行函数内 import app.models.X [as Z]
 LOCAL_IMPORT_RE = re.compile(
-    r"^[ \t]+import app\.models\.\w+(?:\s+as\s+\w+)?",
+    r"^[ \t]+import app\.\w+(?:\.\w+)*(?:\s+as\s+\w+)?",
     re.MULTILINE
 )
 
 # 形式 3：函数内 from app.models import ( 的多行括号
 LOCAL_PAREN_RE = re.compile(
-    r"^[ \t]+from app\.models(?:\.[\w]+)? import \(\n",
+    r"^[ \t]+from app\.\w+(?:\.\w+)* import \(\n",
     re.MULTILINE
 )
 
@@ -80,7 +85,7 @@ def main():
         sys.exit(1)
     else:
         scanned = sum(1 for _ in BACKEND.rglob("*.py"))
-        print(f"✅ {scanned} 个文件全部干净，无函数内 app.models 导入")
+        print(f"✅ {scanned} 个文件全部干净，无函数内 app.* 导入")
         sys.exit(0)
 
 if __name__ == "__main__":

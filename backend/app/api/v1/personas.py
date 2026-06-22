@@ -9,6 +9,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 
 from app.database import get_db
+from app.services.proactive_service import run_proactive_check
+from app.core.minimax_client import minimax_client
+from app.services.memory_service import LEVEL_NAMES, LEVEL_THRESHOLDS, get_level, get_next_level_xp
 from app.models.schemas import PersonaCreate, PersonaUpdate, PersonaOut, PersonaDetail
 from app.models.db_models import Contact, Persona, PersonaFile, PersonaSoul, PersonaUserMemory, User, WebSearchResult
 
@@ -238,7 +241,6 @@ async def get_intimacy(
     db: AsyncSession = Depends(get_db),
 ):
     """Get intimacy level and progress for this persona-user pair."""
-    from app.services.memory_service import LEVEL_THRESHOLDS, LEVEL_NAMES, get_level, get_next_level_xp
     result = await db.execute(
         select(PersonaUserMemory).where(
             PersonaUserMemory.persona_id == persona_id,
@@ -276,8 +278,6 @@ async def trigger_proactive_messages(
     db: AsyncSession = Depends(get_db),
 ):
     """Trigger proactive outreach check. Called by cron job every 30 min."""
-    from app.core.minimax_client import minimax_client
-    from app.services.proactive_service import run_proactive_check
 
     try:
         results = await run_proactive_check(minimax_client, limit=5)
