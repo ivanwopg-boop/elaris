@@ -362,9 +362,30 @@ async def distill_persona(persona_id: str, db: AsyncSession, lang: str = "en",
         lang, name, display_name, title_line, company_line, all_materials, existing_soul, use_v2)
 
     # 5. Call LLM API
-    lang_instruction = "Output exclusively in Chinese (中文)." if lang == "zh-CN" else "Output exclusively in English."
+    lang_name = "Simplified Chinese (简体中文)" if lang == "zh-CN" else "English"
+    # 2026-06-22 fix: LLM was ignoring trailing lang_instruction. Promote it to TOP of system_msg
+    # and repeat at END with explicit field-by-field directive.
+    lang_directive = (
+        f"🌐 LANGUAGE REQUIREMENT (HIGHEST PRIORITY):\n"
+        f"- You MUST output every human-readable STRING value in {lang_name}.\n"
+        f"- This includes: identity.life_arc, identity.self_view, identity.title, identity.organization,\n"
+        f"  identity.how_the_world_sees_them, identity.what_they_refuse_to_be_labelled_as,\n"
+        f"  cognitive_architecture.core_beliefs[*].belief/why, cognitive_architecture.provisional_beliefs[*],\n"
+        f"  cognitive_architecture.what_they_know_for_certain, perceptual_frameworks.primary_lens,\n"
+        f"  emotional_reactive_system.under_stress/when_agreed_with/when_challenged,\n"
+        f"  expertise.deep_domains[*], expertise.cross_domain_syntheses[*],\n"
+        f"  communication_profile.default_register, communication_profile.signature_expressions[*],\n"
+        f"  greeting_message.text, AND any other natural-language description field.\n"
+        f"- JSON keys (identity, core_beliefs, etc.) MUST stay in English — only the VALUES translate.\n"
+        f"- DO NOT mix languages. If source material is in Chinese, your distillation prose is in Chinese.\n"
+        f"- If source material is in English, your distillation prose is in English.\n"
+        f"\n"
+        f"After producing the JSON, verify mentally: \"Is every readable string in {lang_name}?\" If not, fix it before returning.\n"
+    )
+
     if use_v2:
         system_msg = (
+            lang_directive + "\n"
             f"You are creating an original AI character. This character is NOT {name} — "
             f"it is an independent persona INSPIRED BY {name}'s cognitive patterns, values, and expression style. "
             f"The AI persona has its own name (\"{display_name}\") and its own identity. "
@@ -377,10 +398,11 @@ async def distill_persona(persona_id: str, db: AsyncSession, lang: str = "en",
         )
     else:
         system_msg = (
+            lang_directive + "\n"
             "You are a professional personality analyst, skilled at distilling "
             "personality traits from text materials. "
         )
-    system_msg += lang_instruction
+
     # Strict schema constraint — LLM tends to wrap answers in {"text":...}.
     # Force it to start with schema_version and fill all required fields.
     if use_v2:
@@ -392,6 +414,7 @@ async def distill_persona(persona_id: str, db: AsyncSession, lang: str = "en",
             "relationships, turning_points, peak_moment, rock_bottom, evolution, legacy.\n"
             "- DO NOT wrap your output in any outer object (e.g. {\"text\":...} or {\"response\":...}).\n"
             "- Return ONLY the JSON object. No prose, no markdown fences, no commentary."
+            f"\n\n🌐 FINAL REMINDER: Every readable string value in your response MUST be in {lang_name}. JSON keys stay English."
         )
     messages = [
         {"role": "system", "content": system_msg},

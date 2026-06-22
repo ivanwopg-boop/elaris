@@ -4,6 +4,9 @@ import uuid
 import json
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status, Query
+
+# 2026-06-22: ensure HTTPException is in scope at module level for the
+# 'except HTTPException: raise' clause in run_distillation.
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -253,6 +256,9 @@ async def run_distillation(
             version=version,
             sources_used=sources_used,
         )
+    except HTTPException:
+        await db.rollback()
+        raise  # Preserve structured 4xx (EMPTY_SOUL etc.) — don't wrap in 500
     except ValueError as e:
         await db.rollback()
         raise HTTPException(status_code=422, detail=str(e))

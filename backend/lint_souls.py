@@ -45,6 +45,12 @@ def is_empty_shell(soul_data: dict) -> tuple[bool, int, int]:
     return filled < EMPTY_SOUL_MIN_FILLED, filled, len(checks)
 
 def main():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--clean", action="store_true", help="删除空壳 soul 记录（保留 persona）")
+    parser.add_argument("--dry-run", action="store_true", help="只列出，不删除")
+    args = parser.parse_args()
+
     if not DB_PATH.exists():
         print(f"DB not found at {DB_PATH}, skipping (production may use different path)")
         sys.exit(0)
@@ -73,11 +79,24 @@ def main():
             empty.append((r["id"], r["persona_id"], r["name"], r["lang"], r["version"], filled, total, "empty_shell"))
 
     if empty:
-        print(f"❌ 发现 {len(empty)} 个空壳 soul（schema 框架但内容全空）:")
+        print(f"{'❌' if not args.clean else '🧹'} 发现 {len(empty)} 个空壳 soul:")
         for sid, pid, name, lang, ver, filled, total, reason in empty:
             print(f"  soul_id={sid[:8]} persona={name!r} ({lang} v{ver}) filled={filled}/{total} reason={reason}")
-        print("\n修复方案: 对这些 persona 重新蒸馏，或调用 manual-input 添加关键信息后再蒸馏。")
-        sys.exit(1)
+
+        if args.clean and not args.dry_run:
+            ids = [r[0] for r in empty]
+            placeholders = ','.join('?' * len(ids))
+            cur = conn.cursor()
+            cur.execute(f"DELETE FROM persona_souls WHERE id IN ({placeholders})", ids)
+            conn.commit()
+            print(f"\n🗑️  已删除 {cur.rowcount} 个空壳 soul 记录（persona 保留，用户可重新蒸馏）")
+            sys.exit(0)
+        elif args.dry_run:
+            print(f"\n(dry-run: 不会实际删除，--clean 才生效)")
+            sys.exit(0)
+        else:
+            print(f"\n修复方案: 重跑 --clean 删除空壳 soul，或对 persona 重新蒸馏")
+            sys.exit(1)
     else:
         print(f"✅ {len(rows)} 个 soul 全部充实（>= {EMPTY_SOUL_MIN_FILLED} 个核心字段）")
         sys.exit(0)
