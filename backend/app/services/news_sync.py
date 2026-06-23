@@ -541,11 +541,28 @@ async def run_sync(db: AsyncSession):
     if expired_count:
         await db.commit()
 
+    # ── Step 5: Delete old expired moments (>48h past expiry) ──
+    purge_cutoff = now - timedelta(hours=48)
+    purge_res = await db.execute(
+        select(PersonaMoment).where(
+            and_(
+                PersonaMoment.status == "expired",
+                PersonaMoment.expires_at < purge_cutoff,
+            )
+        )
+    )
+    purged = 0
+    for m in purge_res.scalars().all():
+        await db.delete(m)
+        purged += 1
+    if purged:
+        await db.commit()
+
     print(
-        f"[news_sync] done: generated={generated}, skipped={skipped}, errors={errors}, expired={expired_count}",
+        f"[news_sync] done: generated={generated}, skipped={skipped}, errors={errors}, expired={expired_count}, purged={purged}",
         flush=True,
     )
-    return {"generated": generated, "skipped": skipped, "errors": errors, "expired": expired_count}
+    return {"generated": generated, "skipped": skipped, "errors": errors, "expired": expired_count, "purged": purged}
 
 
 async def main():
