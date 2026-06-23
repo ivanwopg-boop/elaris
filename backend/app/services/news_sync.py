@@ -187,6 +187,74 @@ def _extract_soul_summary(soul_data: dict) -> str:
 
 def _hash_url(url: str) -> str:
     return hashlib.md5(url.encode("utf-8")).hexdigest()
+# ── Persona picks & digests ──────────────────────────────────
+
+PICK_PROMPT = """You are {persona_name}, browsing today's trending news.
+
+Your personality and voice:
+{soul_excerpt}
+
+Below is today's hot list. Pick 1-3 headlines that you, {persona_name}, would naturally care about and want to comment on.
+
+HOT LIST:
+{hot_list}
+
+Rules:
+1. Pick headlines about YOUR field, interests, or things that would provoke YOUR opinion.
+2. Skip anything irrelevant — you don't need to comment on everything.
+3. If nothing interests you, return an empty picks array.
+4. Only return the index numbers — we'll fetch the full article text for you next.
+
+Return JSON:
+{{"picks": [{{"index": <number>}}]}}"""
+
+
+DIGEST_PROMPT = """You are {persona_name}, expressing yourself in character.
+
+Your soul / personality:
+{soul_excerpt}
+
+You saw this article on the trending list and want to comment on it:
+Title: {article_title}
+Content: {article_content}
+Source: {article_url}
+
+Task: Write an 80-150 word comment in YOUR voice about this news.
+
+Rules:
+1. Use your own perspective, vocabulary, and concerns.
+2. Don't summarize — give your opinion. Be conversational.
+3. Don't fabricate facts. If the news is wrong, say so.
+4. If the content is empty, write based on the title.
+5. Respond in {lang} ({lang_label}).
+
+Return JSON:
+{{"comment": "your comment", "emotion": "praising|criticizing|reflecting|questioning|celebrating"}}"""
+
+
+async def _fetch_article_content(url: str, timeout: int = 8) -> str:
+    """Fetch article text from URL. Returns up to 3000 chars."""
+    try:
+        async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as c:
+            r = await c.get(url, headers={
+                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+                "Accept": "text/html,application/xhtml+xml",
+                "Accept-Language": "en-US,en;q=0.9,zh-CN;q=0.8",
+            })
+            if r.status_code != 200:
+                return ""
+            html = r.text[:50000]
+    except Exception:
+        return ""
+
+    # Simple text extraction: strip HTML tags
+    import re
+    text = re.sub(r'<script[^>]*>.*?</script>', '', html, flags=re.DOTALL | re.IGNORECASE)
+    text = re.sub(r'<style[^>]*>.*?</style>', '', text, flags=re.DOTALL | re.IGNORECASE)
+    text = re.sub(r'<[^>]+>', ' ', text)
+    text = re.sub(r'\s+', ' ', text).strip()
+    # Limit to ~3000 chars
+    return text[:3000]
 
 
 async def persona_picks(
@@ -195,15 +263,13 @@ async def persona_picks(
     hot_list: list[dict],
     lang: str,
 ) -> list[dict]:
-    """One LLM call: pick articles + write comments for this persona."""
-    # Number the hot list
-    lines = []
-    for i, item in enumerate(hot_list):
-        lines.append(f"{i}. [{item['source']}] {item['title']}")
-
-    lang_label = "Chinese" if lang == "zh" else "English"
+    """Two-step: (1) LLM picks headlines, (2) fetch content + LLM writes comment."""
     soul_excerpt = _extract_soul_summary(soul_data)
-    prompt = PICK_PROMPT.format(
+    lang_label = "Chinese" if lang == "zh" else "English"
+
+    # ── Step 1: Pick headlines ──
+    lines = [f"{i}. [{item['source']}] {item['title']}" for i, item in enumerate(hot_list)]
+    pick_prompt = PICK_PROMPT.format(
         persona_name=persona_name,
         soul_excerpt=soul_excerpt,
         hot_list="\n".join(lines),
@@ -212,11 +278,11 @@ async def persona_picks(
     try:
         text = await minimax_client.chat(
             [
-                {"role": "system", "content": f"You output only valid JSON. Respond in {lang_label}."},
-                {"role": "user", "content": prompt},
+                {"role": "system", "content": "You output only valid JSON."},
+                {"role": "user", "content": pick_prompt},
             ],
             temperature=0.8,
-            max_tokens=1200,
+            max_tokens=400,
         )
         text = (text or "").strip()
         if chr(96) * 3 in text:
@@ -225,24 +291,64 @@ async def persona_picks(
                 text = text[4:]
             text = text.strip()
         data = json.loads(text)
-        picks = data.get("picks", [])
+        indices = [p.get("index", -1) for p in data.get("picks", [])]
+        indices = [i for i in indices if 0 <= i < len(hot_list)]
+    except Exception as e:
+        print(f"[news_sync] pick failed for {persona_name}: {e}", flush=True)
+        return []
 
-        out = []
-        for p in picks:
-            idx = p.get("index", -1)
-            if 0 <= idx < len(hot_list):
-                item = hot_list[idx]
+    if not indices:
+        return []
+
+    # ── Step 2: Fetch article content (parallel) ──
+    fetch_tasks = [_fetch_article_content(hot_list[i]["url"]) for i in indices]
+    contents = await asyncio.gather(*fetch_tasks, return_exceptions=True)
+
+    # ── Step 3: Write comments (one LLM call per article) ──
+    out = []
+    for idx, content in zip(indices, contents):
+        item = hot_list[idx]
+        if not isinstance(content, str):
+            content = ""
+        digest_prompt = DIGEST_PROMPT.format(
+            persona_name=persona_name,
+            soul_excerpt=soul_excerpt,
+            article_title=item["title"],
+            article_content=content[:2000] or "(content unavailable)",
+            article_url=item["url"],
+            lang=lang,
+            lang_label=lang_label,
+        )
+        try:
+            text = await minimax_client.chat(
+                [
+                    {"role": "system", "content": "You output only valid JSON. Respond in " + lang_label + "."},
+                    {"role": "user", "content": digest_prompt},
+                ],
+                temperature=0.8,
+                max_tokens=600,
+            )
+            text = (text or "").strip()
+            if chr(96) * 3 in text:
+                text = text.split(chr(96) * 3)[1]
+                if text.startswith("json"):
+                    text = text[4:]
+                text = text.strip()
+            data = json.loads(text)
+            comment = (data.get("comment") or "").strip()
+            if len(comment) >= 30:
                 out.append({
                     "title": item["title"],
                     "url": item["url"],
                     "source": item["source"],
-                    "comment": (p.get("comment") or "").strip(),
-                    "emotion": p.get("emotion", "reflecting"),
+                    "comment": comment,
+                    "emotion": data.get("emotion", "reflecting"),
                 })
-        return out
-    except Exception as e:
-        print(f"[news_sync] pick/digest failed for {persona_name}: {e}", flush=True)
-        return []
+        except Exception as e:
+            print(f"[news_sync] digest failed for {persona_name}: {e}", flush=True)
+            continue
+
+    return out
 
 
 # ── Main sync loop ────────────────────────────────────────────
