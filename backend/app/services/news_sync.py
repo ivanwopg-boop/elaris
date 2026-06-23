@@ -252,23 +252,34 @@ async def _fetch_newsnow(topic: str, lang: str = "en") -> list[dict]:
     return merged[:5]
 
 
-async def fetch_news(topic: str, lang: str = "en") -> list[dict]:
-    """Fetch news with NewsNow (primary) → SearXNG fallback.
+async def fetch_news(topic: str, lang: str = "en", persona_name: str = "") -> list[dict]:
+    """Fetch news: first try persona+topic, then topic-only fallback.
 
-    2026-06-23: Swapped priority. NewsNow is now P0 because it pulls
-    editor-curated hot lists — no fake articles, no clickbait.
-    SearXNG is P1 fallback for topics that miss the hot-list window.
+    Priority:
+      1. "{persona_name} {topic}" — find news specifically about this persona
+      2. "{topic}" alone — general news about the field
+    NewsNow (P0) → SearXNG (P1) for each round.
     """
-    # P0: NewsNow (30+ curated sources, free, no API key)
-    results = await _fetch_newsnow(topic, lang)
-    if results:
-        return results
+    queries = []
+    if persona_name:
+        queries.append(f"{persona_name} {topic}")
+    queries.append(topic)
 
-    # P1: SearXNG (self-hosted, unlimited) — wider coverage, but may include junk
-    results = await _fetch_searxng(topic, lang)
-    if results:
-        print(f"[news_sync] SearXNG rescued {len(results)} items for '{topic}' (lang={lang})", flush=True)
-    return results
+    for i, q in enumerate(queries):
+        # P0: NewsNow
+        results = await _fetch_newsnow(q, lang)
+        if results:
+            if i == 1:  # topic-only rescued after persona+topic failed
+                print(f"[news_sync] NewsNow topic-only rescued {len(results)} items for '{topic}' (lang={lang})", flush=True)
+            return results
+        # P1: SearXNG
+        results = await _fetch_searxng(q, lang)
+        if results:
+            if i > 0:
+                print(f"[news_sync] SearXNG rescued {len(results)} items for '{q[:50]}' (lang={lang})", flush=True)
+            return results
+
+    return []
 
 
 # ── LLM digestion ─────────────────────────────────────────────
@@ -381,8 +392,15 @@ async def run_sync(db: AsyncSession):
         topic_text = rep.topic.strip()
         lang = rep.source_lang
 
-        # ── Step 2: Fetch news for this topic ──
-        articles = await fetch_news(topic_text, lang)
+        # ── Step 2: Fetch news (persona+topic first, then topic alone) ──
+        persona_name = ""
+        try:
+            p = await db.get(Persona, rep.persona_id)
+            if p:
+                persona_name = p.name or ""
+        except Exception:
+            pass
+        articles = await fetch_news(topic_text, lang, persona_name)
         if not articles:
             continue
 
