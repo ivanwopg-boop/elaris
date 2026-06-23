@@ -125,22 +125,20 @@ function MomentCard({
       {/* ── Body ─────────────────────────────────── */}
 
       {hasHook ? (
-        /* Hook is the opener, comment is the full story */
         <>
-          <div className="px-4 pt-1 pb-1">
+          <div className="px-4 pt-1 pb-2.5">
             <p className="text-[17px] font-semibold leading-[1.45] text-black/90">
               {m.hook_question}
             </p>
           </div>
-          <div className="px-4 pb-1.5">
-            <p className="text-[15px] leading-[1.55] text-black/65">
+          <div className="px-4 pb-2">
+            <p className="text-[15px] leading-[1.6] text-black/60">
               {m.persona_comment}
             </p>
           </div>
         </>
       ) : (
-        /* Comment-driven: comment is the hero */
-        <div className="px-4 pt-1 pb-1.5">
+        <div className="px-4 pt-1 pb-2">
           <p className="text-[16px] leading-[1.6] text-black/80 break-words">
             {m.persona_comment}
           </p>
@@ -149,18 +147,18 @@ function MomentCard({
 
       {/* ── Article preview ───────────────────────── */}
       <button onClick={onOpenSource}
-        className="block w-full text-left mx-4 mt-1 mb-2 rounded-lg bg-[#F5F6F8] active:bg-[#EEF0F3] transition-colors overflow-hidden"
+        className="block w-full text-left border-t border-black/5 bg-[#F7F8FA] active:bg-[#EEF0F3] transition-colors"
       >
-        <div className="px-3 py-2.5 flex items-start gap-3">
+        <div className="px-4 py-3 flex items-start gap-3">
           <div className="flex-1 min-w-0">
-            <p className="text-[13px] font-medium text-black/80 leading-[1.4] line-clamp-2">
+            <p className="text-[14px] font-medium text-black/80 leading-[1.45] line-clamp-2">
               {m.source_title}
             </p>
-            <p className="text-[11px] text-black/30 mt-1">
+            <p className="text-[11px] text-black/30 mt-1.5 flex items-center gap-1">
               {sourceHost(m.source_url)}
+              <span className="text-black/15">→</span>
             </p>
           </div>
-          <span className="text-black/15 text-[18px] leading-none mt-0.5 shrink-0">→</span>
         </div>
       </button>
 
