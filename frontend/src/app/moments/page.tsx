@@ -148,12 +148,17 @@ function MomentCard({
       )}
 
       {/* ── Source + social ──────────────────────── */}
-      <div className="px-4 pb-2 flex items-center gap-2">
-        <button onClick={onOpenSource} className="text-[11px] text-black/25 truncate active:opacity-60">
-          ↗ {sourceHost(m.source_url)}
+      <div className="px-4 pb-2.5">
+        <button onClick={onOpenSource} className="text-left w-full active:opacity-70 transition-opacity">
+          <p className="text-[12px] text-black/35 leading-[1.4] line-clamp-1">
+            {m.source_title}
+          </p>
+          <p className="text-[11px] text-black/25 mt-0.5">
+            ↗ {sourceHost(m.source_url)}
+          </p>
         </button>
         {discussion && (
-          <span className="text-[11px] text-[#576B95]/70 truncate">{discussion}</span>
+          <p className="text-[11px] text-[#576B95]/70 mt-1">{discussion}</p>
         )}
       </div>
 
