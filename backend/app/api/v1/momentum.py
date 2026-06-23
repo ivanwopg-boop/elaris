@@ -175,28 +175,9 @@ async def list_moments(
     include_expired: bool = Query(False),
 ):
     """List the current user's moments (chronologically newest first, mixed with chat messages on client side)."""
-    # Daily limit: free=3, plus=20, pro=unlimited
-    if user.tier == "free":
-        daily_limit = 3
-    elif user.tier == "plus":
-        daily_limit = 20
-    else:  # pro / admin
-        daily_limit = None
-
-    is_paid = _is_paid_tier(user.tier)
-
-    # Count moments viewed (read or replied) today
-    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
-    viewed_res = await db.execute(
-        select(func.count(PersonaMoment.id)).where(
-            and_(
-                PersonaMoment.user_id == user.id,
-                PersonaMoment.status.in_(("read", "replied")),
-                PersonaMoment.read_at >= today_start,
-            )
-        )
-    )
-    daily_viewed = viewed_res.scalar() or 0
+    # Daily limit removed (2026-06-23): MVP — all users unlimited
+    daily_limit = None
+    is_paid = True
 
     # Main list query
     q = select(PersonaMoment, Persona, PersonaWatchTopic).outerjoin(
@@ -249,7 +230,7 @@ async def list_moments(
     return MomentListResponse(
         moments=out,
         unread_count=unread,
-        daily_viewed_count=daily_viewed,
+        daily_viewed_count=0,
         daily_viewed_limit=daily_limit,
         is_paid=is_paid,
     )
@@ -279,24 +260,7 @@ async def mark_moment_read(
     if not m or m.user_id != user.id:
         raise HTTPException(status_code=404, detail="Moment not found")
 
-    # Free tier limit check
-    if user.tier == "free" and m.status == "unread":
-        today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
-        viewed_res = await db.execute(
-            select(func.count(PersonaMoment.id)).where(
-                and_(
-                    PersonaMoment.user_id == user.id,
-                    PersonaMoment.status.in_(("read", "replied")),
-                    PersonaMoment.read_at >= today_start,
-                )
-            )
-        )
-        viewed = viewed_res.scalar() or 0
-        if viewed >= 3:
-            raise HTTPException(
-                status_code=403,
-                detail="Free tier limit reached (3 moments/day). Upgrade to Plus for more.",
-            )
+    # Daily limit removed (2026-06-23)
 
     if m.status == "unread":
         m.status = "read"

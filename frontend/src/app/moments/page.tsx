@@ -151,56 +151,6 @@ function StoriesBar({
   );
 }
 
-/* ── Limit Banner ─────────────────────────────────────────────
-   iOS Settings footer pattern: ultra-subtle, no loud colors,
-   no underlines. Just a quiet note with a system-blue action.
-   ───────────────────────────────────────────────────────────── */
-function LimitBanner({
-  viewed, limit, isPaid, t,
-}: {
-  viewed: number; limit: number | null; isPaid: boolean; t: Record<string, string>;
-}) {
-  if (isPaid) {
-    return (
-      <div className="mx-4 mt-2 px-0 py-1.5 flex items-center justify-between">
-        <span className="text-[12px] text-[#8E8E93] font-normal">
-          {t.moments_daily_limit_pro.replace('{n}', String(viewed))}
-        </span>
-        <span className="text-[10px] text-[#8E8E93] font-medium uppercase tracking-wider">Plus</span>
-      </div>
-    );
-  }
-  if (limit === null) return null;
-
-  const pct = Math.min(100, (viewed / limit) * 100);
-  const hitLimit = viewed >= limit;
-
-  return (
-    <div className="mx-4 mt-2">
-      <div className="flex items-center justify-between mb-1.5">
-        <span className="text-[12px] text-[#8E8E93] font-normal">
-          {t.moments_daily_limit.replace('{n}', String(viewed)).replace('{limit}', String(limit))}
-        </span>
-        {hitLimit && (
-          <span className="text-[12px] text-[#007AFF] font-normal">
-            {t.moments_upgrade}
-            <span className="inline-block ml-0.5 align-middle"><ChevronRight size={12} strokeWidth={2} /></span>
-          </span>
-        )}
-      </div>
-      <div className="h-[3px] rounded-full bg-[rgba(0,0,0,0.06)] overflow-hidden">
-        <div
-          className={cn(
-            'h-full rounded-full transition-all duration-700',
-            hitLimit ? 'bg-[#FF9500]/70' : 'bg-[#1D1D1F]/15',
-          )}
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-    </div>
-  );
-}
-
 /* ── Moment Card ──────────────────────────────────────────────
    4-zone: identity | content | source | actions
    Apple grouped-table style: 12pt radius, 16px inset padding,
@@ -469,12 +419,7 @@ export default function MomentsPage() {
       ) : (
         <>
           <StoriesBar moments={data.moments} onClickMoment={onStoryClick} />
-          <LimitBanner
-            viewed={data.daily_viewed_count}
-            limit={data.daily_viewed_limit}
-            isPaid={data.is_paid}
-            t={t}
-          />
+
 
           {groups.map((g, gi) => (
             <section key={gi}>
