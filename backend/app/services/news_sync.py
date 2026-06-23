@@ -67,9 +67,12 @@ Rules:
 4. Be conversational, not formal. You're talking to a friend, not writing an essay.
 5. If content is empty (hot-list only), infer context from title + your expertise.
 6. Respond in {lang} ({lang_label}).
+7. If the article is clearly false, clickbait, or misleading, do NOT try to debunk it.
+   Instead, return {{"skip": true}} — we will discard this moment entirely.
 
-Return JSON with these fields:
-{{"comment": "100-200 word comment in your voice", "emotion": "praising|criticizing|reflecting|questioning|celebrating"}}"""
+Return JSON with one of these:
+- Normal: {{"comment": "...", "emotion": "praising|criticizing|reflecting|questioning|celebrating"}}
+- Skip:   {{"skip": true}}"""
 
 
 def _hash_url(url: str) -> str:
@@ -329,7 +332,10 @@ async def digest_news(
             if text.startswith("json"):
                 text = text[4:]
             text = text.strip()
-        return json.loads(text)
+        data = json.loads(text)
+        if data.get("skip"):
+            return None  # false/misleading article, skip
+        return data
     except Exception as e:
         print(f"[news_sync] digest failed for {persona_name}: {e}", flush=True)
         return None
