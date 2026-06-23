@@ -15,14 +15,14 @@ import { cn } from '@/lib/utils';
 
 // ── Emotion → color mapping (Apple-feel) ─────────────────────
 const EMOTION_COLORS: Record<string, { ring: string; bg: string; label: string; dot: string }> = {
-  reflecting:   { ring: 'from-[#A78BFA] to-[#60A5FA]', bg: 'bg-[#F5F3FF]', label: 'moments_emotion_reflecting',   dot: 'bg-[#A78BFA]' },
-  praising:     { ring: 'from-[#34C759] to-[#00C7BE]', bg: 'bg-[#F0FDF4]', label: 'moments_emotion_praising',     dot: 'bg-[#34C759]' },
+  reflecting:   { ring: 'from-[#A78BFA] to-[#F472B6]', bg: 'bg-[#F5F3FF]', label: 'moments_emotion_reflecting',   dot: 'bg-[#A78BFA]' },
+  praising:     { ring: 'from-[#34C759] to-[#34C759]', bg: 'bg-[#F0FDF4]', label: 'moments_emotion_praising',     dot: 'bg-[#34C759]' },
   criticizing:  { ring: 'from-[#FF6B35] to-[#FF2D55]', bg: 'bg-[#FFF7F0]', label: 'moments_emotion_criticizing',  dot: 'bg-[#FF6B35]' },
-  questioning:  { ring: 'from-[#FF9500] to-[#FF2D55]', bg: 'bg-[#FFFBEB]', label: 'moments_emotion_questioning',  dot: 'bg-[#FF9500]' },
+  questioning:  { ring: 'from-[#FF9500] to-[#FFD60A]', bg: 'bg-[#FFFBEB]', label: 'moments_emotion_questioning',  dot: 'bg-[#FF9500]' },
   celebrating:  { ring: 'from-[#FFD60A] to-[#FF9500]', bg: 'bg-[#FFFBEA]', label: 'moments_emotion_celebrating',  dot: 'bg-[#FFD60A]' },
 };
 
-const EMOTION_FALLBACK = { ring: 'from-[#A78BFA] to-[#60A5FA]', bg: 'bg-[#F5F3FF]', label: 'moments_emotion_reflecting', dot: 'bg-[#A78BFA]' };
+const EMOTION_FALLBACK = { ring: 'from-[#A78BFA] to-[#F472B6]', bg: 'bg-[#F5F3FF]', label: 'moments_emotion_reflecting', dot: 'bg-[#A78BFA]' };
 
 // ── Helpers ──────────────────────────────────────────────────
 function timeAgo(iso: string): string {
@@ -69,17 +69,15 @@ function AppBar({ title, right }: { title: string; right?: React.ReactNode }) {
   );
 }
 
-// ── Stories Bar ─────────────────────────────────────────────
+// ── Stories Bar (Apple-restrained: monochrome outline + tiny unread dot) ──
 function StoriesBar({
   moments, onClickMoment,
 }: {
   moments: MomentOut[];
   onClickMoment: (m: MomentOut) => void;
 }) {
-  // Dedupe by persona: show the most recent moment per persona with unread status
   const seen = new Set<string>();
   const stories: MomentOut[] = [];
-  // Sort so unread come first
   const sorted = [...moments].sort((a, b) => {
     if (a.status === 'unread' && b.status !== 'unread') return -1;
     if (b.status === 'unread' && a.status !== 'unread') return 1;
@@ -90,40 +88,37 @@ function StoriesBar({
     seen.add(m.persona_id);
     stories.push(m);
   }
-
   if (stories.length === 0) return null;
 
   return (
-    <div className="border-b border-[rgba(0,0,0,0.04)] py-3">
-      <div className="flex gap-3 overflow-x-auto px-4 scrollbar-hide" style={{ scrollSnapType: 'x mandatory' }}>
+    <div className="border-b border-[rgba(0,0,0,0.04)] py-4">
+      <div className="flex gap-4 overflow-x-auto px-4 scrollbar-hide">
         {stories.map((m) => {
-          const emo = EMOTION_COLORS[m.emotion || ''] || EMOTION_FALLBACK;
           const isUnread = m.status === 'unread';
           return (
             <button
               key={`story-${m.id}`}
               onClick={() => onClickMoment(m)}
-              className="flex flex-col items-center gap-1 shrink-0 active:scale-95 transition-transform"
-              style={{ scrollSnapAlign: 'start' }}
+              className="flex flex-col items-center gap-1.5 shrink-0 active:scale-95 transition-transform"
             >
-              <div
-                className={cn(
-                  'p-[2.5px] rounded-full',
-                  isUnread ? 'bg-gradient-to-tr' : 'bg-[#E5E5EA]',
-                  isUnread ? emo.ring : '',
-                )}
-              >
-                <div className="p-[2px] bg-white rounded-full">
+              <div className="relative">
+                <div className={cn(
+                  'rounded-full p-[1.5px]',
+                  isUnread ? 'ring-1 ring-[#1D1D1F]' : 'ring-1 ring-[#E5E5EA]',
+                )}>
                   <Avatar
                     name={m.persona_name || '?'}
                     url={m.persona_avatar_url}
-                    size="lg"
+                    size="md"
                     className="border-0"
                   />
                 </div>
+                {isUnread && (
+                  <span className="absolute top-0 right-0 w-2 h-2 rounded-full bg-[#FF3B30] ring-2 ring-white" />
+                )}
               </div>
               <span className={cn(
-                'text-[10px] max-w-[60px] truncate',
+                'text-[10px] max-w-[64px] truncate',
                 isUnread ? 'text-[#1D1D1F] font-normal' : 'text-[#86868B] font-light',
               )}>
                 {m.persona_name || '?'}
@@ -152,14 +147,14 @@ function MomentCard({
   return (
     <article
       className={cn(
-        'mx-4 my-2 rounded-2xl overflow-hidden border transition-colors',
+        'mx-4 my-2.5 rounded-2xl overflow-hidden border transition-colors',
         isUnread
-          ? 'bg-white border-[rgba(0,0,0,0.06)] shadow-[0_1px_3px_rgba(0,0,0,0.04)]'
-          : 'bg-white/60 border-[rgba(0,0,0,0.04)]',
+          ? 'bg-white border-[rgba(0,0,0,0.06)] shadow-[0_1px_3px_rgba(0,0,0,0.03)]'
+          : 'bg-white/70 border-[rgba(0,0,0,0.04)]',
       )}
     >
-      {/* Header: avatar + name + emotion + time */}
-      <header className="flex items-center gap-3 px-4 pt-3.5 pb-2">
+      {/* ── Zone 1: Identity — avatar + name + meta ──────────── */}
+      <header className="flex items-center gap-3 px-4 pt-3.5 pb-3">
         <Avatar name={m.persona_name || '?'} url={m.persona_avatar_url} size="md" />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
@@ -168,26 +163,26 @@ function MomentCard({
             </span>
             {isUnread && <span className="w-1.5 h-1.5 rounded-full bg-[#FF3B30] shrink-0" />}
           </div>
-          {m.watch_topic && (
-            <div className="flex items-center gap-1 text-[11px] text-[#86868B] font-light truncate">
-              <Sparkles size={10} strokeWidth={1.5} className="shrink-0" />
-              <span className="truncate">{m.watch_topic}</span>
-            </div>
-          )}
-        </div>
-        <div className="flex flex-col items-end gap-0.5 shrink-0">
-          <span className={cn('text-[10px] font-medium uppercase tracking-wider px-1.5 py-0.5 rounded-full', emo.bg, 'text-[#1D1D1F]')}>
-            {t[emo.label] || m.emotion}
-          </span>
-          <span className="text-[10px] text-[#86868B] font-light flex items-center gap-0.5">
-            <Clock size={9} strokeWidth={1.5} />
-            {timeAgo(m.created_at)}
-          </span>
+          <div className="flex items-center gap-1.5 text-[11px] text-[#86868B] font-light mt-0.5">
+            <span>{timeAgo(m.created_at)}</span>
+            {m.watch_topic && (
+              <>
+                <span className="w-0.5 h-0.5 rounded-full bg-[#C7C7CC]" />
+                <span className="truncate">{m.watch_topic}</span>
+              </>
+            )}
+          </div>
         </div>
       </header>
 
-      {/* Persona comment — the main text */}
-      <div className={cn('mx-4 rounded-xl px-3.5 py-3', emo.bg)}>
+      {/* ── Zone 2: Content — emotion chip + comment + hook ──── */}
+      <div className="px-4 pb-3">
+        <span className={cn(
+          'inline-block text-[10px] font-medium uppercase tracking-wider px-2 py-0.5 rounded-full mb-2',
+          emo.bg, 'text-[#3C3C43]',
+        )}>
+          {t[emo.label] || m.emotion}
+        </span>
         <p className={cn(
           'text-[15px] leading-[22px] text-[#1D1D1F]',
           isUnread ? 'font-normal' : 'font-light text-[#3C3C43]',
@@ -195,36 +190,31 @@ function MomentCard({
           {m.persona_comment}
         </p>
         {m.hook_question && (
-          <p className="mt-2 text-[13px] leading-[18px] text-[#0071E3] font-normal">
+          <p className="mt-3 text-[14px] leading-[20px] text-[#0071E3] font-normal">
             {m.hook_question}
           </p>
         )}
       </div>
 
-      {/* News source footer */}
+      {/* ── Zone 3: Source — single meta line, tap to open ───── */}
       <button
         onClick={onOpenSource}
-        className="block w-full text-left px-4 py-2.5 active:bg-[rgba(0,0,0,0.02)] transition-colors"
+        className="block w-full text-left px-4 py-2.5 border-t border-[rgba(0,0,0,0.04)] active:bg-[rgba(0,0,0,0.02)] transition-colors"
       >
-        <div className="flex items-start gap-2">
-          <ExternalLink size={12} strokeWidth={1.5} className="text-[#86868B] mt-0.5 shrink-0" />
-          <div className="flex-1 min-w-0">
-            <div className="text-[10px] text-[#86868B] font-light uppercase tracking-wider">
-              {t.moments_source}{sourceLabel(m.source_url) && ` · ${sourceLabel(m.source_url)}`}
-            </div>
-            <div className="text-[13px] text-[#1D1D1F] font-light leading-[18px] line-clamp-2">
-              {m.source_title}
-            </div>
-          </div>
+        <div className="text-[10px] text-[#86868B] font-light uppercase tracking-wider">
+          {t.moments_source}{sourceLabel(m.source_url) && ` · ${sourceLabel(m.source_url)}`}
+        </div>
+        <div className="text-[13px] text-[#1D1D1F] font-normal leading-[18px] mt-0.5 line-clamp-2">
+          {m.source_title}
         </div>
       </button>
 
-      {/* Actions */}
-      <footer className="flex items-center gap-1 px-2 py-1.5 border-t border-[rgba(0,0,0,0.04)]">
+      {/* ── Zone 4: Actions — clean row, no overlap ──────────── */}
+      <footer className="flex items-center px-2 py-2 border-t border-[rgba(0,0,0,0.04)] gap-1">
         {isUnread && (
           <button
             onClick={onMarkRead}
-            className="flex-1 flex items-center justify-center gap-1.5 py-1.5 text-[12px] text-[#0071E3] font-normal active:bg-[rgba(0,113,227,0.08)] rounded-lg transition-colors"
+            className="flex-1 flex items-center justify-center gap-1.5 py-1.5 text-[13px] text-[#0071E3] font-normal active:bg-[rgba(0,113,227,0.08)] rounded-lg transition-colors"
           >
             <Check size={14} strokeWidth={1.5} />
             {t.moments_mark_read}
@@ -232,14 +222,17 @@ function MomentCard({
         )}
         <button
           onClick={onOpenChat}
-          className="flex-1 flex items-center justify-center gap-1.5 py-1.5 text-[12px] text-[#1D1D1F] font-normal active:bg-[rgba(0,0,0,0.04)] rounded-lg transition-colors"
+          className={cn(
+            'flex items-center justify-center gap-1.5 py-1.5 text-[13px] text-[#1D1D1F] font-normal active:bg-[rgba(0,0,0,0.04)] rounded-lg transition-colors',
+            isUnread ? 'flex-1' : 'flex-[2]',
+          )}
         >
           <MessageCircle size={14} strokeWidth={1.5} />
           {t.moments_open_chat}
         </button>
         <button
           onClick={onDismiss}
-          className="flex items-center justify-center w-9 h-7 text-[#86868B] active:bg-[rgba(0,0,0,0.04)] rounded-lg transition-colors"
+          className="flex items-center justify-center w-9 h-8 text-[#86868B] active:bg-[rgba(0,0,0,0.04)] rounded-lg transition-colors"
           aria-label={t.moments_dismiss}
         >
           <X size={14} strokeWidth={1.5} />
