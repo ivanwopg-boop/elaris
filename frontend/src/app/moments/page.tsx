@@ -131,18 +131,16 @@ function MomentCard({
 
       {/* ── Article preview ───────────────────────── */}
       <button onClick={onOpenSource}
-        className="block w-full text-left border-t border-black/5 bg-[#F7F8FA] active:bg-[#EEF0F3] transition-colors"
+        className="block w-full text-left border-t border-black/5 bg-[#F6F7F9] active:bg-[#ECEEF2] transition-colors"
       >
-        <div className="px-4 py-3 flex items-start gap-3">
-          <div className="flex-1 min-w-0">
-            <p className="text-[14px] font-medium text-black/80 leading-[1.45] line-clamp-2">
-              {m.source_title}
-            </p>
-            <p className="text-[11px] text-black/30 mt-1.5 flex items-center gap-1">
-              {sourceHost(m.source_url)}
-              <span className="text-black/15">→</span>
-            </p>
-          </div>
+        <div className="px-4 py-4">
+          <p className="text-[15px] font-semibold text-black/85 leading-[1.5] line-clamp-2">
+            {m.source_title}
+          </p>
+          <p className="text-[12px] text-black/35 mt-2 flex items-center gap-1">
+            {sourceHost(m.source_url)}
+            <span className="text-black/20 text-[13px]">→</span>
+          </p>
         </div>
       </button>
 
