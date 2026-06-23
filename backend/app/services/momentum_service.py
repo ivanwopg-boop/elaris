@@ -15,26 +15,39 @@ from app.models.db_models import (
 from app.core.minimax_client import minimax_client
 
 
-WATCH_TOPIC_GEN_PROMPT = """You are helping an AI persona platform pick news topics this persona would naturally follow.
+WATCH_TOPIC_GEN_PROMPT = """You are helping an AI persona platform pick news-search keywords that this persona would naturally follow.
 
 Persona name: {persona_name}
 Persona description: {description}
 Persona soul summary (v3 narrative cards):
 {soul_summary}
 
-Based on this persona's life, work, and interests, suggest 3-5 news topics they would naturally follow and want to comment on.
+Based on this persona's life, work, and interests, suggest 3-5 search keywords that would find REAL news headlines this persona would comment on.
+
+CRITICAL — use NEWS-HEADLINE words, not academic jargon:
+  ✅ "AI regulation"          ❌ "machine learning policy frameworks"
+  ✅ "stock market"           ❌ "equity market dynamics"
+  ✅ "movie box office"       ❌ "cinematic revenue analysis"
+  ✅ "climate change"         ❌ "anthropogenic modification"
+  ✅ "smartphone release"     ❌ "mobile device lifecycle"
 
 Rules:
-- Each topic should be 2-5 words, search-engine friendly.
-- Topics should be things that generate OPINIONS (not just facts).
-- Mix: some about their work/domain, some about the wider world they care about.
-- Output in the persona's primary language (en or zh-CN).
-- Output as JSON: {{"topics": ["topic 1", "topic 2", "topic 3"]}}
-- If persona is a public figure, include topics about their industry/field.
-- If persona is a private individual, include topics they would likely care about.
+- Each keyword 2-5 words
+- MUST include 1-2 BROAD catch-all keywords (e.g. "AI technology", "stock market", "China economy")
+- MUST include 1-2 SPECIFIC keywords about their known interests
+- Topics should generate OPINIONS, not just facts
+- Output as JSON: {{"topics": ["keyword1", "keyword2", ...]}}
+- 3-5 topics total
+- Write keywords in {lang}: for English use English keywords, for Chinese use Chinese keywords.
 
-Example output for Steve Jobs (tech founder, design-obsessed):
-{{"topics": ["Apple product launch", "iPhone release news", "design philosophy", "tech industry innovation", "Silicon Valley startups"]}}
+Example for Steve Jobs:
+{{"topics": ["Apple new product", "tech industry trends", "iPhone sales", "Silicon Valley startups", "design innovation"]}}
+
+Example for Einstein:
+{{"topics": ["physics breakthrough", "nuclear weapons", "science funding", "quantum computing", "Nobel Prize 2026"]}}
+
+Example for a Chinese celebrity:
+{{"topics": ["演唱会票房", "华语乐坛动态", "新专辑发布", "综艺节目", "流行音乐趋势"]}}
 """
 
 

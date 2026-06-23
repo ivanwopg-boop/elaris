@@ -173,8 +173,9 @@ async def list_moments(
     user: User = Depends(require_auth),
     limit: int = Query(50, ge=1, le=200),
     include_expired: bool = Query(False),
+    lang: str = Query(None, description="Filter by source language (en or zh-CN)"),
 ):
-    """List the current user's moments (chronologically newest first, mixed with chat messages on client side)."""
+    """List the current user's moments, filtered by language when specified."""
     # Daily limit removed (2026-06-23): MVP — all users unlimited
     daily_limit = None
     is_paid = True
@@ -185,6 +186,9 @@ async def list_moments(
     ).outerjoin(
         PersonaWatchTopic, PersonaWatchTopic.id == PersonaMoment.watch_topic_id
     ).where(PersonaMoment.user_id == user.id)
+
+    if lang:
+        q = q.where(PersonaMoment.source_lang == lang)
 
     if not include_expired:
         # Active = not expired yet

@@ -246,8 +246,8 @@ export const api = {
   deleteConversation: (id: string) => api.request<void>("/conversations/" + id, { method: "DELETE" }),
 
   // Momentum (Persona Moments — 分身朋友圈)
-  listMoments: (limit: number = 50) =>
-    api.request<MomentListResponse>(`/momentum/moments?limit=${limit}`),
+  listMoments: (limit: number = 50, lang?: string) =>
+    api.request<MomentListResponse>(`/momentum/moments?limit=${limit}` + (lang ? `&lang=${encodeURIComponent(lang)}` : "")),
   markMomentRead: (id: string) =>
     api.request<MomentOut>(`/momentum/moments/${id}/read`, { method: "POST" }),
   dismissMoment: (id: string) =>
