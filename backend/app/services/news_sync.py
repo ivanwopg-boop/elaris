@@ -77,6 +77,41 @@ def _hash_url(url: str) -> str:
     return hashlib.md5(url.encode("utf-8")).hexdigest()
 
 
+def _parse_published_at(raw) -> "datetime | None":
+    """Coerce various date string formats into a tz-aware datetime, or None.
+
+    SQLite DateTime column only accepts datetime/date objects. Many news sources
+    return ISO 8601 strings, RFC 2822, or just garbage — we try to parse and
+    silently return None if we can't. Used by source_published_at field.
+    """
+    if not raw or not isinstance(raw, str):
+        return None
+    raw = raw.strip()
+    if not raw:
+        return None
+    from datetime import datetime as _dt, timezone as _tz
+    # ISO 8601 with TZ
+    try:
+        return _dt.fromisoformat(raw.replace("Z", "+00:00"))
+    except Exception:
+        pass
+    # RFC 2822 (e.g. "Tue, 23 Jun 2026 10:24:00 GMT")
+    try:
+        from email.utils import parsedate_to_datetime
+        d = parsedate_to_datetime(raw)
+        if d is not None:
+            return d.astimezone(_tz.utc)
+    except Exception:
+        pass
+    # Common datetime formats
+    for fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
+        try:
+            return _dt.strptime(raw, fmt).replace(tzinfo=_tz.utc)
+        except Exception:
+            continue
+    return None
+
+
 # ── News fetching: SearXNG (P0) + NewsNow (P1) ───────────────
 async def _fetch_searxng(topic: str, lang: str = "en") -> list[dict]:
     """Search SearXNG News mode. Returns list of {title, url, content, published_at, score}."""
@@ -413,7 +448,7 @@ async def run_sync(db: AsyncSession):
                                 source_url=article["url"],
                                 source_title=article["title"],
                                 source_content=article.get("content", ""),
-                                source_published_at=article.get("published_at", "") or None,
+                                source_published_at=_parse_published_at(article.get("published_at", "")),
                                 source_lang=lang,
                                 source_hash=source_hash,
                                 persona_comment=comment,
@@ -435,7 +470,7 @@ async def run_sync(db: AsyncSession):
                             source_url=article["url"],
                             source_title=article["title"],
                             source_content=article.get("content", ""),
-                            source_published_at=article.get("published_at", "") or None,
+                            source_published_at=_parse_published_at(article.get("published_at", "")),
                             source_lang=lang,
                             source_hash=source_hash,
                             persona_comment=comment,
@@ -454,7 +489,8 @@ async def run_sync(db: AsyncSession):
 
                 except Exception as e:
                     errors += 1
-                    print(f"[news_sync] error processing wt={wt.id} article={article.get('url','?')[:50]}: {e}", flush=True)
+                    await db.rollback()  # critical: don't let one bad insert poison the whole session
+                    print(f"[news_sync] error processing wt={wt.id} article={article.get('url','?')[:50]}: {type(e).__name__}: {e}", flush=True)
                     continue
 
             await asyncio.sleep(0.3)
