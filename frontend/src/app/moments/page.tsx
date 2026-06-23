@@ -3,8 +3,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  ExternalLink, X, MessageCircle, Check, Sparkles,
-  RefreshCw, Clock, BookUser, ChevronRight,
+  ExternalLink, X, MessageCircle, Check,
+  RefreshCw, BookUser,
 } from 'lucide-react';
 import { api, MomentOut, MomentListResponse } from '@/lib/api';
 import { Avatar } from '@/components/Avatar';
@@ -12,32 +12,6 @@ import TabBar from '@/components/TabBar';
 import { useLangStore, translations, type Lang } from '@/lib/i18n';
 import { useToast } from '@/components/Toast';
 import { cn } from '@/lib/utils';
-
-/* ───────────────────────────────────────────────────────────────
-   Design philosophy
-   ───────────────────────────────────────────────────────────────
-   Target: 9/10 Apple HIG (System Settings / Health / Notes grade).
-   Key decisions:
-   - System grouped-list background (#F2F2F7) with white cards, 12pt radius
-   - 16px horizontal padding throughout (Apple's standard inset)
-   - Thin hairline separators between card zones (not full borders)
-   - Emotion chip as a small inline pill, not a loud badge
-   - Stories bar: Apple iMessage-style circles (thin outline, no gradients)
-   - Limit banner: ultra-subtle iOS Settings footer pattern
-   - Actions: system-blue text buttons (iOS table-row action style)
-   - No bold shadows, no Instagram gradient rings
-   - Consistent 8pt spacing grid
-   ─────────────────────────────────────────────────────────────── */
-
-/* ── Emotion → subtle pill colors ──────────────────────────── */
-const EMOTION_PILL: Record<string, { text: string; bg: string }> = {
-  reflecting:   { text: 'text-[#5856D6]', bg: 'bg-[#F0EFFF]' },
-  praising:     { text: 'text-[#34A759]', bg: 'bg-[#E8F8ED]' },
-  criticizing:  { text: 'text-[#FF6B35]', bg: 'bg-[#FFF2ED]' },
-  questioning:  { text: 'text-[#FF9500]', bg: 'bg-[#FFF6EB]' },
-  celebrating:  { text: 'text-[#FFD60A]', bg: 'bg-[#FFFBE5]' },
-};
-const EMOTION_FALLBACK = { text: 'text-[#5856D6]', bg: 'bg-[#F0EFFF]' };
 
 /* ── Helpers ────────────────────────────────────────────────── */
 function timeAgo(iso: string): string {
@@ -65,11 +39,8 @@ function dayBucket(iso: string, t: Record<string, string>): string {
   return t.moments_earlier;
 }
 
-function sourceLabel(url: string): string {
-  try {
-    const u = new URL(url);
-    return u.hostname.replace(/^www\./, '').replace(/\.(com|org|net|io|co|cc|cn|world)$/, '');
-  } catch { return ''; }
+function sourceHost(url: string): string {
+  try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return ''; }
 }
 
 /* ── App Bar ────────────────────────────────────────────────── */
@@ -78,18 +49,13 @@ function AppBar({ title, right }: { title: string; right?: React.ReactNode }) {
     <header className="sticky top-0 z-40 bg-[#F9F9F9]/95 backdrop-blur-xl border-b border-[rgba(0,0,0,0.06)]">
       <div className="h-11 flex items-center justify-center relative px-4">
         {right && <div className="absolute right-3">{right}</div>}
-        <h1 className="text-[17px] font-semibold tracking-tight text-[#000000]">
-          {title}
-        </h1>
+        <h1 className="text-[17px] font-semibold tracking-tight text-[#000000]">{title}</h1>
       </div>
     </header>
   );
 }
 
-/* ── Stories Bar ──────────────────────────────────────────────
-   iMessage / Photos Memories style: clean circles, thin outline,
-   tiny unread dot. No Instagram gradient rings.
-   ────────────────────────────────────────────────────────────── */
+/* ── Stories Bar ────────────────────────────────────────────── */
 function StoriesBar({
   moments, onClickMoment,
 }: {
@@ -126,12 +92,7 @@ function StoriesBar({
                   'rounded-full p-[2px]',
                   isUnread ? 'ring-[1.5px] ring-[#1D1D1F]' : 'ring-[1px] ring-[#E5E5EA]',
                 )}>
-                  <Avatar
-                    name={m.persona_name || '?'}
-                    url={m.persona_avatar_url}
-                    size="lg"
-                    className="border-0"
-                  />
+                  <Avatar name={m.persona_name || '?'} url={m.persona_avatar_url} size="lg" className="border-0" />
                 </div>
                 {isUnread && (
                   <span className="absolute -top-0.5 -right-0.5 w-[10px] h-[10px] rounded-full bg-[#FF3B30] ring-[3px] ring-[#F9F9F9]" />
@@ -151,11 +112,7 @@ function StoriesBar({
   );
 }
 
-/* ── Moment Card ──────────────────────────────────────────────
-   4-zone: identity | content | source | actions
-   Apple grouped-table style: 12pt radius, 16px inset padding,
-   hairline separators between zones, no card shadow.
-   ────────────────────────────────────────────────────────────── */
+/* ── Moment Card ────────────────────────────────────────────── */
 function MomentCard({
   m, t, onOpenChat, onMarkRead, onDismiss, onOpenSource,
 }: {
@@ -166,111 +123,98 @@ function MomentCard({
   onDismiss: () => void;
   onOpenSource: () => void;
 }) {
-  const pill = EMOTION_PILL[m.emotion || ''] || EMOTION_FALLBACK;
   const isUnread = m.status === 'unread';
-
   return (
     <article
       className={cn(
         'mx-4 my-2 rounded-[14px] bg-white border-[0.5px] transition-colors',
-        isUnread
-          ? 'border-[rgba(0,0,0,0.08)]'
-          : 'border-[rgba(0,0,0,0.05)] bg-white/80',
+        isUnread ? 'border-[rgba(0,0,0,0.08)]' : 'border-[rgba(0,0,0,0.05)] bg-white/80',
       )}
     >
-      {/* ═══ Zone 1: Identity ═══ */}
+      {/* ── Header: avatar + name + topic + time ────────────── */}
       <header className="flex items-center gap-3 px-4 pt-4 pb-2">
         <Avatar name={m.persona_name || '?'} url={m.persona_avatar_url} size="lg" />
         <div className="flex-1 min-w-0">
-          <h3 className="text-[16px] font-semibold text-[#000000] tracking-[-0.01em] leading-snug truncate">
-            {m.persona_name}
-            {isUnread && <span className="inline-block ml-1.5 mb-0.5 w-[7px] h-[7px] rounded-full bg-[#FF3B30] align-middle" />}
-          </h3>
-          <p className="text-[12px] text-[#8E8E93] font-normal mt-0.5 leading-tight">
-            {m.watch_topic && <span className="truncate">{m.watch_topic}</span>}
-            <span className="mx-1.5 text-[#D1D1D6]">·</span>
-            {timeAgo(m.created_at)}
-          </p>
+          <div className="flex items-baseline gap-2">
+            <h3 className="text-[16px] font-semibold text-[#000000] truncate">{m.persona_name}</h3>
+            <span className="text-[12px] text-[#AEAEB2] font-normal shrink-0">{timeAgo(m.created_at)}</span>
+          </div>
+          {m.watch_topic && (
+            <p className="text-[13px] text-[#8E8E93] font-normal mt-0.5 truncate">关于「{m.watch_topic}」</p>
+          )}
         </div>
-        <span className={cn(
-          'shrink-0 text-[10px] font-semibold uppercase tracking-[0.04em] px-2 py-1 rounded-full',
-          pill.bg, pill.text,
-        )}>
-          {t[EMOTION_PILL_LABEL[m.emotion || '']] || m.emotion}
-        </span>
+        {isUnread && <span className="w-[7px] h-[7px] rounded-full bg-[#FF3B30] shrink-0" />}
       </header>
 
-      {/* ═══ Zone 2: Content ═══ */}
-      <div className="px-4 pt-1 pb-3">
+      {/* ── Comment — the main content ──────────────────────── */}
+      <div className="px-4 py-2">
         <p className={cn(
-          'text-[15px] leading-[1.55] tracking-[-0.01em]',
+          'text-[17px] leading-[1.6] tracking-[-0.01em]',
           isUnread ? 'text-[#1D1D1F] font-normal' : 'text-[#3C3C434D] font-normal',
         )}>
           {m.persona_comment}
         </p>
         {m.hook_question && (
-          <p className="mt-2.5 text-[14px] leading-[1.45] text-[#007AFF] font-normal">
-            {m.hook_question}
+          <p className={cn(
+            'mt-3 mb-1',
+            isUnread ? 'text-[#007AFF]' : 'text-[#7099CC]',
+          )}>
+            <span className="text-[16px] font-normal leading-[1.55]">
+              <span className="select-none mr-1">↘</span>
+              {m.hook_question}
+            </span>
           </p>
         )}
       </div>
 
-      {/* ═══ Zone 3: Source ═══ */}
+      {/* ── Source — one subtle line ────────────────────────── */}
       <button
         onClick={onOpenSource}
-        className="block w-full text-left px-4 py-2.5 border-t border-[rgba(0,0,0,0.05)] active:bg-[rgba(0,0,0,0.015)] transition-colors"
+        className="block w-full text-left px-4 pb-3 active:opacity-60 transition-opacity"
       >
-        <div className="text-[10px] text-[#AEAEB2] font-medium uppercase tracking-[0.05em] mb-1">
-          {sourceLabel(m.source_url) || t.moments_source}
+        <div className="flex items-center gap-1.5">
+          <ExternalLink size={11} strokeWidth={1.5} className="text-[#C7C7CC] shrink-0" />
+          <span className="text-[11px] text-[#AEAEB2] font-normal truncate">
+            {sourceHost(m.source_url)}
+          </span>
+          <span className="text-[11px] text-[#C7C7CC] font-normal truncate">
+            {m.source_title}
+          </span>
         </div>
-        <p className="text-[13px] text-[#1D1D1F]/80 font-normal leading-[18px] line-clamp-2">
-          {m.source_title}
-        </p>
       </button>
 
-      {/* ═══ Zone 4: Actions ═══ */}
-      <footer className="flex items-center border-t border-[rgba(0,0,0,0.05)]">
+      {/* ── Actions — quiet text buttons ────────────────────── */}
+      <footer className="flex items-center justify-around border-t border-[rgba(0,0,0,0.05)]">
         {isUnread && (
           <button
             onClick={onMarkRead}
-            className="flex-1 flex items-center justify-center gap-1.5 h-10 text-[13px] text-[#007AFF] font-normal active:bg-[rgba(0,122,255,0.06)] rounded-bl-[14px] transition-colors"
+            className="flex-1 flex items-center justify-center gap-1.5 h-10 text-[13px] text-[#007AFF] font-normal active:text-[#0059B3] active:bg-[rgba(0,122,255,0.04)] rounded-bl-[14px] transition-colors"
           >
             <Check size={15} strokeWidth={2} />
             {t.moments_mark_read}
           </button>
         )}
-        {isUnread && <div className="w-[0.5px] h-5 bg-[rgba(0,0,0,0.06)]" />}
         <button
           onClick={onOpenChat}
           className={cn(
-            'flex items-center justify-center gap-1.5 h-10 text-[13px] text-[#3C3C43] font-normal active:bg-[rgba(0,0,0,0.03)] transition-colors',
+            'flex items-center justify-center gap-1.5 h-10 text-[13px] text-[#3C3C43] font-normal active:text-[#1D1D1F] active:bg-[rgba(0,0,0,0.03)] transition-colors',
             isUnread ? 'flex-1' : 'flex-[2] rounded-bl-[14px]',
           )}
         >
           <MessageCircle size={15} strokeWidth={1.5} />
           {t.moments_open_chat}
         </button>
-        <div className="w-[0.5px] h-5 bg-[rgba(0,0,0,0.06)]" />
         <button
           onClick={onDismiss}
-          className="w-10 h-10 flex items-center justify-center text-[#AEAEB2] active:bg-[rgba(0,0,0,0.03)] rounded-br-[14px] transition-colors"
-          aria-label={t.moments_dismiss}
+          className="flex-1 flex items-center justify-center h-10 text-[13px] text-[#AEAEB2] font-normal active:text-[#8E8E93] active:bg-[rgba(0,0,0,0.03)] rounded-br-[14px] transition-colors"
         >
-          <X size={15} strokeWidth={1.5} />
+          <X size={15} strokeWidth={1.5} className="mr-1" />
+          {t.moments_dismiss}
         </button>
       </footer>
     </article>
   );
 }
-
-/* Emotion pill → i18n label key lookup */
-const EMOTION_PILL_LABEL: Record<string, string> = {
-  reflecting: 'moments_emotion_reflecting',
-  praising: 'moments_emotion_praising',
-  criticizing: 'moments_emotion_criticizing',
-  questioning: 'moments_emotion_questioning',
-  celebrating: 'moments_emotion_celebrating',
-};
 
 /* ── Empty State ────────────────────────────────────────────── */
 function EmptyState({ t }: { t: Record<string, string> }) {
@@ -305,7 +249,6 @@ export default function MomentsPage() {
   const [refreshing, setRefreshing] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  /* ── Data fetching ────────────────────────────────────── */
   const load = useCallback(async (showSpinner = true) => {
     if (showSpinner) setLoading(true);
     try {
@@ -321,56 +264,42 @@ export default function MomentsPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  /* ── Mark read (optimistic) ──────────────────────────── */
   const handleMarkRead = async (m: MomentOut) => {
     if (m.status !== 'unread') return;
     setData((prev) => prev ? {
       ...prev,
       moments: prev.moments.map((x) => x.id === m.id ? { ...x, status: 'read' as const, read_at: new Date().toISOString() } : x),
       unread_count: Math.max(0, prev.unread_count - 1),
-      daily_viewed_count: (prev.daily_viewed_count || 0) + 1,
     } : prev);
-    try {
-      await api.markMomentRead(m.id);
-    } catch (e: any) {
-      if (e.status === 403) {
-        toast(t.moments_limit_hit, 'error');
-      }
-      load(false);
-    }
+    try { await api.markMomentRead(m.id); } catch { load(false); }
   };
 
-  /* ── Dismiss (optimistic) ────────────────────────────── */
   const handleDismiss = async (m: MomentOut) => {
     setData((prev) => prev ? {
       ...prev,
       moments: prev.moments.filter((x) => x.id !== m.id),
       unread_count: m.status === 'unread' ? Math.max(0, prev.unread_count - 1) : prev.unread_count,
     } : prev);
-    try { await api.dismissMoment(m.id); } catch { /* no-op */ }
+    try { await api.dismissMoment(m.id); } catch {}
   };
 
-  /* ── Open chat ────────────────────────────────────────── */
   const handleOpenChat = async (m: MomentOut) => {
-    try { await api.momentToChat(m.id); } catch { /* navigate anyway */ }
+    try { await api.momentToChat(m.id); } catch {}
     if (m.status === 'unread') {
       setData((prev) => prev ? {
         ...prev,
         moments: prev.moments.map((x) => x.id === m.id ? { ...x, status: 'replied' as const, read_at: new Date().toISOString() } : x),
         unread_count: Math.max(0, prev.unread_count - 1),
-        daily_viewed_count: (prev.daily_viewed_count || 0) + 1,
       } : prev);
     }
     router.push(`/chat/${m.persona_id}`);
   };
 
-  /* ── Open source link ─────────────────────────────────── */
   const handleOpenSource = (m: MomentOut) => {
     if (typeof window !== 'undefined') window.open(m.source_url, '_blank', 'noopener,noreferrer');
     if (m.status === 'unread') handleMarkRead(m);
   };
 
-  /* ── Story click → scroll to card ────────────────────── */
   const onStoryClick = (m: MomentOut) => {
     const el = document.getElementById(`moment-${m.id}`);
     if (el) {
@@ -380,7 +309,6 @@ export default function MomentsPage() {
     }
   };
 
-  /* ── Group by day bucket ──────────────────────────────── */
   const groups: { label: string; items: MomentOut[] }[] = [];
   if (data?.moments) {
     for (const m of data.moments) {
@@ -420,7 +348,6 @@ export default function MomentsPage() {
         <>
           <StoriesBar moments={data.moments} onClickMoment={onStoryClick} />
 
-
           {groups.map((g, gi) => (
             <section key={gi}>
               <h2 className="px-4 pt-4 pb-1.5 text-[11px] font-semibold text-[#8E8E93] uppercase tracking-[0.06em]">
@@ -429,8 +356,7 @@ export default function MomentsPage() {
               {g.items.map((m) => (
                 <div key={m.id} id={`moment-${m.id}`} className="transition-all">
                   <MomentCard
-                    m={m}
-                    t={t}
+                    m={m} t={t}
                     onOpenChat={() => handleOpenChat(m)}
                     onMarkRead={() => handleMarkRead(m)}
                     onDismiss={() => handleDismiss(m)}
