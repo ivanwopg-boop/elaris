@@ -1,37 +1,41 @@
-"""Momentum news sync pipeline: fetch news → LLM digest → generate moments.
+"""Momentum news sync pipeline: fetch news via NewsNow → LLM digest → generate moments.
 
 Triggered by crontab every 30 min:
-  cd /opt/elaris/backend && python3 -m app.services.news_sync
+  cd /opt/elaris/backend && venv/bin/python3 -m app.services.news_sync
 
 Flow:
   1. Fetch all active watch_topics (group by topic for dedup)
-  2. For each topic, fetch news via SearXNG → GNews → Currents → NewsData.io
+  2. For each topic, fetch news via SearXNG → NewsNow (Lang-aware source pick)
   3. For each (persona, news) pair, LLM digest → persona_comment
   4. Insert persona_moments (dedup by persona_id + source_hash)
   5. Expire old moments (>24h)
+
+History:
+  - 2026-06-17: initial design with SearXNG + GNews + Currents + NewsData.io
+  - 2026-06-23: rewrote to use NewsNow (30+ free sources, no API key needed)
+    and use venv python + app.database.async_session
 """
 
 import asyncio
 import hashlib
 import json
-import os
 import sys
-import time
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Optional
 
-# Add backend to path
+# Add backend to path (cron-friendly)
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 import httpx
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy import select, and_, func, text
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.db_models import (
     Persona, PersonaWatchTopic, PersonaMoment, PersonaSoul, User, Contact,
 )
 from app.core.minimax_client import minimax_client
+from app.database import async_session as make_async_session
 from app.config import get_settings
 
 settings = get_settings()
@@ -39,12 +43,7 @@ settings = get_settings()
 # ── News sources ──────────────────────────────────────────────
 SEARXNG_URL = getattr(settings, "SEARXNG_URL", "http://127.0.0.1:8888")
 SEARXNG_PROXY = getattr(settings, "SEARXNG_PROXY", None)
-GNEWS_API_KEY = getattr(settings, "GNEWS_API_KEY", "")
-CURRENTS_API_KEY = getattr(settings, "CURRENTS_API_KEY", "")
-NEWSDATA_API_KEY = getattr(settings, "NEWSDATA_API_KEY", "")
 
-# Daily call counters (in-memory, reset on restart — acceptable for cron)
-_daily_calls: dict[str, int] = {"gnews": 0, "currents": 0, "newsdata": 0}
 
 # ── LLM Digest Prompt ────────────────────────────────────────
 DIGEST_PROMPT = """You are {persona_name}, expressing yourself in character.
@@ -57,6 +56,7 @@ Title: {article_title}
 Content: {article_content}
 Source: {article_url}
 Published: {article_published_at}
+Trending score: {article_score}
 
 Task: Write a 100-200 word comment in YOUR voice about this news.
 
@@ -66,7 +66,8 @@ Rules:
 3. Don't fabricate facts. If the news is wrong, say so.
 4. End with a hook question to engage the user.
 5. Be conversational, not formal. You're talking to a friend, not writing an essay.
-6. Respond in {lang} ({lang_label}).
+6. If content is empty (hot-list only), infer context from title + your expertise.
+7. Respond in {lang} ({lang_label}).
 
 Return JSON with these fields:
 {{"comment": "100-200 word comment in your voice", "emotion": "praising|criticizing|reflecting|questioning|celebrating", "hook_question": "a question to engage the user"}}"""
@@ -76,9 +77,9 @@ def _hash_url(url: str) -> str:
     return hashlib.md5(url.encode("utf-8")).hexdigest()
 
 
-# ── News fetching ─────────────────────────────────────────────
+# ── News fetching: SearXNG (P0) + NewsNow (P1) ───────────────
 async def _fetch_searxng(topic: str, lang: str = "en") -> list[dict]:
-    """Search SearXNG News mode. Returns list of {title, url, content, published_at}."""
+    """Search SearXNG News mode. Returns list of {title, url, content, published_at, score}."""
     try:
         client_kwargs = {"timeout": 15.0}
         if SEARXNG_PROXY:
@@ -105,6 +106,8 @@ async def _fetch_searxng(topic: str, lang: str = "en") -> list[dict]:
                     "url": r.get("url", ""),
                     "content": (r.get("content") or r.get("snippet") or "")[:2000],
                     "published_at": published,
+                    "score": "",
+                    "source": "searxng",
                 })
             return results
     except Exception as e:
@@ -112,118 +115,117 @@ async def _fetch_searxng(topic: str, lang: str = "en") -> list[dict]:
         return []
 
 
-async def _fetch_gnews(topic: str, lang: str = "en") -> list[dict]:
-    """GNews API (free: 200/day)."""
-    if not GNEWS_API_KEY or _daily_calls.get("gnews", 0) >= 200:
-        return []
+# Lang-aware source picker for NewsNow
+# Maps each topic's lang → list of source IDs most likely to have content
+_NEWSNOW_LANG_SOURCES = {
+    "en":   ["hackernews", "producthunt", "github-trending-today", "wallstreetcn-quick", "fastbull-express"],
+    "zh":   ["weibo", "zhihu", "toutiao", "_36kr", "ithome", "cls-telegraph"],
+    "zh-CN":["weibo", "zhihu", "tencent-hot", "ithome", "_36kr", "cls-telegraph", "jin10"],
+}
+
+# NewsNow browser headers (Cloudflare bypass)
+_NEWSNOW_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+    "Accept": "application/json, text/plain, */*",
+    "Accept-Language": "en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7",
+    "Referer": "https://newsnow.busiyi.world/",
+    "Origin": "https://newsnow.busiyi.world",
+}
+
+
+async def _newsnow_source(source_id: str, count: int = 5) -> list[dict]:
+    """Fetch hot list from a single NewsNow source."""
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.get(
-                "https://gnews.io/api/v4/search",
-                params={
-                    "q": topic,
-                    "lang": lang if lang in ("en", "zh") else "en",
-                    "max": 3,
-                    "apikey": GNEWS_API_KEY,
-                },
+        async with httpx.AsyncClient(timeout=8.0, follow_redirects=True) as client:
+            r = await client.get(
+                "https://newsnow.busiyi.world/api/s",
+                params={"id": source_id, "n": count},
+                headers=_NEWSNOW_HEADERS,
             )
-            data = resp.json()
-            _daily_calls["gnews"] = _daily_calls.get("gnews", 0) + 1
-            results = []
-            for a in data.get("articles", []):
-                results.append({
-                    "title": a.get("title", ""),
-                    "url": a.get("url", ""),
-                    "content": (a.get("description") or a.get("content") or "")[:2000],
-                    "published_at": a.get("publishedAt", ""),
-                })
-            return results
+            if r.status_code != 200:
+                return []
+            data = r.json()
     except Exception as e:
-        print(f"[news_sync] GNews failed for '{topic}': {e}", flush=True)
+        print(f"[news_sync] NewsNow[{source_id}] error: {e}", flush=True)
         return []
 
-
-async def _fetch_currents(topic: str, lang: str = "en") -> list[dict]:
-    """Currents API (free: 200/day)."""
-    if not CURRENTS_API_KEY or _daily_calls.get("currents", 0) >= 200:
-        return []
-    try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.get(
-                "https://api.currentsapi.services/v1/search",
-                params={
-                    "keywords": topic,
-                    "language": lang if lang in ("en", "zh") else "en",
-                    "limit": 3,
-                    "apiKey": CURRENTS_API_KEY,
-                },
-            )
-            data = resp.json()
-            _daily_calls["currents"] = _daily_calls.get("currents", 0) + 1
-            results = []
-            for a in data.get("news", []):
-                results.append({
-                    "title": a.get("title", ""),
-                    "url": a.get("url", ""),
-                    "content": (a.get("description") or "")[:2000],
-                    "published_at": a.get("published", ""),
-                })
-            return results
-    except Exception as e:
-        print(f"[news_sync] Currents failed for '{topic}': {e}", flush=True)
-        return []
+    out = []
+    for it in data.get("items", [])[:count]:
+        url = it.get("url", "")
+        title = (it.get("title") or "").strip()
+        if not url or not title:
+            continue
+        extra = it.get("extra") or {}
+        out.append({
+            "title": title,
+            "url": url,
+            "content": "",  # NewsNow is hot-list, no body — LLM digests from title
+            "published_at": "",
+            "score": extra.get("info", ""),
+            "source": f"newsnow:{source_id}",
+        })
+    return out
 
 
-async def _fetch_newsdata(topic: str, lang: str = "en") -> list[dict]:
-    """NewsData.io (free: 200/day)."""
-    if not NEWSDATA_API_KEY or _daily_calls.get("newsdata", 0) >= 200:
-        return []
-    try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.get(
-                "https://newsdata.io/api/1/news",
-                params={
-                    "q": topic,
-                    "language": lang if lang in ("en", "zh") else "en",
-                    "size": 3,
-                    "apikey": NEWSDATA_API_KEY,
-                },
-            )
-            data = resp.json()
-            _daily_calls["newsdata"] = _daily_calls.get("newsdata", 0) + 1
-            results = []
-            for a in data.get("results", []):
-                results.append({
-                    "title": a.get("title", ""),
-                    "url": a.get("link", ""),
-                    "content": (a.get("description") or a.get("content") or "")[:2000],
-                    "published_at": a.get("pubDate", ""),
-                })
-            return results
-    except Exception as e:
-        print(f"[news_sync] NewsData failed for '{topic}': {e}", flush=True)
-        return []
+async def _fetch_newsnow(topic: str, lang: str = "en") -> list[dict]:
+    """Fetch from NewsNow using lang-picked sources, then keyword-filter by topic.
+
+    Strategy: cast a wide net (5-6 sources per lang), then client-side filter by
+    topic keywords to drop irrelevant hot items. Result: topical hot-news feed
+    for the persona's watch_topic.
+    """
+    source_ids = _NEWSNOW_LANG_SOURCES.get(lang, _NEWSNOW_LANG_SOURCES["en"])
+    has_cjk = any("\u4e00" <= ch <= "\u9fff" for ch in topic)
+
+    import re as _re
+    if has_cjk:
+        # CN topic: match any CJK 2+ char segment (no persona-name stripping — topics are short)
+        keywords = [k for k in _re.findall(r"[\u4e00-\u9fff]{2,}", topic) if len(k) >= 2][:6]
+    else:
+        # EN topic: extract content words, drop stopwords
+        stop = {"the", "a", "an", "in", "on", "for", "of", "to", "with",
+                "and", "or", "at", "by", "is", "are", "was", "be"}
+        keywords = [w.lower() for w in _re.findall(r"[a-zA-Z]{3,}", topic)
+                    if w.lower() not in stop][:6]
+    if not keywords:
+        keywords = []
+
+    # Fetch 8 items per source in parallel
+    tasks = [_newsnow_source(sid, count=8) for sid in source_ids]
+    raw = await asyncio.gather(*tasks, return_exceptions=True)
+
+    merged = []
+    seen_titles = set()
+    for sid, items in zip(source_ids, raw):
+        if not isinstance(items, list):
+            continue
+        for it in items:
+            title = it["title"].strip().lower()
+            if title in seen_titles:
+                continue
+            # Filter: keep if any topic keyword matches title, OR (if no keywords) keep all
+            if keywords and not any(kw.lower() in title for kw in keywords):
+                continue
+            seen_titles.add(title)
+            merged.append(it)
+            if len(merged) >= 6:
+                break
+        if len(merged) >= 6:
+            break
+    return merged[:5]
 
 
 async def fetch_news(topic: str, lang: str = "en") -> list[dict]:
-    """Fetch news with 4-tier fallback."""
-    # P0: SearXNG (self-hosted, unlimited)
+    """Fetch news with SearXNG → NewsNow fallback."""
+    # P0: SearXNG (self-hosted, unlimited) — works well for English news
     results = await _fetch_searxng(topic, lang)
     if results:
         return results
 
-    # P1: GNews (200/day)
-    results = await _fetch_gnews(topic, lang)
+    # P1: NewsNow (30+ sources, free, no API key) — works for EN + CN
+    results = await _fetch_newsnow(topic, lang)
     if results:
-        return results
-
-    # P2: Currents (200/day)
-    results = await _fetch_currents(topic, lang)
-    if results:
-        return results
-
-    # P3: NewsData.io (200/day)
-    results = await _fetch_newsdata(topic, lang)
+        print(f"[news_sync] NewsNow rescued {len(results)} items for '{topic}' (lang={lang})", flush=True)
     return results
 
 
@@ -270,9 +272,10 @@ async def digest_news(
         persona_name=persona_name,
         soul_excerpt=soul_excerpt,
         article_title=article["title"],
-        article_content=article.get("content", ""),
+        article_content=article.get("content", "") or "(hot-list only, no article body)",
         article_url=article.get("url", ""),
-        article_published_at=article.get("published_at", ""),
+        article_published_at=article.get("published_at", "") or "(unknown)",
+        article_score=article.get("score", ""),
         lang=lang,
         lang_label=lang_label,
     )
@@ -287,9 +290,8 @@ async def digest_news(
             max_tokens=600,
         )
         text = (text or "").strip()
-        # Strip markdown fences
-        if "```" in text:
-            text = text.split("```")[1]
+        if chr(96)*3 in text:
+            text = text.split(chr(96)*3)[1]
             if text.startswith("json"):
                 text = text[4:]
             text = text.strip()
@@ -301,7 +303,8 @@ async def digest_news(
 
 # ── Main sync loop ────────────────────────────────────────────
 async def run_sync(db: AsyncSession):
-    """Main sync: fetch news for all active watch topics, digest, and generate moments."""
+    """Main sync: fetch news for all active watch topics, digest, generate moments."""
+    import uuid
     now = datetime.now(timezone.utc)
 
     # ── Step 1: Fetch all active watch topics ──
@@ -315,7 +318,7 @@ async def run_sync(db: AsyncSession):
 
     print(f"[news_sync] processing {len(all_topics)} active watch topics", flush=True)
 
-    # Deduplicate by (topic_text, source_lang) — same topic only searched once
+    # Deduplicate by (topic_text, source_lang) — same topic searched once
     topic_groups: dict[tuple, list[PersonaWatchTopic]] = {}
     for t in all_topics:
         key = (t.topic.strip().lower(), t.source_lang)
@@ -329,14 +332,13 @@ async def run_sync(db: AsyncSession):
     errors = 0
 
     for group in unique_topics:
-        rep = group[0]  # representative watch_topic row
+        rep = group[0]
         topic_text = rep.topic.strip()
         lang = rep.source_lang
 
         # ── Step 2: Fetch news for this topic ──
         articles = await fetch_news(topic_text, lang)
         if not articles:
-            print(f"[news_sync] no news for topic '{topic_text}'", flush=True)
             continue
 
         # ── Step 3: For each article × each persona in the group ──
@@ -391,29 +393,27 @@ async def run_sync(db: AsyncSession):
                         errors += 1
                         continue
 
-                    # Determine user_id: preset personas get NULL, user personas get their owner
+                    # Determine user_id: preset personas fan out, user personas single
                     target_user_id = persona.user_id  # None for presets
 
-                    # For presets (NULL user_id), we generate moments for ALL users who have this persona as contact
                     if target_user_id is None:
-                        # Get all users who have this persona as a contact
+                        # Preset persona: generate moment for every user who has it as contact
                         contact_users_res = await db.execute(
                             select(Contact.user_id).where(Contact.persona_id == persona.id)
                         )
                         contact_user_ids = [r[0] for r in contact_users_res.fetchall()]
                         if not contact_user_ids:
                             continue
-                        # Generate one moment per user
                         for uid in contact_user_ids:
                             m = PersonaMoment(
-                                id=str(__import__("uuid").uuid4()),
+                                id=str(uuid.uuid4()),
                                 persona_id=persona.id,
                                 user_id=uid,
                                 watch_topic_id=wt.id,
                                 source_url=article["url"],
                                 source_title=article["title"],
                                 source_content=article.get("content", ""),
-                                source_published_at=article.get("published_at", ""),
+                                source_published_at=article.get("published_at", "") or None,
                                 source_lang=lang,
                                 source_hash=source_hash,
                                 persona_comment=comment,
@@ -426,15 +426,16 @@ async def run_sync(db: AsyncSession):
                             db.add(m)
                             generated += 1
                     else:
+                        # User-owned persona: single moment for the owner
                         m = PersonaMoment(
-                            id=str(__import__("uuid").uuid4()),
+                            id=str(uuid.uuid4()),
                             persona_id=persona.id,
                             user_id=target_user_id,
                             watch_topic_id=wt.id,
                             source_url=article["url"],
                             source_title=article["title"],
                             source_content=article.get("content", ""),
-                            source_published_at=article.get("published_at", ""),
+                            source_published_at=article.get("published_at", "") or None,
                             source_lang=lang,
                             source_hash=source_hash,
                             persona_comment=comment,
@@ -447,7 +448,6 @@ async def run_sync(db: AsyncSession):
                         db.add(m)
                         generated += 1
 
-                    # Commit every batch of 10
                     if generated % 10 == 0:
                         await db.commit()
                         print(f"[news_sync] committed {generated} moments so far", flush=True)
@@ -457,10 +457,8 @@ async def run_sync(db: AsyncSession):
                     print(f"[news_sync] error processing wt={wt.id} article={article.get('url','?')[:50]}: {e}", flush=True)
                     continue
 
-            # Small delay between articles to be gentle on APIs
-            await asyncio.sleep(0.5)
+            await asyncio.sleep(0.3)
 
-    # Final commit
     await db.commit()
 
     # ── Step 4: Expire old moments ──
@@ -488,14 +486,8 @@ async def run_sync(db: AsyncSession):
 
 async def main():
     """Entry point for crontab."""
-    db_url = settings.DATABASE_URL
-    engine = create_async_engine(db_url, echo=False)
-    async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-
-    async with async_session() as db:
+    async with make_async_session() as db:
         result = await run_sync(db)
-
-    await engine.dispose()
     print(f"[news_sync] result: {json.dumps(result)}", flush=True)
 
 
