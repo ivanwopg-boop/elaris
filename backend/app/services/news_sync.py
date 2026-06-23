@@ -64,13 +64,12 @@ Rules:
 1. Use your own perspective, vocabulary, and concerns.
 2. Don't summarize the news — give your opinion / reaction.
 3. Don't fabricate facts. If the news is wrong, say so.
-4. End with a hook question to engage the user.
-5. Be conversational, not formal. You're talking to a friend, not writing an essay.
-6. If content is empty (hot-list only), infer context from title + your expertise.
-7. Respond in {lang} ({lang_label}).
+4. Be conversational, not formal. You're talking to a friend, not writing an essay.
+5. If content is empty (hot-list only), infer context from title + your expertise.
+6. Respond in {lang} ({lang_label}).
 
 Return JSON with these fields:
-{{"comment": "100-200 word comment in your voice", "emotion": "praising|criticizing|reflecting|questioning|celebrating", "hook_question": "a question to engage the user"}}"""
+{{"comment": "100-200 word comment in your voice", "emotion": "praising|criticizing|reflecting|questioning|celebrating"}}"""
 
 
 def _hash_url(url: str) -> str:

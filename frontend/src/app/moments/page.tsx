@@ -109,7 +109,6 @@ function MomentCard({
     obs.observe(ref.current!); return () => obs.disconnect();
   }, [m.status, onBecameVisible]);
 
-  const hasHook = !!m.hook_question;
 
   return (
     <article ref={ref} className="mx-4 my-2 bg-white rounded-xl border border-black/5 overflow-hidden">
@@ -124,26 +123,11 @@ function MomentCard({
 
       {/* ── Body ─────────────────────────────────── */}
 
-      {hasHook ? (
-        <>
-          <div className="px-4 pt-1 pb-2.5">
-            <p className="text-[17px] font-semibold leading-[1.45] text-black/90">
-              {m.hook_question}
-            </p>
-          </div>
-          <div className="px-4 pb-2">
-            <p className="text-[15px] leading-[1.6] text-black/60">
-              {m.persona_comment}
-            </p>
-          </div>
-        </>
-      ) : (
-        <div className="px-4 pt-1 pb-2">
-          <p className="text-[16px] leading-[1.6] text-black/80 break-words">
-            {m.persona_comment}
-          </p>
-        </div>
-      )}
+      <div className="px-4 pt-1 pb-2">
+        <p className="text-[16px] leading-[1.6] text-black/80 break-words">
+          {m.persona_comment}
+        </p>
+      </div>
 
       {/* ── Article preview ───────────────────────── */}
       <button onClick={onOpenSource}
