@@ -11,11 +11,40 @@ import { useToast } from '@/components/Toast';
 import { cn } from '@/lib/utils';
 
 /* ── Helpers ──────────────────────────────────────────── */
-function timeAgo(iso: string): string {
-  const d = new Date(iso); const m = Math.floor((Date.now() - d.getTime()) / 60000);
-  if (m < 1) return 'now'; if (m < 60) return `${m}m`;
-  const h = Math.floor(m / 60); if (h < 24) return `${h}h`;
-  return `${Math.floor(h / 24)}d`;
+function formatTime(iso: string, lang: string): string {
+  const d = new Date(iso);
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+  const diffMin = Math.floor(diffMs / 60000);
+  const zh = lang === 'zh-CN';
+
+  if (diffMin < 1) return zh ? '刚刚' : 'now';
+  if (diffMin < 60) return zh ? `${diffMin}分钟前` : `${diffMin}m ago`;
+
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return zh ? `${diffHr}小时前` : `${diffHr}h ago`;
+
+  // Check if same day → show time only
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const dDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const dayDiff = Math.floor((today.getTime() - dDay.getTime()) / 86400000);
+
+  if (dayDiff === 1) {
+    const time = d.toLocaleTimeString(zh ? 'zh-CN' : 'en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+    return zh ? `昨天 ${time}` : `Yesterday ${time}`;
+  }
+
+  if (dayDiff < 7) {
+    const days = zh ? ['周日', '周一', '周二', '周三', '周四', '周五', '周六'] : ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    return days[d.getDay()];
+  }
+
+  // Older → show date
+  const sameYear = d.getFullYear() === now.getFullYear();
+  if (sameYear) {
+    return d.toLocaleDateString(zh ? 'zh-CN' : 'en-US', { month: 'short', day: 'numeric' });
+  }
+  return d.toLocaleDateString(zh ? 'zh-CN' : 'en-US', { year: 'numeric', month: 'short', day: 'numeric' });
 }
 function sourceHost(url: string): string {
   try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return ''; }
@@ -90,9 +119,9 @@ function AppBar({ title, right }: { title: string; right?: React.ReactNode }) {
 
 /* ── Moment Card — hook-first ─────────────────────────── */
 function MomentCard({
-  m, t, discussion, onOpenChat, onOpenSource, onBecameVisible,
+  m, t, lang, discussion, onOpenChat, onOpenSource, onBecameVisible,
 }: {
-  m: MomentOut; t: Record<string, string>; discussion: string | null;
+  m: MomentOut; t: Record<string, string>; lang: string; discussion: string | null;
   onOpenChat: () => void; onOpenSource: () => void; onBecameVisible: () => void;
 }) {
   const ref = useRef<HTMLElement>(null);
@@ -118,7 +147,7 @@ function MomentCard({
         <div className="flex-1 min-w-0">
           <h3 className="text-[15px] font-semibold text-[#576B95] truncate">{m.persona_name}</h3>
         </div>
-        <span className="text-[12px] text-black/25 shrink-0">{timeAgo(m.created_at)}</span>
+        <span className="text-[12px] text-black/25 shrink-0">{formatTime(m.created_at, lang)}</span>
       </header>
 
       {/* ── Body ─────────────────────────────────── */}
@@ -259,7 +288,7 @@ export default function MomentsPage() {
                   : null;
                 return (
                   <div key={m.id}>
-                    <MomentCard m={m} t={t} discussion={discLabel}
+                    <MomentCard m={m} t={t} lang={lang} discussion={discLabel}
                       onOpenChat={() => handleOpenChat(m)}
                       onOpenSource={() => handleOpenSource(m)}
                       onBecameVisible={() => handleBecameVisible(m)}
