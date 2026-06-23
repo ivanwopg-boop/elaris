@@ -253,6 +253,27 @@ async def get_unread_count(
     return {"unread_count": res.scalar() or 0}
 
 
+@router.post("/moments/mark-all-read")
+async def mark_all_read(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_auth),
+):
+    """Mark all unread moments as read for the current user."""
+    now = datetime.now(timezone.utc)
+    res = await db.execute(
+        select(PersonaMoment).where(
+            and_(PersonaMoment.user_id == user.id, PersonaMoment.status == "unread")
+        )
+    )
+    count = 0
+    for m in res.scalars().all():
+        m.status = "read"
+        m.read_at = now
+        count += 1
+    await db.commit()
+    return {"marked": count}
+
+
 @router.post("/moments/{moment_id}/read", response_model=MomentOut)
 async def mark_moment_read(
     moment_id: str,

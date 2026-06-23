@@ -34,6 +34,7 @@ export const translations: Record<Lang, Record<string, string>> = {
     moments_emotion_questioning: "Questioning",
     moments_emotion_celebrating: "Celebrating",
     moments_view: "View",
+    moments_mark_all_read: "Mark all read",
     moments_limit_hit: "Free limit reached. Upgrade to read more moments.",
 
     tab_me: "Me",
@@ -488,6 +489,7 @@ clarity_vs_impress_label: "Clarity vs. Impress",
     moments_emotion_questioning: "质疑",
     moments_emotion_celebrating: "庆祝",
     moments_view: "查看",
+    moments_mark_all_read: "全部已读",
     moments_limit_hit: "免费额度已用完。升级 Plus 解锁更多动态。",
 
     tab_me: "我的",

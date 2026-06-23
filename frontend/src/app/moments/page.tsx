@@ -245,6 +245,24 @@ export default function MomentsPage() {
     }
     router.push(`/chat/${m.persona_id}`);
   };
+  const handleMarkAllRead = async () => {
+    const prev = data;
+    setData((prev) => prev ? { ...prev, unread_count: 0, moments: prev.moments.map((x) => ({ ...x, status: 'read' as const })) } : prev);
+    try {
+      await api.markAllMomentsRead();
+      load(false);
+    } catch {
+      setData(prev);
+    }
+  };
+
+  // Auto-mark first screen as read after 3s
+  useEffect(() => {
+    if (!data?.unread_count || data.unread_count === 0) return;
+    const timer = setTimeout(() => { handleMarkAllRead(); }, 3000);
+    return () => clearTimeout(timer);
+  }, []);
+
   const handleOpenSource = (m: MomentOut) => {
     if (typeof window !== 'undefined') window.open(m.source_url, '_blank', 'noopener,noreferrer');
   };
@@ -261,10 +279,20 @@ export default function MomentsPage() {
   return (
     <div className="min-h-screen bg-[#EDEDED] pb-20" style={{ maxWidth: '100vw', overflowX: 'hidden' }}>
       <AppBar title={t.moments_title}
-        right={<button onClick={() => { setRefreshing(true); load(false); }}
-          className="w-8 h-8 flex items-center justify-center active:opacity-60" aria-label="Refresh">
-          <RefreshCw size={18} strokeWidth={1.5} className={cn('text-[#576B95]', refreshing && 'animate-spin')} />
-        </button>}
+        right={
+          <div className="flex items-center gap-1">
+            {data && data.unread_count > 0 && (
+              <button onClick={handleMarkAllRead}
+                className="text-[11px] text-[#576B95] font-normal px-2 py-1 active:opacity-60">
+                {t.moments_mark_all_read || '全部已读'}
+              </button>
+            )}
+            <button onClick={() => { setRefreshing(true); load(false); }}
+              className="w-8 h-8 flex items-center justify-center active:opacity-60" aria-label="Refresh">
+              <RefreshCw size={18} strokeWidth={1.5} className={cn('text-[#576B95]', refreshing && 'animate-spin')} />
+            </button>
+          </div>
+        }
       />
 
       {loading && !data ? (

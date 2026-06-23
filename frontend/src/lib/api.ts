@@ -249,7 +249,8 @@ export const api = {
   listMoments: (limit: number = 50, lang?: string) =>
     api.request<MomentListResponse>(`/momentum/moments?limit=${limit}` + (lang ? `&lang=${encodeURIComponent(lang)}` : "")),
   markMomentRead: (id: string) =>
-    api.request<MomentOut>(`/momentum/moments/${id}/read`, { method: "POST" }),
+    api.request<MomentOut>("/momentum/moments/" + id + "/read", { method: "POST" }),
+  markAllMomentsRead: () => api.request<{ marked: number }>("/momentum/moments/mark-all-read", { method: "POST" }),
   dismissMoment: (id: string) =>
     api.request<void>(`/momentum/moments/${id}/dismiss`, { method: "POST" }),
   momentToChat: (id: string) =>
