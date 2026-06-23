@@ -3,8 +3,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  ExternalLink, X, MessageCircle, Check, Sparkles, Lock,
-  RefreshCw, Clock, ChevronRight, BookUser,
+  ExternalLink, X, MessageCircle, Check, Sparkles,
+  RefreshCw, Clock, BookUser, ChevronRight,
 } from 'lucide-react';
 import { api, MomentOut, MomentListResponse } from '@/lib/api';
 import { Avatar } from '@/components/Avatar';
@@ -13,18 +13,33 @@ import { useLangStore, translations, type Lang } from '@/lib/i18n';
 import { useToast } from '@/components/Toast';
 import { cn } from '@/lib/utils';
 
-// ── Emotion → color mapping (Apple-feel) ─────────────────────
-const EMOTION_COLORS: Record<string, { ring: string; bg: string; label: string; dot: string }> = {
-  reflecting:   { ring: 'from-[#A78BFA] to-[#F472B6]', bg: 'bg-[#F5F3FF]', label: 'moments_emotion_reflecting',   dot: 'bg-[#A78BFA]' },
-  praising:     { ring: 'from-[#34C759] to-[#34C759]', bg: 'bg-[#F0FDF4]', label: 'moments_emotion_praising',     dot: 'bg-[#34C759]' },
-  criticizing:  { ring: 'from-[#FF6B35] to-[#FF2D55]', bg: 'bg-[#FFF7F0]', label: 'moments_emotion_criticizing',  dot: 'bg-[#FF6B35]' },
-  questioning:  { ring: 'from-[#FF9500] to-[#FFD60A]', bg: 'bg-[#FFFBEB]', label: 'moments_emotion_questioning',  dot: 'bg-[#FF9500]' },
-  celebrating:  { ring: 'from-[#FFD60A] to-[#FF9500]', bg: 'bg-[#FFFBEA]', label: 'moments_emotion_celebrating',  dot: 'bg-[#FFD60A]' },
+/* ───────────────────────────────────────────────────────────────
+   Design philosophy
+   ───────────────────────────────────────────────────────────────
+   Target: 9/10 Apple HIG (System Settings / Health / Notes grade).
+   Key decisions:
+   - System grouped-list background (#F2F2F7) with white cards, 12pt radius
+   - 16px horizontal padding throughout (Apple's standard inset)
+   - Thin hairline separators between card zones (not full borders)
+   - Emotion chip as a small inline pill, not a loud badge
+   - Stories bar: Apple iMessage-style circles (thin outline, no gradients)
+   - Limit banner: ultra-subtle iOS Settings footer pattern
+   - Actions: system-blue text buttons (iOS table-row action style)
+   - No bold shadows, no Instagram gradient rings
+   - Consistent 8pt spacing grid
+   ─────────────────────────────────────────────────────────────── */
+
+/* ── Emotion → subtle pill colors ──────────────────────────── */
+const EMOTION_PILL: Record<string, { text: string; bg: string }> = {
+  reflecting:   { text: 'text-[#5856D6]', bg: 'bg-[#F0EFFF]' },
+  praising:     { text: 'text-[#34A759]', bg: 'bg-[#E8F8ED]' },
+  criticizing:  { text: 'text-[#FF6B35]', bg: 'bg-[#FFF2ED]' },
+  questioning:  { text: 'text-[#FF9500]', bg: 'bg-[#FFF6EB]' },
+  celebrating:  { text: 'text-[#FFD60A]', bg: 'bg-[#FFFBE5]' },
 };
+const EMOTION_FALLBACK = { text: 'text-[#5856D6]', bg: 'bg-[#F0EFFF]' };
 
-const EMOTION_FALLBACK = { ring: 'from-[#A78BFA] to-[#F472B6]', bg: 'bg-[#F5F3FF]', label: 'moments_emotion_reflecting', dot: 'bg-[#A78BFA]' };
-
-// ── Helpers ──────────────────────────────────────────────────
+/* ── Helpers ────────────────────────────────────────────────── */
 function timeAgo(iso: string): string {
   const d = new Date(iso);
   const diffMs = Date.now() - d.getTime();
@@ -57,19 +72,24 @@ function sourceLabel(url: string): string {
   } catch { return ''; }
 }
 
-// ── App Bar ──────────────────────────────────────────────────
+/* ── App Bar ────────────────────────────────────────────────── */
 function AppBar({ title, right }: { title: string; right?: React.ReactNode }) {
   return (
-    <header className="sticky top-0 z-40 bg-white/98 backdrop-blur-md border-b border-[rgba(0,0,0,0.06)]">
-      <div className="h-12 flex items-center justify-center px-4 relative">
-        {right && <div className="absolute right-4">{right}</div>}
-        <h1 className="text-base font-medium tracking-wide text-[#1D1D1F]">{title}</h1>
+    <header className="sticky top-0 z-40 bg-[#F9F9F9]/95 backdrop-blur-xl border-b border-[rgba(0,0,0,0.06)]">
+      <div className="h-11 flex items-center justify-center relative px-4">
+        {right && <div className="absolute right-3">{right}</div>}
+        <h1 className="text-[17px] font-semibold tracking-tight text-[#000000]">
+          {title}
+        </h1>
       </div>
     </header>
   );
 }
 
-// ── Stories Bar (Apple-restrained: monochrome outline + tiny unread dot) ──
+/* ── Stories Bar ──────────────────────────────────────────────
+   iMessage / Photos Memories style: clean circles, thin outline,
+   tiny unread dot. No Instagram gradient rings.
+   ────────────────────────────────────────────────────────────── */
 function StoriesBar({
   moments, onClickMoment,
 }: {
@@ -91,35 +111,35 @@ function StoriesBar({
   if (stories.length === 0) return null;
 
   return (
-    <div className="border-b border-[rgba(0,0,0,0.04)] py-4">
-      <div className="flex gap-4 overflow-x-auto px-4 scrollbar-hide">
+    <div className="px-4 py-3.5">
+      <div className="flex gap-4 overflow-x-auto scrollbar-hide">
         {stories.map((m) => {
           const isUnread = m.status === 'unread';
           return (
             <button
               key={`story-${m.id}`}
               onClick={() => onClickMoment(m)}
-              className="flex flex-col items-center gap-1.5 shrink-0 active:scale-95 transition-transform"
+              className="flex flex-col items-center gap-1.5 shrink-0 active:opacity-70 transition-opacity"
             >
               <div className="relative">
                 <div className={cn(
-                  'rounded-full p-[1.5px]',
-                  isUnread ? 'ring-1 ring-[#1D1D1F]' : 'ring-1 ring-[#E5E5EA]',
+                  'rounded-full p-[2px]',
+                  isUnread ? 'ring-[1.5px] ring-[#1D1D1F]' : 'ring-[1px] ring-[#E5E5EA]',
                 )}>
                   <Avatar
                     name={m.persona_name || '?'}
                     url={m.persona_avatar_url}
-                    size="md"
+                    size="lg"
                     className="border-0"
                   />
                 </div>
                 {isUnread && (
-                  <span className="absolute top-0 right-0 w-2 h-2 rounded-full bg-[#FF3B30] ring-2 ring-white" />
+                  <span className="absolute -top-0.5 -right-0.5 w-[10px] h-[10px] rounded-full bg-[#FF3B30] ring-[3px] ring-[#F9F9F9]" />
                 )}
               </div>
               <span className={cn(
-                'text-[10px] max-w-[64px] truncate',
-                isUnread ? 'text-[#1D1D1F] font-normal' : 'text-[#86868B] font-light',
+                'text-[10px] max-w-[56px] truncate leading-tight',
+                isUnread ? 'text-[#1D1D1F] font-medium' : 'text-[#8E8E93] font-normal',
               )}>
                 {m.persona_name || '?'}
               </span>
@@ -131,7 +151,61 @@ function StoriesBar({
   );
 }
 
-// ── Moment Card ─────────────────────────────────────────────
+/* ── Limit Banner ─────────────────────────────────────────────
+   iOS Settings footer pattern: ultra-subtle, no loud colors,
+   no underlines. Just a quiet note with a system-blue action.
+   ───────────────────────────────────────────────────────────── */
+function LimitBanner({
+  viewed, limit, isPaid, t,
+}: {
+  viewed: number; limit: number | null; isPaid: boolean; t: Record<string, string>;
+}) {
+  if (isPaid) {
+    return (
+      <div className="mx-4 mt-2 px-0 py-1.5 flex items-center justify-between">
+        <span className="text-[12px] text-[#8E8E93] font-normal">
+          {t.moments_daily_limit_pro.replace('{n}', String(viewed))}
+        </span>
+        <span className="text-[10px] text-[#8E8E93] font-medium uppercase tracking-wider">Plus</span>
+      </div>
+    );
+  }
+  if (limit === null) return null;
+
+  const pct = Math.min(100, (viewed / limit) * 100);
+  const hitLimit = viewed >= limit;
+
+  return (
+    <div className="mx-4 mt-2">
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="text-[12px] text-[#8E8E93] font-normal">
+          {t.moments_daily_limit.replace('{n}', String(viewed)).replace('{limit}', String(limit))}
+        </span>
+        {hitLimit && (
+          <span className="text-[12px] text-[#007AFF] font-normal">
+            {t.moments_upgrade}
+            <span className="inline-block ml-0.5 align-middle"><ChevronRight size={12} strokeWidth={2} /></span>
+          </span>
+        )}
+      </div>
+      <div className="h-[3px] rounded-full bg-[rgba(0,0,0,0.06)] overflow-hidden">
+        <div
+          className={cn(
+            'h-full rounded-full transition-all duration-700',
+            hitLimit ? 'bg-[#FF9500]/70' : 'bg-[#1D1D1F]/15',
+          )}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+/* ── Moment Card ──────────────────────────────────────────────
+   4-zone: identity | content | source | actions
+   Apple grouped-table style: 12pt radius, 16px inset padding,
+   hairline separators between zones, no card shadow.
+   ────────────────────────────────────────────────────────────── */
 function MomentCard({
   m, t, onOpenChat, onMarkRead, onDismiss, onOpenSource,
 }: {
@@ -142,149 +216,134 @@ function MomentCard({
   onDismiss: () => void;
   onOpenSource: () => void;
 }) {
-  const emo = EMOTION_COLORS[m.emotion || ''] || EMOTION_FALLBACK;
+  const pill = EMOTION_PILL[m.emotion || ''] || EMOTION_FALLBACK;
   const isUnread = m.status === 'unread';
+
   return (
     <article
       className={cn(
-        'mx-4 my-2.5 rounded-2xl overflow-hidden border transition-colors',
+        'mx-4 my-2 rounded-[14px] bg-white border-[0.5px] transition-colors',
         isUnread
-          ? 'bg-white border-[rgba(0,0,0,0.06)] shadow-[0_1px_3px_rgba(0,0,0,0.03)]'
-          : 'bg-white/70 border-[rgba(0,0,0,0.04)]',
+          ? 'border-[rgba(0,0,0,0.08)]'
+          : 'border-[rgba(0,0,0,0.05)] bg-white/80',
       )}
     >
-      {/* ── Zone 1: Identity — avatar + name + meta ──────────── */}
-      <header className="flex items-center gap-3 px-4 pt-3.5 pb-3">
-        <Avatar name={m.persona_name || '?'} url={m.persona_avatar_url} size="md" />
+      {/* ═══ Zone 1: Identity ═══ */}
+      <header className="flex items-center gap-3 px-4 pt-4 pb-2">
+        <Avatar name={m.persona_name || '?'} url={m.persona_avatar_url} size="lg" />
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1.5">
-            <span className="text-[15px] font-medium text-[#1D1D1F] truncate">
-              {m.persona_name}
-            </span>
-            {isUnread && <span className="w-1.5 h-1.5 rounded-full bg-[#FF3B30] shrink-0" />}
-          </div>
-          <div className="flex items-center gap-1.5 text-[11px] text-[#86868B] font-light mt-0.5">
-            <span>{timeAgo(m.created_at)}</span>
-            {m.watch_topic && (
-              <>
-                <span className="w-0.5 h-0.5 rounded-full bg-[#C7C7CC]" />
-                <span className="truncate">{m.watch_topic}</span>
-              </>
-            )}
-          </div>
+          <h3 className="text-[16px] font-semibold text-[#000000] tracking-[-0.01em] leading-snug truncate">
+            {m.persona_name}
+            {isUnread && <span className="inline-block ml-1.5 mb-0.5 w-[7px] h-[7px] rounded-full bg-[#FF3B30] align-middle" />}
+          </h3>
+          <p className="text-[12px] text-[#8E8E93] font-normal mt-0.5 leading-tight">
+            {m.watch_topic && <span className="truncate">{m.watch_topic}</span>}
+            <span className="mx-1.5 text-[#D1D1D6]">·</span>
+            {timeAgo(m.created_at)}
+          </p>
         </div>
+        <span className={cn(
+          'shrink-0 text-[10px] font-semibold uppercase tracking-[0.04em] px-2 py-1 rounded-full',
+          pill.bg, pill.text,
+        )}>
+          {t[EMOTION_PILL_LABEL[m.emotion || '']] || m.emotion}
+        </span>
       </header>
 
-      {/* ── Zone 2: Content — emotion chip + comment + hook ──── */}
-      <div className="px-4 pb-3">
-        <span className={cn(
-          'inline-block text-[10px] font-medium uppercase tracking-wider px-2 py-0.5 rounded-full mb-2',
-          emo.bg, 'text-[#3C3C43]',
-        )}>
-          {t[emo.label] || m.emotion}
-        </span>
+      {/* ═══ Zone 2: Content ═══ */}
+      <div className="px-4 pt-1 pb-3">
         <p className={cn(
-          'text-[15px] leading-[22px] text-[#1D1D1F]',
-          isUnread ? 'font-normal' : 'font-light text-[#3C3C43]',
+          'text-[15px] leading-[1.55] tracking-[-0.01em]',
+          isUnread ? 'text-[#1D1D1F] font-normal' : 'text-[#3C3C434D] font-normal',
         )}>
           {m.persona_comment}
         </p>
         {m.hook_question && (
-          <p className="mt-3 text-[14px] leading-[20px] text-[#0071E3] font-normal">
+          <p className="mt-2.5 text-[14px] leading-[1.45] text-[#007AFF] font-normal">
             {m.hook_question}
           </p>
         )}
       </div>
 
-      {/* ── Zone 3: Source — single meta line, tap to open ───── */}
+      {/* ═══ Zone 3: Source ═══ */}
       <button
         onClick={onOpenSource}
-        className="block w-full text-left px-4 py-2.5 border-t border-[rgba(0,0,0,0.04)] active:bg-[rgba(0,0,0,0.02)] transition-colors"
+        className="block w-full text-left px-4 py-2.5 border-t border-[rgba(0,0,0,0.05)] active:bg-[rgba(0,0,0,0.015)] transition-colors"
       >
-        <div className="text-[10px] text-[#86868B] font-light uppercase tracking-wider">
-          {t.moments_source}{sourceLabel(m.source_url) && ` · ${sourceLabel(m.source_url)}`}
+        <div className="text-[10px] text-[#AEAEB2] font-medium uppercase tracking-[0.05em] mb-1">
+          {sourceLabel(m.source_url) || t.moments_source}
         </div>
-        <div className="text-[13px] text-[#1D1D1F] font-normal leading-[18px] mt-0.5 line-clamp-2">
+        <p className="text-[13px] text-[#1D1D1F]/80 font-normal leading-[18px] line-clamp-2">
           {m.source_title}
-        </div>
+        </p>
       </button>
 
-      {/* ── Zone 4: Actions — clean row, no overlap ──────────── */}
-      <footer className="flex items-center px-2 py-2 border-t border-[rgba(0,0,0,0.04)] gap-1">
+      {/* ═══ Zone 4: Actions ═══ */}
+      <footer className="flex items-center border-t border-[rgba(0,0,0,0.05)]">
         {isUnread && (
           <button
             onClick={onMarkRead}
-            className="flex-1 flex items-center justify-center gap-1.5 py-1.5 text-[13px] text-[#0071E3] font-normal active:bg-[rgba(0,113,227,0.08)] rounded-lg transition-colors"
+            className="flex-1 flex items-center justify-center gap-1.5 h-10 text-[13px] text-[#007AFF] font-normal active:bg-[rgba(0,122,255,0.06)] rounded-bl-[14px] transition-colors"
           >
-            <Check size={14} strokeWidth={1.5} />
+            <Check size={15} strokeWidth={2} />
             {t.moments_mark_read}
           </button>
         )}
+        {isUnread && <div className="w-[0.5px] h-5 bg-[rgba(0,0,0,0.06)]" />}
         <button
           onClick={onOpenChat}
           className={cn(
-            'flex items-center justify-center gap-1.5 py-1.5 text-[13px] text-[#1D1D1F] font-normal active:bg-[rgba(0,0,0,0.04)] rounded-lg transition-colors',
-            isUnread ? 'flex-1' : 'flex-[2]',
+            'flex items-center justify-center gap-1.5 h-10 text-[13px] text-[#3C3C43] font-normal active:bg-[rgba(0,0,0,0.03)] transition-colors',
+            isUnread ? 'flex-1' : 'flex-[2] rounded-bl-[14px]',
           )}
         >
-          <MessageCircle size={14} strokeWidth={1.5} />
+          <MessageCircle size={15} strokeWidth={1.5} />
           {t.moments_open_chat}
         </button>
+        <div className="w-[0.5px] h-5 bg-[rgba(0,0,0,0.06)]" />
         <button
           onClick={onDismiss}
-          className="flex items-center justify-center w-9 h-8 text-[#86868B] active:bg-[rgba(0,0,0,0.04)] rounded-lg transition-colors"
+          className="w-10 h-10 flex items-center justify-center text-[#AEAEB2] active:bg-[rgba(0,0,0,0.03)] rounded-br-[14px] transition-colors"
           aria-label={t.moments_dismiss}
         >
-          <X size={14} strokeWidth={1.5} />
+          <X size={15} strokeWidth={1.5} />
         </button>
       </footer>
     </article>
   );
 }
 
-// ── Daily limit banner (Free users) ────────────────────────
-function LimitBanner({
-  viewed, limit, isPaid, t,
-}: {
-  viewed: number; limit: number | null; isPaid: boolean; t: Record<string, string>;
-}) {
-  if (isPaid || limit === null) {
-    if (isPaid) {
-      return (
-        <div className="mx-4 mt-2 px-3 py-2 rounded-xl bg-gradient-to-r from-[#FFF7F0] to-[#F5F3FF] flex items-center gap-2">
-          <Sparkles size={14} strokeWidth={1.5} className="text-[#FF9500] shrink-0" />
-          <span className="text-[12px] text-[#1D1D1F] font-light flex-1">
-            {t.moments_daily_limit_pro.replace('{n}', String(viewed))}
-          </span>
-        </div>
-      );
-    }
-    return null;
-  }
-  const pct = Math.min(100, (viewed / limit) * 100);
-  const hitLimit = viewed >= limit;
+/* Emotion pill → i18n label key lookup */
+const EMOTION_PILL_LABEL: Record<string, string> = {
+  reflecting: 'moments_emotion_reflecting',
+  praising: 'moments_emotion_praising',
+  criticizing: 'moments_emotion_criticizing',
+  questioning: 'moments_emotion_questioning',
+  celebrating: 'moments_emotion_celebrating',
+};
+
+/* ── Empty State ────────────────────────────────────────────── */
+function EmptyState({ t }: { t: Record<string, string> }) {
   return (
-    <div className={cn(
-      'mx-4 mt-2 px-3 py-2.5 rounded-xl flex items-center gap-2.5',
-      hitLimit ? 'bg-[#FFF7F0]' : 'bg-[#F5F5F7]',
-    )}>
-      <Lock size={14} strokeWidth={1.5} className={hitLimit ? 'text-[#FF9500]' : 'text-[#86868B]'} />
-      <div className="flex-1 min-w-0">
-        <div className="text-[12px] text-[#1D1D1F] font-light">
-          {t.moments_daily_limit.replace('{n}', String(viewed)).replace('{limit}', String(limit))}
-        </div>
-        <div className="mt-1 h-1 rounded-full bg-[rgba(0,0,0,0.06)] overflow-hidden">
-          <div
-            className={cn('h-full transition-all', hitLimit ? 'bg-[#FF9500]' : 'bg-[#0071E3]')}
-            style={{ width: `${pct}%` }}
-          />
-        </div>
+    <div className="flex flex-col items-center justify-center py-24 px-8 text-center">
+      <div className="w-[72px] h-[72px] rounded-full bg-[#F2F2F7] flex items-center justify-center mb-5">
+        <BookUser size={32} strokeWidth={1} className="text-[#AEAEB2]" />
       </div>
+      <p className="text-[15px] text-[#8E8E93] font-normal leading-relaxed max-w-[260px]">
+        {t.moments_empty}
+      </p>
+      <button
+        onClick={() => window.location.reload()}
+        className="mt-5 text-[14px] text-[#007AFF] font-normal flex items-center gap-1"
+      >
+        <RefreshCw size={14} strokeWidth={1.5} />
+        {t.retry || "Refresh"}
+      </button>
     </div>
   );
 }
 
-// ── Main Page ───────────────────────────────────────────────
+/* ── Main Page ──────────────────────────────────────────────── */
 export default function MomentsPage() {
   const router = useRouter();
   const { lang } = useLangStore() as { lang: Lang };
@@ -294,9 +353,9 @@ export default function MomentsPage() {
   const [data, setData] = useState<MomentListResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const pullStart = useRef<{ y: number; t: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  /* ── Data fetching ────────────────────────────────────── */
   const load = useCallback(async (showSpinner = true) => {
     if (showSpinner) setLoading(true);
     try {
@@ -312,10 +371,9 @@ export default function MomentsPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  // Mark read with optimistic update
+  /* ── Mark read (optimistic) ──────────────────────────── */
   const handleMarkRead = async (m: MomentOut) => {
     if (m.status !== 'unread') return;
-    // Optimistic
     setData((prev) => prev ? {
       ...prev,
       moments: prev.moments.map((x) => x.id === m.id ? { ...x, status: 'read' as const, read_at: new Date().toISOString() } : x),
@@ -325,18 +383,14 @@ export default function MomentsPage() {
     try {
       await api.markMomentRead(m.id);
     } catch (e: any) {
-      // Roll back on error
       if (e.status === 403) {
         toast(t.moments_limit_hit, 'error');
-        load(false);
-      } else {
-        toast(e.message || 'Failed', 'error');
-        load(false);
       }
+      load(false);
     }
   };
 
-  // Dismiss with optimistic update
+  /* ── Dismiss (optimistic) ────────────────────────────── */
   const handleDismiss = async (m: MomentOut) => {
     setData((prev) => prev ? {
       ...prev,
@@ -346,12 +400,9 @@ export default function MomentsPage() {
     try { await api.dismissMoment(m.id); } catch { /* no-op */ }
   };
 
-  // Open chat with persona (mark replied)
+  /* ── Open chat ────────────────────────────────────────── */
   const handleOpenChat = async (m: MomentOut) => {
-    try {
-      await api.momentToChat(m.id);
-    } catch { /* navigate anyway */ }
-    // Mark as read in the local state too
+    try { await api.momentToChat(m.id); } catch { /* navigate anyway */ }
     if (m.status === 'unread') {
       setData((prev) => prev ? {
         ...prev,
@@ -363,39 +414,23 @@ export default function MomentsPage() {
     router.push(`/chat/${m.persona_id}`);
   };
 
+  /* ── Open source link ─────────────────────────────────── */
   const handleOpenSource = (m: MomentOut) => {
     if (typeof window !== 'undefined') window.open(m.source_url, '_blank', 'noopener,noreferrer');
-    // Also mark as read in case user goes to read it
     if (m.status === 'unread') handleMarkRead(m);
   };
 
+  /* ── Story click → scroll to card ────────────────────── */
   const onStoryClick = (m: MomentOut) => {
-    // Scroll to the corresponding card and pulse highlight
     const el = document.getElementById(`moment-${m.id}`);
     if (el) {
       el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      el.classList.add('ring-2', 'ring-[#0071E3]');
-      setTimeout(() => el.classList.remove('ring-2', 'ring-[#0071E3]'), 1500);
+      el.classList.add('ring-2', 'ring-[#007AFF]/30', 'rounded-[14px]');
+      setTimeout(() => el.classList.remove('ring-2', 'ring-[#007AFF]/30', 'rounded-[14px]'), 1800);
     }
   };
 
-  // Pull-to-refresh (basic)
-  const onTouchStart = (e: React.TouchEvent) => {
-    if (containerRef.current && containerRef.current.scrollTop === 0) {
-      pullStart.current = { y: e.touches[0].clientY, t: Date.now() };
-    }
-  };
-  const onTouchEnd = async (e: React.TouchEvent) => {
-    if (!pullStart.current || !containerRef.current) return;
-    const dy = e.changedTouches[0].clientY - pullStart.current.y;
-    pullStart.current = null;
-    if (dy > 80 && containerRef.current.scrollTop === 0) {
-      setRefreshing(true);
-      await load(false);
-    }
-  };
-
-  // Group moments by day bucket for the feed
+  /* ── Group by day bucket ──────────────────────────────── */
   const groups: { label: string; items: MomentOut[] }[] = [];
   if (data?.moments) {
     for (const m of data.moments) {
@@ -410,40 +445,27 @@ export default function MomentsPage() {
   }
 
   return (
-    <div
-      ref={containerRef}
-      onTouchStart={onTouchStart}
-      onTouchEnd={onTouchEnd}
-      className="min-h-screen bg-[#FBFBFD] pb-20"
-      style={{ maxWidth: '100vw', overflowX: 'hidden' }}
-    >
+    <div ref={containerRef} className="min-h-screen bg-[#F2F2F7] pb-20" style={{ maxWidth: '100vw', overflowX: 'hidden' }}>
       <AppBar
         title={t.moments_title}
         right={
           <button
             onClick={() => { setRefreshing(true); load(false); }}
-            className="text-[#0071E3] p-1 active:scale-95 transition-transform"
+            className="w-8 h-8 flex items-center justify-center active:opacity-60 transition-opacity"
             aria-label="Refresh"
           >
-            <RefreshCw size={18} strokeWidth={1.5} className={refreshing ? 'animate-spin' : ''} />
+            <RefreshCw size={18} strokeWidth={1.5} className={cn('text-[#007AFF]', refreshing && 'animate-spin')} />
           </button>
         }
       />
 
       {loading && !data ? (
-        <div className="flex flex-col items-center justify-center py-20">
-          <div className="w-8 h-8 rounded-full border-2 border-[rgba(0,0,0,0.1)] border-t-[#0071E3] animate-spin mb-3" />
-          <p className="text-sm text-[#86868B] font-light">{t.loading}</p>
+        <div className="flex flex-col items-center justify-center py-24">
+          <div className="w-[18px] h-[18px] rounded-full border-[2.5px] border-[rgba(0,0,0,0.08)] border-t-[#007AFF] animate-spin mb-4" />
+          <p className="text-[13px] text-[#8E8E93] font-normal">{t.loading}</p>
         </div>
       ) : !data || data.moments.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 px-8 text-center">
-          <div className="w-16 h-16 rounded-full bg-[#F5F5F7] flex items-center justify-center mb-4">
-            <BookUser size={28} strokeWidth={1.5} className="text-[#86868B]" />
-          </div>
-          <p className="text-[15px] text-[#1D1D1F] font-light max-w-[280px]">
-            {t.moments_empty}
-          </p>
-        </div>
+        <EmptyState t={t} />
       ) : (
         <>
           <StoriesBar moments={data.moments} onClickMoment={onStoryClick} />
@@ -453,13 +475,14 @@ export default function MomentsPage() {
             isPaid={data.is_paid}
             t={t}
           />
+
           {groups.map((g, gi) => (
             <section key={gi}>
-              <h2 className="px-4 pt-4 pb-1 text-[11px] font-medium uppercase tracking-wider text-[#86868B]">
+              <h2 className="px-4 pt-4 pb-1.5 text-[11px] font-semibold text-[#8E8E93] uppercase tracking-[0.06em]">
                 {g.label}
               </h2>
               {g.items.map((m) => (
-                <div key={m.id} id={`moment-${m.id}`} className="rounded-2xl transition-all">
+                <div key={m.id} id={`moment-${m.id}`} className="transition-all">
                   <MomentCard
                     m={m}
                     t={t}
@@ -472,6 +495,7 @@ export default function MomentsPage() {
               ))}
             </section>
           ))}
+
           <div className="h-6" />
         </>
       )}
