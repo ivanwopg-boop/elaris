@@ -147,20 +147,27 @@ function MomentCard({
         </div>
       )}
 
-      {/* ── Source + social ──────────────────────── */}
-      <div className="px-4 pb-2.5">
-        <button onClick={onOpenSource} className="text-left w-full active:opacity-70 transition-opacity">
-          <p className="text-[12px] text-black/35 leading-[1.4] line-clamp-1">
-            {m.source_title}
-          </p>
-          <p className="text-[11px] text-black/25 mt-0.5">
-            ↗ {sourceHost(m.source_url)}
-          </p>
-        </button>
-        {discussion && (
-          <p className="text-[11px] text-[#576B95]/70 mt-1">{discussion}</p>
-        )}
-      </div>
+      {/* ── Article preview ───────────────────────── */}
+      <button onClick={onOpenSource}
+        className="block w-full text-left mx-4 mt-1 mb-2 rounded-lg bg-[#F5F6F8] active:bg-[#EEF0F3] transition-colors overflow-hidden"
+      >
+        <div className="px-3 py-2.5 flex items-start gap-3">
+          <div className="flex-1 min-w-0">
+            <p className="text-[13px] font-medium text-black/80 leading-[1.4] line-clamp-2">
+              {m.source_title}
+            </p>
+            <p className="text-[11px] text-black/30 mt-1">
+              {sourceHost(m.source_url)}
+            </p>
+          </div>
+          <span className="text-black/15 text-[18px] leading-none mt-0.5 shrink-0">→</span>
+        </div>
+      </button>
+
+      {/* ── Social proof ──────────────────────────── */}
+      {discussion && (
+        <p className="px-4 pb-2 text-[11px] text-[#576B95]/70">{discussion}</p>
+      )}
 
       {/* ── Chat ─────────────────────────────────── */}
       <footer className="border-t border-black/5">
