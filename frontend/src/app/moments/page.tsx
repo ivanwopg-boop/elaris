@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { ExternalLink, X, MessageCircle, RefreshCw, BookUser } from 'lucide-react';
+import { MessageCircle, RefreshCw, BookUser, ChevronRight } from 'lucide-react';
 import { api, MomentOut, MomentListResponse } from '@/lib/api';
 import { Avatar } from '@/components/Avatar';
 import TabBar from '@/components/TabBar';
@@ -41,134 +41,76 @@ function AppBar({ title, right }: { title: string; right?: React.ReactNode }) {
   );
 }
 
-/* ── Stories Bar ────────────────────────────────────────────
-   32px avatars (sm), tight gaps, 10px names → ~50px total height.
-   Clean, proportional, not Instagram-heavy.
-   ──────────────────────────────────────────────────────────── */
-function StoriesBar({ moments, onClickMoment }: { moments: MomentOut[]; onClickMoment: (m: MomentOut) => void }) {
-  const seen = new Set<string>(); const stories: MomentOut[] = [];
-  const sorted = [...moments].sort((a, b) => {
-    if (a.status === 'unread' && b.status !== 'unread') return -1;
-    if (b.status === 'unread' && a.status !== 'unread') return 1;
-    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-  });
-  for (const m of sorted) { if (seen.has(m.persona_id)) continue; seen.add(m.persona_id); stories.push(m); }
-  if (stories.length === 0) return null;
-
-  return (
-    <div className="px-4 py-2.5 border-b border-black/5 bg-white">
-      <div className="flex gap-4 overflow-x-auto scrollbar-hide">
-        {stories.map((m) => {
-          const isUnread = m.status === 'unread';
-          return (
-            <button key={`story-${m.id}`} onClick={() => onClickMoment(m)}
-              className="flex flex-col items-center gap-1 shrink-0 active:opacity-70 transition-opacity">
-              <div className="relative">
-                <div className={cn('rounded-full p-px', isUnread && 'ring-[1.5px] ring-black/20')}>
-                  <Avatar name={m.persona_name || '?'} url={m.persona_avatar_url} size="sm" className="border-0" />
-                </div>
-                {isUnread && (
-                  <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#FF3B30] ring-2 ring-white" />
-                )}
-              </div>
-              <span className={cn('text-[10px] max-w-[48px] truncate leading-tight',
-                isUnread ? 'text-black/80 font-medium' : 'text-black/40 font-normal')}>
-                {m.persona_name || '?'}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 /* ── Moment Card ────────────────────────────────────────────
-   Pure reading flow: comment → question → article context.
-   Article is a flat full-width block (no inner card).
+   Pure WeChat timeline. No gray-out, no stories bar, no
+   read/unread visual difference in content. The TabBar badge
+   is the only signal. Article is a compact link, not a block.
    ──────────────────────────────────────────────────────────── */
 function MomentCard({
-  m, t, onOpenChat, onDismiss, onOpenSource, onBecameVisible,
+  m, t, onOpenChat, onOpenSource, onBecameVisible,
 }: {
   m: MomentOut; t: Record<string, string>;
-  onOpenChat: () => void; onDismiss: () => void;
-  onOpenSource: () => void; onBecameVisible: () => void;
+  onOpenChat: () => void; onOpenSource: () => void;
+  onBecameVisible: () => void;
 }) {
   const ref = useRef<HTMLElement>(null);
   const hasFired = useRef(false);
-  const isUnread = m.status === 'unread';
 
   useEffect(() => {
-    if (!isUnread || hasFired.current || !ref.current) return;
+    if (m.status !== 'unread' || hasFired.current || !ref.current) return;
     const el = ref.current;
     const obs = new IntersectionObserver(([e]) => {
-      if (e.isIntersecting && e.intersectionRatio >= 0.6) {
+      if (e.isIntersecting && e.intersectionRatio >= 0.5) {
         const t = setTimeout(() => { if (!hasFired.current) { hasFired.current = true; onBecameVisible(); } }, 1500);
         obs.disconnect(); return () => clearTimeout(t);
       }
-    }, { threshold: [0.6] });
+    }, { threshold: [0.5] });
     obs.observe(el); return () => obs.disconnect();
-  }, [isUnread, onBecameVisible]);
+  }, [m.status, onBecameVisible]);
 
   return (
-    <article ref={ref}
-      className={cn(
-        'mx-4 my-2 rounded-xl bg-white transition-colors',
-        isUnread ? 'border border-black/8' : 'border border-black/5 bg-white/80',
-      )}
-    >
-      {/* ── Header ───────────────────────────────── */}
+    <article ref={ref} className="mx-4 my-2 bg-white rounded-xl border border-black/5">
+      {/* ── Header ────────────────────────────────── */}
       <header className="flex items-center gap-3 px-4 pt-4 pb-1">
         <Avatar name={m.persona_name || '?'} url={m.persona_avatar_url} size="sm" />
-        <div className="flex-1 min-w-0 flex items-baseline gap-2">
+        <div className="flex-1 min-w-0">
           <h3 className="text-[15px] font-semibold text-[#576B95] truncate">{m.persona_name}</h3>
         </div>
-        <span className="text-[12px] text-black/30 font-normal shrink-0">{timeAgo(m.created_at)}</span>
-        {isUnread && <span className="w-[7px] h-[7px] rounded-full bg-[#FF3B30] shrink-0 ml-1" />}
+        <span className="text-[12px] text-black/25 shrink-0">{timeAgo(m.created_at)}</span>
       </header>
 
-      {/* ── Comment ──────────────────────────────── */}
-      <div className="px-4 pt-1 pb-0.5">
-        <p className={cn('text-[16px] leading-[1.6]', isUnread ? 'text-black/85' : 'text-black/50')}>
+      {/* ── Comment ───────────────────────────────── */}
+      <div className="px-4 pt-1 pb-2">
+        <p className="text-[16px] leading-[1.6] text-black/85 break-words">
           {m.persona_comment}
         </p>
         {m.hook_question && (
-          <p className={cn('mt-2.5 text-[15px] leading-[1.55]', isUnread ? 'text-[#576B95]' : 'text-[#8BA3C7]')}>
+          <p className="mt-2 text-[15px] leading-[1.55] text-[#576B95]">
             {m.hook_question}
           </p>
         )}
       </div>
 
-      {/* ── Article context ─────────────────────────
-           Flat, full-width block. No inner rounded corners.
-           Left accent border + subtle tint. Not a card.
-      ──────────────────────────────────────────────── */}
+      {/* ── Article source ────────────────────────── */}
       <button onClick={onOpenSource}
-        className="block w-full text-left mt-3 border-t border-black/5 bg-[#F7F8FA] active:bg-[#EEF0F3] transition-colors"
-      >
-        <div className="pl-4 pr-4 py-2.5 border-l-[3px] border-black/10">
-          <p className="text-[13px] text-black/70 font-normal leading-[1.45] line-clamp-2">
-            {m.source_title}
-          </p>
-          <p className="text-[11px] text-black/30 font-normal mt-1 flex items-center gap-1">
-            <ExternalLink size={10} strokeWidth={1.5} className="shrink-0" />
-            {sourceHost(m.source_url)}
-          </p>
+        className="block w-full px-4 pb-3 active:opacity-70 transition-opacity">
+        <div className="flex items-start gap-1.5">
+          <ChevronRight size={14} strokeWidth={1.5} className="text-black/20 mt-0.5 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-[13px] text-black/50 font-normal leading-[1.4] line-clamp-1">
+              {m.source_title}
+            </p>
+            <p className="text-[11px] text-black/25 mt-0.5">{sourceHost(m.source_url)}</p>
+          </div>
         </div>
       </button>
 
-      {/* ── Actions ───────────────────────────────── */}
-      <footer className="flex items-center border-t border-black/5">
+      {/* ── Chat ──────────────────────────────────── */}
+      <footer className="border-t border-black/5">
         <button onClick={onOpenChat}
-          className="flex-1 flex items-center justify-center gap-1.5 h-10 text-[13px] text-[#576B95] font-normal active:bg-black/[0.02] rounded-bl-xl transition-colors">
+          className="w-full h-10 flex items-center justify-center gap-2 text-[13px] text-[#576B95] font-normal active:bg-black/[0.02] rounded-b-xl transition-colors">
           <MessageCircle size={15} strokeWidth={1.5} />
           {t.moments_open_chat}
-        </button>
-        <div className="w-px h-4 bg-black/5" />
-        <button onClick={onDismiss}
-          className="flex-1 flex items-center justify-center gap-1.5 h-10 text-[13px] text-black/30 font-normal active:bg-black/[0.02] rounded-br-xl transition-colors">
-          <X size={15} strokeWidth={1.5} />
-          {t.moments_dismiss}
         </button>
       </footer>
     </article>
@@ -217,14 +159,6 @@ export default function MomentsPage() {
     } : prev);
     try { await api.markMomentRead(m.id); } catch {}
   };
-  const handleDismiss = async (m: MomentOut) => {
-    setData((prev) => prev ? {
-      ...prev,
-      moments: prev.moments.filter((x) => x.id !== m.id),
-      unread_count: m.status === 'unread' ? Math.max(0, prev.unread_count - 1) : prev.unread_count,
-    } : prev);
-    try { await api.dismissMoment(m.id); } catch {}
-  };
   const handleOpenChat = async (m: MomentOut) => {
     try { await api.momentToChat(m.id); } catch {}
     if (m.status === 'unread') {
@@ -238,9 +172,6 @@ export default function MomentsPage() {
   };
   const handleOpenSource = (m: MomentOut) => {
     if (typeof window !== 'undefined') window.open(m.source_url, '_blank', 'noopener,noreferrer');
-  };
-  const onStoryClick = (m: MomentOut) => {
-    document.getElementById(`moment-${m.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   };
 
   const groups: { label: string; items: MomentOut[] }[] = [];
@@ -271,15 +202,15 @@ export default function MomentsPage() {
         <EmptyState t={t} />
       ) : (
         <>
-          <StoriesBar moments={data.moments} onClickMoment={onStoryClick} />
           {groups.map((g, gi) => (
             <section key={gi}>
-              <h2 className="px-4 pt-5 pb-2 text-[11px] font-semibold text-black/30 uppercase tracking-[0.06em]">{g.label}</h2>
+              <h2 className="px-4 pt-5 pb-2 text-[11px] font-semibold text-black/25 uppercase tracking-[0.06em]">
+                {g.label}
+              </h2>
               {g.items.map((m) => (
-                <div key={m.id} id={`moment-${m.id}`}>
+                <div key={m.id}>
                   <MomentCard m={m} t={t}
                     onOpenChat={() => handleOpenChat(m)}
-                    onDismiss={() => handleDismiss(m)}
                     onOpenSource={() => handleOpenSource(m)}
                     onBecameVisible={() => handleBecameVisible(m)}
                   />
