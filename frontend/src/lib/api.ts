@@ -245,6 +245,18 @@ export const api = {
   deleteGroupChat: (id: string) => api.request<void>(`/group-chat/${id}`, { method: "DELETE" }),
   deleteConversation: (id: string) => api.request<void>("/conversations/" + id, { method: "DELETE" }),
 
+  // Momentum (Persona Moments — 分身朋友圈)
+  listMoments: (limit: number = 50) =>
+    api.request<MomentListResponse>(`/momentum/moments?limit=${limit}`),
+  markMomentRead: (id: string) =>
+    api.request<MomentOut>(`/momentum/moments/${id}/read`, { method: "POST" }),
+  dismissMoment: (id: string) =>
+    api.request<void>(`/momentum/moments/${id}/dismiss`, { method: "POST" }),
+  momentToChat: (id: string) =>
+    api.request<MomentChatContext>(`/momentum/moments/${id}/chat`, { method: "POST" }),
+  getMomentsUnreadCount: () =>
+    api.request<{ unread_count: number }>("/momentum/moments/unread-count"),
+
   invitePersona: (chatId: string, personaId: string) =>
     api.request<{ ok: boolean; persona_name: string }>(`/group-chat/${chatId}/invite`, {
       method: "POST", body: JSON.stringify({ persona_id: personaId }),
@@ -419,3 +431,40 @@ export type BrainstormSSEEvent =
   | { type: "summary"; text: string }
   | { type: "done" }
   | { type: "error"; message: string };
+
+// ── Momentum types ─────────────────────────────────────
+export interface MomentChatContext {
+  persona_id: string;
+  context_title: string;
+  context_url: string;
+  persona_comment: string;
+  hook_question: string | null;
+}
+
+export interface MomentOut {
+  id: string;
+  persona_id: string;
+  persona_name: string | null;
+  persona_avatar_url: string | null;
+  watch_topic_id: string | null;
+  watch_topic: string | null;
+  source_url: string;
+  source_title: string;
+  source_published_at: string | null;
+  source_lang: string;
+  persona_comment: string;
+  emotion: string | null;
+  hook_question: string | null;
+  status: "unread" | "read" | "dismissed" | "replied" | "expired";
+  created_at: string;
+  read_at: string | null;
+  expires_at: string;
+}
+
+export interface MomentListResponse {
+  moments: MomentOut[];
+  unread_count: number;
+  daily_viewed_count: number;
+  daily_viewed_limit: number | null;
+  is_paid: boolean;
+}

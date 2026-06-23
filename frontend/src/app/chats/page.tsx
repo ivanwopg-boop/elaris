@@ -519,6 +519,21 @@ function ChatsContent() {
   const t = translations[lang];
   const initialTab = (searchParams.get('tab') as TabKey) || 'chat';
   const [activeTab, setActiveTab] = useState<TabKey>(initialTab);
+  // Fetch moments unread count for the TabBar red dot (refreshed every 60s)
+  const [momentsUnread, setMomentsUnread] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    const fetchUnread = async () => {
+      try {
+        const r = await api.getMomentsUnreadCount();
+        if (!cancelled) setMomentsUnread(r.unread_count || 0);
+      } catch { /* silent */ }
+    };
+    fetchUnread();
+    const id = setInterval(fetchUnread, 60000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, []);
+
   // Remember scroll position per tab so switching doesn't reset to top.
   const mainRef = useRef<HTMLDivElement | null>(null);
   const scrollPositions = useRef<Record<string, number>>({});
@@ -685,7 +700,17 @@ function ChatsContent() {
         </div>
       )}
 
-      <TabBar active={activeTab} onTabChange={(tab) => setActiveTab(tab as TabKey)} />
+      <TabBar
+        active={activeTab}
+        unreadCount={momentsUnread}
+        onTabChange={(tab) => {
+          if (tab === 'moments') {
+            router.push('/moments');
+            return;
+          }
+          setActiveTab(tab as TabKey);
+        }}
+      />
     </div>
   );
 }
