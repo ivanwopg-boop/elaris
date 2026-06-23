@@ -125,18 +125,18 @@ function MomentCard({
       {/* ── Body ─────────────────────────────────── */}
 
       {hasHook ? (
-        /* Hook-driven: hook is the hero, comment is a footnote */
+        /* Hook is the opener, comment is the full story */
         <>
-          <div className="px-4 pt-1 pb-0.5">
+          <div className="px-4 pt-1 pb-1">
             <p className="text-[17px] font-semibold leading-[1.45] text-black/90">
               {m.hook_question}
             </p>
           </div>
-          <button onClick={onOpenSource} className="block w-full px-4 pb-1.5 active:opacity-70 transition-opacity">
-            <p className="text-[13px] leading-[1.5] text-black/40 line-clamp-2">
+          <div className="px-4 pb-1.5">
+            <p className="text-[15px] leading-[1.55] text-black/65">
               {m.persona_comment}
             </p>
-          </button>
+          </div>
         </>
       ) : (
         /* Comment-driven: comment is the hero */
