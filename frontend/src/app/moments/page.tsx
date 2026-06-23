@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { MessageCircle, RefreshCw, BookUser, ChevronRight } from 'lucide-react';
+import { MessageCircle, RefreshCw, BookUser } from 'lucide-react';
 import { api, MomentOut, MomentListResponse } from '@/lib/api';
 import { Avatar } from '@/components/Avatar';
 import TabBar from '@/components/TabBar';
@@ -10,12 +10,15 @@ import { useLangStore, translations, type Lang } from '@/lib/i18n';
 import { useToast } from '@/components/Toast';
 import { cn } from '@/lib/utils';
 
-/* ── Helpers ──────────────────────────────────────────────── */
+/* ── Helpers ──────────────────────────────────────────── */
 function timeAgo(iso: string): string {
-  const d = new Date(iso); const mins = Math.floor((Date.now() - d.getTime()) / 60000);
-  if (mins < 1) return 'now'; if (mins < 60) return `${mins}m`;
-  const hrs = Math.floor(mins / 60); if (hrs < 24) return `${hrs}h`;
-  return `${Math.floor(hrs / 24)}d`;
+  const d = new Date(iso); const m = Math.floor((Date.now() - d.getTime()) / 60000);
+  if (m < 1) return 'now'; if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60); if (h < 24) return `${h}h`;
+  return `${Math.floor(h / 24)}d`;
+}
+function sourceHost(url: string): string {
+  try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return ''; }
 }
 function dayBucket(iso: string, t: Record<string, string>): string {
   const d = new Date(iso), now = new Date();
@@ -25,11 +28,55 @@ function dayBucket(iso: string, t: Record<string, string>): string {
   if (diff === 0) return t.moments_today; if (diff === 1) return t.moments_yesterday;
   if (diff < 7) return t.moments_this_week; return t.moments_earlier;
 }
-function sourceHost(url: string): string {
-  try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return ''; }
+
+/* ── Interleave: round-robin by persona ──────────────── */
+function interleaveMoments(moments: MomentOut[]): MomentOut[] {
+  const groups = new Map<string, MomentOut[]>();
+  for (const m of moments) {
+    const g = groups.get(m.persona_id) || [];
+    g.push(m); groups.set(m.persona_id, g);
+  }
+  for (const [, g] of groups) g.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  const sorted = [...groups.entries()].sort(([,a], [,b]) =>
+    new Date(b[0].created_at).getTime() - new Date(a[0].created_at).getTime()
+  );
+  const result: MomentOut[] = [];
+  const indices = new Map<string, number>();
+  for (const [pid] of sorted) indices.set(pid, 0);
+  while (true) {
+    let added = false;
+    for (const [pid, items] of sorted) {
+      const i = indices.get(pid)!;
+      if (i >= items.length) continue;
+      result.push(items[i]);
+      indices.set(pid, i + 1);
+      added = true;
+    }
+    if (!added) break;
+  }
+  return result;
 }
 
-/* ── App Bar ──────────────────────────────────────────────── */
+/* ── Social proof: same-article discussion ────────────── */
+function buildDiscussionMap(moments: MomentOut[]): Map<string, { count: number; names: string[]; url: string }> {
+  const map = new Map<string, { pids: Set<string>; names: Map<string, string> }>();
+  for (const m of moments) {
+    const key = m.source_url;
+    const entry = map.get(key) || { pids: new Set(), names: new Map() };
+    entry.pids.add(m.persona_id);
+    entry.names.set(m.persona_id, m.persona_name || '?');
+    map.set(key, entry);
+  }
+  const out = new Map<string, { count: number; names: string[]; url: string }>();
+  for (const [url, entry] of map) {
+    if (entry.pids.size > 1) {
+      out.set(url, { count: entry.pids.size, names: [...entry.names.values()].slice(0, 3), url });
+    }
+  }
+  return out;
+}
+
+/* ── App Bar ──────────────────────────────────────────── */
 function AppBar({ title, right }: { title: string; right?: React.ReactNode }) {
   return (
     <header className="sticky top-0 z-40 bg-[#EDEDED]/95 backdrop-blur-xl border-b border-black/5">
@@ -41,36 +88,32 @@ function AppBar({ title, right }: { title: string; right?: React.ReactNode }) {
   );
 }
 
-/* ── Moment Card ────────────────────────────────────────────
-   Pure WeChat timeline. No gray-out, no stories bar, no
-   read/unread visual difference in content. The TabBar badge
-   is the only signal. Article is a compact link, not a block.
-   ──────────────────────────────────────────────────────────── */
+/* ── Moment Card — hook-first ─────────────────────────── */
 function MomentCard({
-  m, t, onOpenChat, onOpenSource, onBecameVisible,
+  m, t, discussion, onOpenChat, onOpenSource, onBecameVisible,
 }: {
-  m: MomentOut; t: Record<string, string>;
-  onOpenChat: () => void; onOpenSource: () => void;
-  onBecameVisible: () => void;
+  m: MomentOut; t: Record<string, string>; discussion: string | null;
+  onOpenChat: () => void; onOpenSource: () => void; onBecameVisible: () => void;
 }) {
   const ref = useRef<HTMLElement>(null);
   const hasFired = useRef(false);
 
   useEffect(() => {
     if (m.status !== 'unread' || hasFired.current || !ref.current) return;
-    const el = ref.current;
     const obs = new IntersectionObserver(([e]) => {
       if (e.isIntersecting && e.intersectionRatio >= 0.5) {
         const t = setTimeout(() => { if (!hasFired.current) { hasFired.current = true; onBecameVisible(); } }, 1500);
         obs.disconnect(); return () => clearTimeout(t);
       }
     }, { threshold: [0.5] });
-    obs.observe(el); return () => obs.disconnect();
+    obs.observe(ref.current!); return () => obs.disconnect();
   }, [m.status, onBecameVisible]);
 
+  const hasHook = !!m.hook_question;
+
   return (
-    <article ref={ref} className="mx-4 my-2 bg-white rounded-xl border border-black/5">
-      {/* ── Header ────────────────────────────────── */}
+    <article ref={ref} className="mx-4 my-2 bg-white rounded-xl border border-black/5 overflow-hidden">
+      {/* ── Header ──────────────────────────────── */}
       <header className="flex items-center gap-3 px-4 pt-4 pb-1">
         <Avatar name={m.persona_name || '?'} url={m.persona_avatar_url} size="sm" />
         <div className="flex-1 min-w-0">
@@ -79,36 +122,45 @@ function MomentCard({
         <span className="text-[12px] text-black/25 shrink-0">{timeAgo(m.created_at)}</span>
       </header>
 
-      {/* ── Comment ───────────────────────────────── */}
-      <div className="px-4 pt-1 pb-2">
-        <p className="text-[16px] leading-[1.6] text-black/85 break-words">
-          {m.persona_comment}
-        </p>
-        {m.hook_question && (
-          <p className="mt-2 text-[15px] leading-[1.55] text-[#576B95]">
-            {m.hook_question}
+      {/* ── Body ─────────────────────────────────── */}
+
+      {hasHook ? (
+        /* Hook-driven: hook is the hero, comment is a footnote */
+        <>
+          <div className="px-4 pt-1 pb-0.5">
+            <p className="text-[17px] font-semibold leading-[1.45] text-black/90">
+              {m.hook_question}
+            </p>
+          </div>
+          <button onClick={onOpenSource} className="block w-full px-4 pb-1.5 active:opacity-70 transition-opacity">
+            <p className="text-[13px] leading-[1.5] text-black/40 line-clamp-2">
+              {m.persona_comment}
+            </p>
+          </button>
+        </>
+      ) : (
+        /* Comment-driven: comment is the hero */
+        <div className="px-4 pt-1 pb-1.5">
+          <p className="text-[16px] leading-[1.6] text-black/80 break-words">
+            {m.persona_comment}
           </p>
+        </div>
+      )}
+
+      {/* ── Source + social ──────────────────────── */}
+      <div className="px-4 pb-2 flex items-center gap-2">
+        <button onClick={onOpenSource} className="text-[11px] text-black/25 truncate active:opacity-60">
+          ↗ {sourceHost(m.source_url)}
+        </button>
+        {discussion && (
+          <span className="text-[11px] text-[#576B95]/70 truncate">{discussion}</span>
         )}
       </div>
 
-      {/* ── Article source ────────────────────────── */}
-      <button onClick={onOpenSource}
-        className="block w-full px-4 pb-3 active:opacity-70 transition-opacity">
-        <div className="flex items-start gap-1.5">
-          <ChevronRight size={14} strokeWidth={1.5} className="text-black/20 mt-0.5 shrink-0" />
-          <div className="flex-1 min-w-0">
-            <p className="text-[13px] text-black/50 font-normal leading-[1.4] line-clamp-1">
-              {m.source_title}
-            </p>
-            <p className="text-[11px] text-black/25 mt-0.5">{sourceHost(m.source_url)}</p>
-          </div>
-        </div>
-      </button>
-
-      {/* ── Chat ──────────────────────────────────── */}
+      {/* ── Chat ─────────────────────────────────── */}
       <footer className="border-t border-black/5">
         <button onClick={onOpenChat}
-          className="w-full h-10 flex items-center justify-center gap-2 text-[13px] text-[#576B95] font-normal active:bg-black/[0.02] rounded-b-xl transition-colors">
+          className="w-full h-11 flex items-center justify-center gap-2 text-[13px] text-[#576B95] font-normal active:bg-black/[0.02] rounded-b-xl transition-colors">
           <MessageCircle size={15} strokeWidth={1.5} />
           {t.moments_open_chat}
         </button>
@@ -117,23 +169,19 @@ function MomentCard({
   );
 }
 
-/* ── Empty ────────────────────────────────────────────────── */
+/* ── Empty ──────────────────────────────────────────── */
 function EmptyState({ t }: { t: Record<string, string> }) {
   return (
     <div className="flex flex-col items-center justify-center py-24 px-8 text-center">
       <div className="w-[72px] h-[72px] rounded-full bg-black/[0.03] flex items-center justify-center mb-5">
         <BookUser size={32} strokeWidth={1} className="text-black/30" />
       </div>
-      <p className="text-[15px] text-black/50 font-normal leading-relaxed max-w-[260px]">{t.moments_empty}</p>
-      <button onClick={() => window.location.reload()}
-        className="mt-5 text-[14px] text-[#576B95] font-normal flex items-center gap-1">
-        <RefreshCw size={14} strokeWidth={1.5} />{t.retry || 'Refresh'}
-      </button>
+      <p className="text-[15px] text-black/50 font-normal max-w-[260px]">{t.moments_empty}</p>
     </div>
   );
 }
 
-/* ── Page ─────────────────────────────────────────────────── */
+/* ── Page ───────────────────────────────────────────── */
 export default function MomentsPage() {
   const router = useRouter();
   const { lang } = useLangStore() as { lang: Lang };
@@ -148,9 +196,15 @@ export default function MomentsPage() {
     try { const res = await api.listMoments(100, lang); setData(res); }
     catch (e: any) { toast(e.message || 'Failed', 'error'); }
     finally { setLoading(false); setRefreshing(false); }
-  }, [toast]);
+  }, [toast, lang]);
   useEffect(() => { load(); }, [load]);
 
+  /* ── Interleaved + discussion map ───── */
+  const moments = data?.moments || [];
+  const interleaved = useMemo(() => interleaveMoments(moments), [moments]);
+  const discussionMap = useMemo(() => buildDiscussionMap(moments), [moments]);
+
+  /* ── Handlers ───────────────────────── */
   const handleBecameVisible = async (m: MomentOut) => {
     setData((prev) => prev ? {
       ...prev,
@@ -174,14 +228,13 @@ export default function MomentsPage() {
     if (typeof window !== 'undefined') window.open(m.source_url, '_blank', 'noopener,noreferrer');
   };
 
+  /* ── Group by day ────────────────────── */
   const groups: { label: string; items: MomentOut[] }[] = [];
-  if (data?.moments) {
-    for (const m of data.moments) {
-      const label = dayBucket(m.created_at, t);
-      const last = groups[groups.length - 1];
-      if (last && last.label === label) last.items.push(m);
-      else groups.push({ label, items: [m] });
-    }
+  for (const m of interleaved) {
+    const label = dayBucket(m.created_at, t);
+    const last = groups[groups.length - 1];
+    if (last && last.label === label) last.items.push(m);
+    else groups.push({ label, items: [m] });
   }
 
   return (
@@ -198,7 +251,7 @@ export default function MomentsPage() {
           <div className="w-[18px] h-[18px] rounded-full border-[2.5px] border-black/[0.06] border-t-[#576B95] animate-spin mb-4" />
           <p className="text-[13px] text-black/50">{t.loading}</p>
         </div>
-      ) : !data || data.moments.length === 0 ? (
+      ) : !data || interleaved.length === 0 ? (
         <EmptyState t={t} />
       ) : (
         <>
@@ -207,15 +260,21 @@ export default function MomentsPage() {
               <h2 className="px-4 pt-5 pb-2 text-[11px] font-semibold text-black/25 uppercase tracking-[0.06em]">
                 {g.label}
               </h2>
-              {g.items.map((m) => (
-                <div key={m.id}>
-                  <MomentCard m={m} t={t}
-                    onOpenChat={() => handleOpenChat(m)}
-                    onOpenSource={() => handleOpenSource(m)}
-                    onBecameVisible={() => handleBecameVisible(m)}
-                  />
-                </div>
-              ))}
+              {g.items.map((m) => {
+                const disc = discussionMap.get(m.source_url);
+                const discLabel = disc
+                  ? `${disc.names.filter((n: string) => n !== m.persona_name).join('、')} 也在关注`
+                  : null;
+                return (
+                  <div key={m.id}>
+                    <MomentCard m={m} t={t} discussion={discLabel}
+                      onOpenChat={() => handleOpenChat(m)}
+                      onOpenSource={() => handleOpenSource(m)}
+                      onBecameVisible={() => handleBecameVisible(m)}
+                    />
+                  </div>
+                );
+              })}
             </section>
           ))}
           <div className="h-6" />
