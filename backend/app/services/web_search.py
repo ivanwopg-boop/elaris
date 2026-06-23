@@ -1,8 +1,16 @@
-"""Elaris Search Pipeline: SearXNG (primary) + Obscura browser (fallback).
+"""Elaris Search Pipeline: SearXNG (primary) + Obscura browser (fallback) + NewsNow (news).
 
 2026-06-16 final: Two-layer architecture.
   Layer 1 — SearXNG (bing+sogou+360+so, 0.4s): handles 90%+ of queries.
   Layer 2 — Obscura (Sogou→Baidu, ~7-10s): kicks in when SearXNG returns 0.
+
+2026-06-23 add: Layer 3 — NewsNow (real-time hot news aggregation, ~0.3s).
+  Kicks in only for time-sensitive queries and when Layers 1+2 returned 0.
+  NewsNow aggregates 30+ sources (HackerNews, ProductHunt, 36氪, 知乎, 微博,
+  IT之家, 抖音, GitHub Trending, V2EX, 金十数据, etc.) — perfect for distilling
+  fresh persona context or feeding the Momentum news stream.
+  Powered by busiyi's public instance: https://newsnow.busiyi.world/
+  Cloudflare-fronted — needs real browser UA headers to bypass bot shield.
 
 Why this shape:
   - SearXNG is fast and reliable for English and general Chinese queries,
@@ -11,7 +19,11 @@ Why this shape:
     can't, but CAPTCHA/antispider limits it to ~10-20 queries per engine
     before blocking.  Using it only as a fallback keeps volume low enough
     that engines don't blacklist the IP.
+  - NewsNow doesn't index the open web — it ONLY returns what's currently
+    trending across curated sources.  Wrong tool for factual lookup, perfect
+    tool for "what's happening right now that this persona would care about".
   - Together: SearXNG covers the fast path.  Obscura fills the blind spots.
+    NewsNow adds the time-axis that neither can deliver.
 """
 
 import asyncio
@@ -205,7 +217,9 @@ async def _obscura_search(query: str) -> list[dict]:
 # ── Unified search (Layer 1 → Layer 2) ────────────────────────
 
 async def _search_one(query: str, time_range: str = "", categories: str = "") -> list[dict]:
-    """SearXNG first; if empty or results don't match query keywords, fall back to Obscura."""
+    """SearXNG first; if empty or results don't match query keywords, fall back to Obscura;
+    for time-sensitive queries with no web hits, also try NewsNow hot-list as last resort.
+    """
     results = await _searxng_search(query, time_range=time_range, categories=categories)
     if results:
         # Relevance check: if user asked about a specific topic (e.g. 南京演唱会)
@@ -238,7 +252,19 @@ async def _search_one(query: str, time_range: str = "", categories: str = "") ->
                     return await _obscura_search(query) + results
         return results
     logger.info(f"[FALLBACK] SearXNG empty for '{query[:50]}', trying Obscura")
-    return await _obscura_search(query)
+    obs = await _obscura_search(query)
+    if obs:
+        return obs
+    # Layer 3: NewsNow hot-list for time-sensitive queries that fell through.
+    # NewsNow is a trending-news aggregator, not a web index — it won't help for
+    # factual questions, but for "what's happening with X right now" it's the only
+    # signal we have when both SearXNG and Obscura returned nothing.
+    if _is_time_sensitive(query):
+        nn = await _newsnow_search(query, count=5, strict_filter=False)
+        if nn:
+            logger.info(f"[FALLBACK] NewsNow hot-list rescued {len(nn)} items for '{query[:50]}'")
+            return nn
+    return []  # Truly empty — accept defeat rather than hallucinate
 
 
 # ── Time-sensitive heuristic ───────────────────────────────────
@@ -366,3 +392,223 @@ async def ensure_web_search_results(persona_id: str, db) -> None:
             )
             db.add(ws_obj)
     await db.commit()
+
+# ── NewsNow (Layer 3) ─────────────────────────────────────────
+# Real-time hot news aggregation. 30+ sources (HackerNews, ProductHunt,
+# 36氪, 知乎, 微博, IT之家, V2EX, 金十数据, GitHub Trending, etc.).
+# API: GET {BASE_URL}/api/s?id={source}&n={count}
+# Response: {"status": "success|cache", "id": str, "updatedTime": ms,
+#            "items": [{"url": str, "title": str, "id": str, "extra": {"info": "1209 points"}}]}
+# Cloudflare-fronted: requires real browser UA headers to bypass bot shield.
+# Powered by busiyi's public instance: https://newsnow.busiyi.world/
+
+import httpx
+
+NEWSNOW_URL = "https://newsnow.busiyi.world/api/s"
+NEWSNOW_TIMEOUT = 8.0
+NEWSNOW_BROWSER_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+    "Accept": "application/json, text/plain, */*",
+    "Accept-Language": "en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7",
+    "Referer": "https://newsnow.busiyi.world/",
+    "Origin": "https://newsnow.busiyi.world",
+}
+
+# Curated source IDs we know work. Used by _newsnow_search(query) and
+# momentum_service for hot-news feed. Format: list of (source_id, human_label).
+NEWSNOW_SOURCES = [
+    # English tech
+    ("hackernews", "Hacker News"),
+    ("producthunt", "Product Hunt"),
+    ("github-trending-today", "GitHub Trending"),
+    # Chinese tech
+    ("36kr", "36氪"),
+    ("ithome", "IT之家"),
+    ("juejin", "掘金"),
+    ("coolapk", "酷安"),
+    ("pcbeta", "远景论坛"),
+    # Chinese general news
+    ("weibo", "微博热搜"),
+    ("zhihu", "知乎热榜"),
+    ("baidu", "百度热搜"),
+    ("tencent-hot", "今日头条"),
+    ("cls-telegraph", "凤凰网"),
+    ("cls-hot", "澎湃新闻"),
+    ("cankaoxiaoxi", "参考消息"),
+    ("kaopu", "靠谱新闻"),
+    ("fastbull", "FastBull"),
+    ("jin10", "金十数据"),
+    ("gelonghui", "格隆汇"),
+    ("zaobao", "联合早报"),
+    ("chongbuluo", "虫部落"),
+    # Communities
+    ("v2ex-share", "V2EX"),
+    ("linuxdo", "Linux.do"),
+    ("nowcoder", "牛客"),
+    ("hupu", "虎扑"),
+    ("douban", "豆瓣"),
+    # Entertainment / video
+    ("douyin", "抖音"),
+    ("bilibili-hot-search", "B站"),
+    ("kuaishou", "快手"),
+]
+
+
+async def _newsnow_source(source_id: str, count: int = 10) -> list[dict]:
+    """Fetch hot news from a single NewsNow source. Returns list of {url, title, score, source, snippet}."""
+    try:
+        async with httpx.AsyncClient(timeout=NEWSNOW_TIMEOUT, follow_redirects=True) as client:
+            r = await client.get(
+                NEWSNOW_URL,
+                params={"id": source_id, "n": count},
+                headers=NEWSNOW_BROWSER_HEADERS,
+            )
+            if r.status_code != 200:
+                logger.info(f"[NEWSNOW] {source_id} HTTP {r.status_code}")
+                return []
+            data = r.json()
+    except Exception as e:
+        logger.info(f"[NEWSNOW] {source_id} error: {type(e).__name__}: {e}")
+        return []
+
+    items = data.get("items", [])
+    out = []
+    for it in items[:count]:
+        url = it.get("url", "")
+        title = (it.get("title") or "").strip()
+        if not url or not title:
+            continue
+        extra = it.get("extra") or {}
+        score = extra.get("info", "")
+        out.append({
+            "url": url,
+            "title": title,
+            "score": score,
+            "source": f"newsnow:{source_id}",
+            "snippet": score,
+        })
+    return out
+
+
+async def _newsnow_search(query: str, count: int = 5, strict_filter: bool = False) -> list[dict]:
+    """Search NewsNow for hot news matching query keywords.
+
+    Strategy: pick 2-3 sources by language heuristic, fetch each, then
+    substring-filter titles by query keywords. Returns merged+deduped list.
+
+    Why this approach: NewsNow is a hot-list API, not a search API. It has
+    no full-text query. So we cast a wide net (a few sources), then filter
+    the results client-side against query keywords. Heuristic but effective
+    for "whats happening with X right now" type queries.
+
+    Args:
+      query: search query (e.g. "Elon Musk news today", "马斯克 最新")
+      count: max results to return
+      strict_filter: if True, require ALL keywords in title; if False (default),
+        require ANY keyword in title. Looser is better for distilling personas
+        where ambient hot-context is useful even if it doesn't name them.
+    """
+    has_cjk = any('\u4e00' <= ch <= '\u9fff' for ch in query)
+    if has_cjk:
+        source_ids = ["weibo", "baidu", "zhihu", "tencent-hot", "ithome", "36kr"]
+    else:
+        source_ids = ["hackernews", "producthunt", "github-trending-today"]
+
+    import re as _re
+    if has_cjk:
+        all_kw = _re.findall(r"[\u4e00-\u9fff]{2,}", query)
+        keywords = all_kw[1:] if len(all_kw) > 1 else all_kw
+        keywords = [k for k in keywords if len(k) >= 2][:6]
+    else:
+        stop = {"what", "is", "the", "a", "an", "in", "on", "for", "of",
+                "to", "with", "how", "why", "when", "about", "did", "do",
+                "does", "are", "was", "were"}
+        keywords = [w.lower() for w in _re.findall(r"[a-zA-Z]{3,}", query)
+                    if w.lower() not in stop][:6]
+
+    if not keywords:
+        keywords = []
+
+    tasks = [_newsnow_source(sid, count=15) for sid in source_ids]
+    raw = await asyncio.gather(*tasks, return_exceptions=True)
+
+    merged = []
+    seen_titles = set()
+    for sid, items in zip(source_ids, raw):
+        if not isinstance(items, list):
+            continue
+        for it in items:
+            title = it["title"].strip().lower()
+            if title in seen_titles:
+                continue
+            if keywords and strict_filter:
+                if not all(kw.lower() in title for kw in keywords):
+                    continue
+            elif keywords:
+                if not any(kw.lower() in title for kw in keywords):
+                    continue
+            seen_titles.add(title)
+            merged.append(it)
+            if len(merged) >= count * 2:
+                break
+        if len(merged) >= count * 2:
+            break
+
+    if merged:
+        logger.info(f"[NEWSNOW] hit {len(merged)} items for query='{query[:40]}' (sources={source_ids[:3]}, kw={keywords[:3]}, strict={strict_filter})")
+    return merged[:count]
+
+
+async def _newsnow_for_sources(source_ids: list[str], count: int = 5) -> list[dict]:
+    """Direct fetch from explicit source list. Used by Momentum (no query, just topics).
+
+    Unlike _newsnow_search, no keyword filtering -- we trust the source choice.
+    """
+    tasks = [_newsnow_source(sid, count=count) for sid in source_ids]
+    raw = await asyncio.gather(*tasks, return_exceptions=True)
+    merged = []
+    seen_titles = set()
+    for sid, items in zip(source_ids, raw):
+        if not isinstance(items, list):
+            continue
+        for it in items:
+            title = it["title"].strip().lower()
+            if title in seen_titles:
+                continue
+            seen_titles.add(title)
+            merged.append(it)
+    return merged[:count]
+
+
+async def _newsnow_top_trending(sources=None, per_source: int = 3) -> list[dict]:
+    """Return top-N hottest items across multiple sources, no keyword filtering.
+
+    Designed for distill-time ambient context: "what's hot right now across
+    tech/general/news". Feed these titles to the LLM so the distilled persona
+    can speak to the present moment, not just historical facts.
+
+    Note: implemented separately from _newsnow_for_sources because that helper
+    takes `count` as a total cap (we may want fewer from a hot source). Here
+    we want per_source guarantee so a single noisy source can't dominate.
+    """
+    if sources is None:
+        sources = ["hackernews", "producthunt", "github-trending-today",
+                   "ithome", "weibo", "zhihu", "jin10", "tencent-hot", "kaopu", "v2ex-share"]
+    tasks = [_newsnow_source(sid, count=per_source) for sid in sources]
+    raw = await asyncio.gather(*tasks, return_exceptions=True)
+    merged = []
+    seen_titles = set()
+    for sid, items in zip(sources, raw):
+        if not isinstance(items, list):
+            continue
+        added_from_this = 0
+        for it in items:
+            title = it["title"].strip().lower()
+            if title in seen_titles:
+                continue
+            seen_titles.add(title)
+            merged.append(it)
+            added_from_this += 1
+            if added_from_this >= per_source:
+                break
+    return merged
