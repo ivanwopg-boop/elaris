@@ -253,16 +253,21 @@ async def _fetch_newsnow(topic: str, lang: str = "en") -> list[dict]:
 
 
 async def fetch_news(topic: str, lang: str = "en") -> list[dict]:
-    """Fetch news with SearXNG → NewsNow fallback."""
-    # P0: SearXNG (self-hosted, unlimited) — works well for English news
-    results = await _fetch_searxng(topic, lang)
+    """Fetch news with NewsNow (primary) → SearXNG fallback.
+
+    2026-06-23: Swapped priority. NewsNow is now P0 because it pulls
+    editor-curated hot lists — no fake articles, no clickbait.
+    SearXNG is P1 fallback for topics that miss the hot-list window.
+    """
+    # P0: NewsNow (30+ curated sources, free, no API key)
+    results = await _fetch_newsnow(topic, lang)
     if results:
         return results
 
-    # P1: NewsNow (30+ sources, free, no API key) — works for EN + CN
-    results = await _fetch_newsnow(topic, lang)
+    # P1: SearXNG (self-hosted, unlimited) — wider coverage, but may include junk
+    results = await _fetch_searxng(topic, lang)
     if results:
-        print(f"[news_sync] NewsNow rescued {len(results)} items for '{topic}' (lang={lang})", flush=True)
+        print(f"[news_sync] SearXNG rescued {len(results)} items for '{topic}' (lang={lang})", flush=True)
     return results
 
 
