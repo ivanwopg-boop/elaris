@@ -803,13 +803,16 @@ async def persona_picks(
         data = None
         last_text = ""  # saved for debug logging on failure
         user_msg = pick_prompt  # used as-is for attempt 1, replaced for attempt 2
-        for pick_attempt in (1, 2):
+        for pick_attempt in (1, 2, 3):
             if pick_attempt == 1:
                 sys_msg = "You output ONLY valid JSON."
-            else:
-                # 2nd attempt: ultra-short prompt, NO json_mode (conflicts with system prompt)
-                sys_msg = "Pick 1-2 headline indices from the list. Output ONLY the JSON."
+            elif pick_attempt == 2:
+                sys_msg = "Output ONLY: {\"picks\":[{\"index\":N}]}"
                 user_msg = f"Pick 1-2 headlines for {persona_name}:\n" + "\n".join(lines[:10])
+            else:
+                # Last attempt: Force JSON by pre-filling the response start
+                sys_msg = "Output JSON only."
+                user_msg = f"{pick_prompt}\n\nOutput: {{\"picks\":["
             text = await minimax_client.chat(
                 [
                     {"role": "system", "content": sys_msg},
@@ -817,7 +820,7 @@ async def persona_picks(
                 ],
                 temperature=0.5 if pick_attempt == 1 else 0.0,
                 max_tokens=400,
-                json_mode=(pick_attempt == 1),  # no json_mode on 2nd: conflicts with prompt
+                json_mode=(pick_attempt == 1),  # json_mode only on 1st attempt
             )
             text = (text or "").strip()
             last_text = text
