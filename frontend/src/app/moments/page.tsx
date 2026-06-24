@@ -173,13 +173,11 @@ function MomentCard({
         </div>
       </button>
 
-      {/* ── Social proof ──────────────────────────── */}
-      {discussion && (
-        <p className="px-4 pb-2 text-[11px] text-[#576B95]/70">{discussion}</p>
-      )}
-
       {/* ── Chat ─────────────────────────────────── */}
       <footer className="border-t border-black/5">
+        {discussion && (
+          <p className="px-4 pt-3 pb-1 text-[11px] text-[#576B95]/60">{discussion}</p>
+        )}
         <button onClick={onOpenChat}
           className="w-full h-11 flex items-center justify-center gap-2 text-[13px] text-[#576B95] font-normal active:bg-black/[0.02] rounded-b-xl transition-colors">
           <MessageCircle size={15} strokeWidth={1.5} />
