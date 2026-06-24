@@ -658,23 +658,30 @@ async def persona_picks(
         # But reasoning models sometimes still emit thinking blocks even with
         # json_mode — retry up to 3 times with stronger prompts.
         data = None
-        for pick_attempt in (1, 2, 3):
+        last_text = ""  # saved for debug logging on failure
+        user_msg = pick_prompt  # used as-is for attempts 1-3, replaced for attempt 4
+        for pick_attempt in (1, 2, 3, 4):
             if pick_attempt == 1:
                 sys_msg = "You output ONLY valid JSON."
             elif pick_attempt == 2:
                 sys_msg = "CRITICAL: Output ONLY a JSON object. NO thinking, NO reasoning, NO explanation. Example: {\"picks\": [{\"index\": 0}]}"
-            else:
+            elif pick_attempt == 3:
                 sys_msg = "Respond with a single JSON object and nothing else. No preamble. Example: {\"picks\": [{\"index\": 0}]}"
+            else:
+                # Last resort: ultra-short prompt — just titles + "pick 1 index"
+                sys_msg = "Output ONLY: {\"picks\":[{\"index\":N}]}"
+                user_msg = f"Pick 1-3 headlines for {persona_name}:\n" + "\n".join(lines[:15])
             text = await minimax_client.chat(
                 [
                     {"role": "system", "content": sys_msg},
-                    {"role": "user", "content": pick_prompt},
+                    {"role": "user", "content": user_msg},
                 ],
                 temperature=0.5 if pick_attempt == 1 else 0.0,
                 max_tokens=400,
                 json_mode=True,
             )
             text = (text or "").strip()
+            last_text = text
             # Strip ```json ... ``` wrapper if present
             if chr(96) * 3 in text:
                 parts = text.split(chr(96) * 3)
@@ -706,7 +713,15 @@ async def persona_picks(
         # Remap back to original hot_list indices
         indices = [remap[i] for i in raw_indices if 0 <= i < len(remap)]
     except Exception as e:
-        print(f"[news_sync] pick failed for {persona_name}: {e}", flush=True)
+        # Distinguish causes: empty_response / no_json_still_reasoning / parse_error
+        t = (last_text or "").strip()[:80]
+        if not t:
+            kind = "empty_response"
+        elif '{' not in t:
+            kind = "no_json_still_reasoning"
+        else:
+            kind = "parse_error"
+        print(f"[news_sync] pick failed for {persona_name}: {kind} ({e}) last_text={t!r}", flush=True)
         return []
 
     if not indices:
@@ -854,6 +869,7 @@ async def run_sync(db: AsyncSession):
         lang_key = "zh" if lang.startswith("zh") else "en"
         hot_list = hot.get(lang_key, [])
         if not hot_list:
+            print(f"[news_sync] {persona.name}: no hot list for {lang_key}, skipping", flush=True)
             continue
 
         # LLM picks + digests
@@ -861,7 +877,19 @@ async def run_sync(db: AsyncSession):
             persona.name, soul_data, hot_list, lang_key,
             description=persona.description or "",
         )
+        # Fallback: if EN soul produced 0 picks (e.g. 周杰伦 English soul
+        # against hackernews-only hot list), try ZH hot list.
+        if not picks and lang_key == "en" and hot.get("zh"):
+            print(f"[news_sync] {persona.name}: no picks from EN hot list, trying ZH", flush=True)
+            picks = await persona_picks(
+                persona.name, soul_data, hot["zh"], "zh",
+                description=persona.description or "",
+            )
+            lang_key = "zh"  # so source_lang below reflects actual source
+
         if not picks:
+            print(f"[news_sync] {persona.name}: 0 picks, skipping", flush=True)
+            skipped += 1
             continue
 
         target_user_id = persona.user_id  # None for presets
@@ -895,7 +923,7 @@ async def run_sync(db: AsyncSession):
                         source_url=article["url"],
                         source_title=article["title"],
                         source_content="",
-                        source_lang=lang,
+                        source_lang=lang_key,
                         source_hash=source_hash,
                         persona_comment=comment,
                         emotion=article.get("emotion", "reflecting"),
@@ -920,7 +948,7 @@ async def run_sync(db: AsyncSession):
                     source_url=article["url"],
                     source_title=article["title"],
                     source_content="",
-                    source_lang=lang,
+                    source_lang=lang_key,
                     source_hash=source_hash,
                     persona_comment=comment,
                     emotion=article.get("emotion", "reflecting"),
