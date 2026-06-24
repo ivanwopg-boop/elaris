@@ -697,11 +697,12 @@ async def run_sync(db: AsyncSession):
                 ))
                 generated += 1
 
-        if generated % 5 == 0:
+        # Commit after every persona (each persona is independent work unit).
+        # Was: `if generated % 5 == 0` — but that meant a run that died between
+        # commits lost everything. Per-persona commit trades a few ms for safety.
+        if generated > 0:
             await db.commit()
-            print(f"[news_sync] committed {generated} moments so far", flush=True)
-
-    await db.commit()
+            print(f"[news_sync] committed persona {persona.name} ({lang_key}) — {generated} total so far", flush=True)
 
     # ── Step 3: Expire old moments ──
     expire_res = await db.execute(
