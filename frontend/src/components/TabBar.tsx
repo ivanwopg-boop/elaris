@@ -1,12 +1,12 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { MessageSquare, Users, BookUser, User, Sparkles } from 'lucide-react';
+import { MessageSquare, Users, BookUser, User, Activity } from 'lucide-react';
 import { useLangStore, translations } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 
 const tabs = [
-  { key: 'moments',  labelKey: 'tab_moments',  icon: (s: number) => <Sparkles size={s} strokeWidth={1.5} /> },
+  { key: 'moments',  labelKey: 'tab_pulse',  icon: (s: number) => <Activity size={s} strokeWidth={1.5} /> },
   { key: 'chat',     labelKey: 'tab_chat',     icon: (s: number) => <MessageSquare size={s} strokeWidth={1.5} /> },
   { key: 'groups',   labelKey: 'tab_groups',   icon: (s: number) => <Users size={s} strokeWidth={1.5} /> },
   { key: 'contacts', labelKey: 'tab_contacts', icon: (s: number) => <BookUser size={s} strokeWidth={1.5} /> },

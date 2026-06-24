@@ -54,8 +54,8 @@ function dayBucket(iso: string, t: Record<string, string>): string {
   const ts = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const ds = new Date(d.getFullYear(), d.getMonth(), d.getDate());
   const diff = Math.floor((ts.getTime() - ds.getTime()) / 86400000);
-  if (diff === 0) return t.moments_today; if (diff === 1) return t.moments_yesterday;
-  if (diff < 7) return t.moments_this_week; return t.moments_earlier;
+  if (diff === 0) return t.pulse_today; if (diff === 1) return t.pulse_yesterday;
+  if (diff < 7) return t.pulse_this_week; return t.pulse_earlier;
 }
 
 /* ── Interleave: round-robin by persona ──────────────── */
@@ -181,7 +181,7 @@ function MomentCard({
         <button onClick={onOpenChat}
           className="w-full h-11 flex items-center justify-center gap-2 text-[13px] text-[#576B95] font-normal active:bg-black/[0.02] rounded-b-xl transition-colors">
           <MessageCircle size={15} strokeWidth={1.5} />
-          {t.moments_open_chat}
+          {t.pulse_open_chat}
         </button>
       </footer>
     </article>
@@ -195,7 +195,7 @@ function EmptyState({ t }: { t: Record<string, string> }) {
       <div className="w-[72px] h-[72px] rounded-full bg-black/[0.03] flex items-center justify-center mb-5">
         <BookUser size={32} strokeWidth={1} className="text-black/30" />
       </div>
-      <p className="text-[15px] text-black/50 font-normal max-w-[260px]">{t.moments_empty}</p>
+      <p className="text-[15px] text-black/50 font-normal max-w-[260px]">{t.pulse_empty}</p>
     </div>
   );
 }
@@ -276,13 +276,13 @@ export default function MomentsPage() {
 
   return (
     <div className="min-h-screen bg-[#EDEDED] pb-20" style={{ maxWidth: '100vw', overflowX: 'hidden' }}>
-      <AppBar title={t.moments_title}
+      <AppBar title={t.pulse_title}
         right={
           <div className="flex items-center gap-1">
             {data && data.unread_count > 0 && (
               <button onClick={handleMarkAllRead}
                 className="text-[11px] text-[#576B95] font-normal px-2 py-1 active:opacity-60">
-                {t.moments_mark_all_read || '全部已读'}
+                {t.pulse_mark_all_read || '全部已读'}
               </button>
             )}
             <button onClick={() => { setRefreshing(true); load(false); }}
