@@ -203,7 +203,11 @@ async def list_moments(
     ).where(PersonaMoment.user_id == user.id)
 
     if lang:
-        q = q.where(PersonaMoment.source_lang == lang)
+        # Accept 'zh', 'zh-CN', 'zh-TW' interchangeably (normalized to 'zh')
+        lang_variants = [lang]
+        if lang.startswith("zh"):
+            lang_variants = ["zh", "zh-CN", "zh-TW"]
+        q = q.where(PersonaMoment.source_lang.in_(lang_variants))
 
     if not include_expired:
         # Active = not expired yet
