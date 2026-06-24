@@ -19,6 +19,7 @@ import asyncio
 import hashlib
 import json
 import sys
+import time
 import uuid
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
@@ -36,6 +37,7 @@ from app.models.db_models import (
 from app.core.minimax_client import minimax_client
 from app.database import async_session as make_async_session
 from app.config import get_settings
+from app.services.web_search import search_web
 
 settings = get_settings()
 
@@ -214,6 +216,8 @@ DIGEST_PROMPT = """You are {persona_name}, expressing yourself in character.
 Your soul / personality:
 {soul_excerpt}
 
+{current_facts_block}
+
 You saw this article on the trending list and want to comment on it:
 Title: {article_title}
 Content: {article_content}
@@ -224,9 +228,10 @@ Task: Write an 80-150 word comment in YOUR voice about this news.
 Rules:
 1. Use your own perspective, vocabulary, and concerns.
 2. Don't summarize — give your opinion. Be conversational.
-3. Don't fabricate facts. If the news is wrong, say so.
-4. If the content is empty, write based on the title.
-5. Respond in {lang} ({lang_label}).
+3. Use the "Current facts about you" section if it gives you up-to-date context (company status, recent events, etc.). Do NOT invent facts that aren't there.
+4. Don't fabricate facts. If the news is wrong, say so.
+5. If the content is empty, write based on the title.
+6. Respond in {lang} ({lang_label}).
 
 Return JSON:
 {{"comment": "your comment", "emotion": "praising|criticizing|reflecting|questioning|celebrating"}}"""
@@ -257,15 +262,236 @@ async def _fetch_article_content(url: str, timeout: int = 8) -> str:
     return text[:3000]
 
 
+# ── Current facts (online, time-sensitive) ──────────────────
+# Process-level cache: {cache_key: (facts_str, ts)}
+# cron restarts every 30 min, so the cache naturally expires.
+_FACTS_CACHE: dict[str, tuple[str, float]] = {}
+_FACTS_TTL_SECONDS = 24 * 3600  # 24h — facts change slowly
+
+FACT_QUERY_PROMPT = """You are helping an AI persona platform craft search queries to look up the LATEST, TIME-SENSITIVE facts about a public figure.
+
+Persona name: {persona_name}
+Persona description: {description}
+Lang: {lang_label}
+
+Generate 2 short search queries that would surface THIS YEAR's news about this person, their companies, or their current status.
+
+Rules:
+- Queries should be time-sensitive: include the year 2026, or words like "latest", "current", "now"
+- Should find public facts (company status, IPO/M&A, leadership, recent milestones), NOT personal gossip
+- Avoid philosophical/belief queries — those are already in the persona's soul
+- Output as JSON: {{"queries": ["query1", "query2"]}}
+- Queries in {lang_label}.
+
+Example for Elon Musk:
+{{"queries": ["Elon Musk SpaceX IPO 2026 status", "Tesla latest news 2026"]}}
+
+Example for Einstein (historical):
+{{"queries": ["Einstein Nobel Prize legacy 2026", "physics discoveries confirmed Einstein theory 2026"]}}
+"""
+
+FACT_EXTRACT_PROMPT = """You are extracting time-sensitive, verifiable facts from search results about a public figure.
+
+Persona: {persona_name}
+
+Search results (each is a news snippet, possibly with title/url/content):
+{results_block}
+
+Task: Pull out 3-5 FACTUAL, TIME-SENSITIVE statements about this person or their work — things that would have been DIFFERENT or WRONG a year ago.
+
+Examples of good facts:
+- "SpaceX completed its IPO in June 2026 at a $400B valuation"
+- "Tesla's 2026 Q1 deliveries reached 500,000 vehicles"
+- "Einstein's 1921 photoelectric effect paper was confirmed by 2025 quantum experiments"
+
+Examples of BAD facts (skip these):
+- "He is a famous person" (too generic)
+- "He believes in hard work" (already in soul, not time-sensitive)
+- "He was born in 1879" (historical, not time-sensitive)
+
+Output as JSON: {{"facts": ["fact 1", "fact 2", "fact 3"]}}
+Write facts in {lang_label}.
+If nothing time-sensitive is found, return an empty array.
+"""
+
+
+async def _get_current_facts(
+    persona_name: str,
+    description: str,
+    lang: str = "en",
+) -> str:
+    """Search the web for the latest time-sensitive facts about a persona.
+
+    Returns a multi-line fact string (empty if nothing found).
+    Cached 24h in process memory.
+    """
+    lang_label = "Chinese" if lang == "zh" else "English"
+    cache_key = f"{persona_name}:{lang}"
+    now = time.time()
+
+    # Cache hit?
+    if cache_key in _FACTS_CACHE:
+        cached_facts, ts = _FACTS_CACHE[cache_key]
+        if now - ts < _FACTS_TTL_SECONDS:
+            return cached_facts
+        else:
+            del _FACTS_CACHE[cache_key]
+
+    # Step A: LLM generates 2 search queries (retry once on empty/parse fail)
+    queries: list[str] = []
+    for attempt in (1, 2):
+        try:
+            qprompt = FACT_QUERY_PROMPT.format(
+                persona_name=persona_name,
+                description=(description or persona_name)[:300],
+                lang_label=lang_label,
+            )
+            qtext = await minimax_client.chat(
+                [
+                    {"role": "system", "content": "You output only valid JSON."},
+                    {"role": "user", "content": qprompt},
+                ],
+                temperature=0.5 if attempt == 1 else 0.3,
+                max_tokens=200,
+            )
+            qtext = (qtext or "").strip()
+            if not qtext:
+                raise ValueError("empty LLM response")
+            if chr(96) * 3 in qtext:
+                qtext = qtext.split(chr(96) * 3)[1]
+                if qtext.startswith("json"):
+                    qtext = qtext[4:]
+                qtext = qtext.strip()
+            qdata = json.loads(qtext)
+            queries = [str(q).strip() for q in qdata.get("queries", []) if q][:2]
+            if queries:
+                break
+        except Exception as e:
+            print(f"[news_sync] fact-query gen attempt {attempt} failed for {persona_name}: {e}", flush=True)
+            continue
+
+    if not queries:
+        return ""
+
+    # Step B: Run web search (with relevance check + 1 retry)
+    async def _do_search() -> list[dict]:
+        sr = await search_web(queries)
+        # Quality check: at least one result must mention the persona name
+        # (case-insensitive). Otherwise SearXNG returned garbage like
+        # "Web 2.0 calculatrice" — force a retry with stricter query.
+        pname_lc = persona_name.lower()
+        for q in sr:
+            for hit in q.get("results", []):
+                txt = (hit.get("title", "") + " " + hit.get("snippet", "")).lower()
+                if pname_lc in txt or persona_name in hit.get("title", ""):
+                    return sr
+        return []  # signal "all results are irrelevant"
+
+    try:
+        sr = await _do_search()
+        if not sr:
+            print(f"[news_sync] fact-search low-quality for {persona_name}, retrying", flush=True)
+            # Retry: tighten queries with quotes
+            tight_queries = [f'"{persona_name}" {q.split(persona_name, 1)[-1].strip()}' for q in queries]
+            tight_queries = [t for t in tight_queries if t and len(t) > 10][:2]
+            if tight_queries:
+                sr2 = await search_web(tight_queries)
+                if sr2:
+                    sr = sr2
+    except Exception as e:
+        print(f"[news_sync] fact-search failed for {persona_name}: {e}", flush=True)
+        return ""
+
+    # Flatten results into a text block (title + snippet)
+    blocks = []
+    for q in sr:
+        for hit in q.get("results", [])[:5]:
+            title = (hit.get("title") or "").strip()
+            content = (hit.get("snippet") or hit.get("content") or "").strip()[:200]
+            url = (hit.get("url") or "").strip()
+            if not title and not content:
+                continue
+            line = f"- {title}"
+            if content:
+                line += f"\n  {content}"
+            if url:
+                line += f"\n  ({url})"
+            blocks.append(line)
+    if not blocks:
+        return ""
+
+    results_block = "\n".join(blocks)[:2000]
+
+    # Step C: LLM extracts 3-5 facts (retry once on empty/parse fail)
+    facts: list[str] = []
+    for attempt in (1, 2):
+        try:
+            eprompt = FACT_EXTRACT_PROMPT.format(
+                persona_name=persona_name,
+                results_block=results_block,
+                lang_label=lang_label,
+            )
+            etext = await minimax_client.chat(
+                [
+                    {"role": "system", "content": "You output only valid JSON. Respond in " + lang_label + "."},
+                    {"role": "user", "content": eprompt},
+                ],
+                temperature=0.3 if attempt == 1 else 0.2,
+                max_tokens=500,
+            )
+            etext = (etext or "").strip()
+            if not etext:
+                raise ValueError("empty LLM response")
+            if chr(96) * 3 in etext:
+                etext = etext.split(chr(96) * 3)[1]
+                if etext.startswith("json"):
+                    etext = etext[4:]
+                etext = etext.strip()
+            edata = json.loads(etext)
+            facts = [str(f).strip() for f in edata.get("facts", []) if f]
+            if facts:
+                break
+        except Exception as e:
+            print(f"[news_sync] fact-extract attempt {attempt} failed for {persona_name}: {e}", flush=True)
+            continue
+
+    if not facts:
+        return ""
+
+    facts_str = "\n".join(f"- {f}" for f in facts[:5])
+    _FACTS_CACHE[cache_key] = (facts_str, now)
+    print(f"[news_sync] cached {len(facts)} facts for {persona_name} ({lang})", flush=True)
+    return facts_str
+
+
 async def persona_picks(
     persona_name: str,
     soul_data: dict,
     hot_list: list[dict],
     lang: str,
+    description: str = "",
 ) -> list[dict]:
-    """Two-step: (1) LLM picks headlines, (2) fetch content + LLM writes comment."""
+    """Two-step: (1) LLM picks headlines, (2) fetch content + LLM writes comment.
+    Also pre-fetches current-facts (online, 24h cached) so the persona
+    knows about events that happened after the soul was distilled.
+    """
     soul_excerpt = _extract_soul_summary(soul_data)
     lang_label = "Chinese" if lang == "zh" else "English"
+
+    # ── Step 0: Online current-facts (cached 24h) ──
+    current_facts_str = await _get_current_facts(
+        persona_name=persona_name,
+        description=description or (soul_data.get("identity", {}) or {}).get("name") or persona_name,
+        lang=lang,
+    )
+    if current_facts_str:
+        current_facts_block = (
+            f"Current facts about you (refreshed from the web on "
+            f"{datetime.now(timezone.utc).strftime('%Y-%m-%d')}):\n"
+            f"{current_facts_str}"
+        )
+    else:
+        current_facts_block = "(no current facts found — comment based on soul + article only)"
 
     # ── Step 1: Pick headlines ──
     lines = [f"{i}. [{item['source']}] {item['title']}" for i, item in enumerate(hot_list)]
@@ -313,6 +539,7 @@ async def persona_picks(
         digest_prompt = DIGEST_PROMPT.format(
             persona_name=persona_name,
             soul_excerpt=soul_excerpt,
+            current_facts_block=current_facts_block,
             article_title=item["title"],
             article_content=content[:2000] or "(content unavailable)",
             article_url=item["url"],
@@ -397,7 +624,10 @@ async def run_sync(db: AsyncSession):
             continue
 
         # LLM picks + digests
-        picks = await persona_picks(persona.name, soul_data, hot_list, lang_key)
+        picks = await persona_picks(
+            persona.name, soul_data, hot_list, lang_key,
+            description=persona.description or "",
+        )
         if not picks:
             continue
 
