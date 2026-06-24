@@ -212,7 +212,7 @@ export default function MomentsPage() {
 
   const load = useCallback(async (showSpinner = true) => {
     if (showSpinner) setLoading(true);
-    try { const res = await api.listMoments(100); setData(res); }
+    try { const res = await api.listMoments(100, lang); setData(res); }
     catch (e: any) { toast(e.message || 'Failed', 'error'); }
     finally { setLoading(false); setRefreshing(false); }
   }, [toast, lang]);
