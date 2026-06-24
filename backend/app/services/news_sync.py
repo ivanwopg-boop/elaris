@@ -842,6 +842,11 @@ async def persona_picks(
                         text = text[b1:b2 + 1]
             try:
                 data = json.loads(text)
+                # Handle both {"picks":[...]} and [...] (LLM sometimes returns array directly)
+                if isinstance(data, list):
+                    raw_indices = [int(p["index"]) if isinstance(p, dict) else int(p) for p in data]
+                else:
+                    raw_indices = [p.get("index", -1) for p in data.get("picks", [])]
                 break
             except Exception:
                 if pick_attempt == 2:
