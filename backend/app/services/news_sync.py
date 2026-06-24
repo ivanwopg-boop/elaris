@@ -1003,7 +1003,7 @@ async def run_sync(db: AsyncSession):
 
     generated = skipped = errors = 0
 
-    for pid, soul in persona_souls.items():
+    for (pid, _lk), soul in persona_souls.items():
         persona = await db.get(Persona, pid)
         if not persona:
             continue
