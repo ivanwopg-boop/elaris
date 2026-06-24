@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Eye, EyeOff } from 'lucide-react';
 import { api } from '@/lib/api';
@@ -9,7 +9,7 @@ import { useLangStore, translations } from '@/lib/i18n';
 
 function LoginForm() {
   const router = useRouter();
-  const { setAuth } = useAuthStore();
+  const { token, setAuth } = useAuthStore();
   const { lang } = useLangStore();
   const t = translations[lang];
   const [email, setEmail] = useState('');
@@ -17,6 +17,13 @@ function LoginForm() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+
+  // If already logged in (Zustand rehydrated from localStorage), redirect to chats
+  useEffect(() => {
+    if (token) {
+      router.replace('/chats');
+    }
+  }, [token, router]);
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
