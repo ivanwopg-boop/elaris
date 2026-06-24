@@ -986,11 +986,14 @@ async def run_sync(db: AsyncSession):
         select(PersonaSoul).order_by(PersonaSoul.persona_id, PersonaSoul.version.desc())
     )
     souls = soul_rows.scalars().all()
-    # Dedup by persona_id (keep latest version)
-    persona_souls: dict[str, PersonaSoul] = {}
+    # Dedup by (persona_id, lang_key): keep one per persona per language
+    # so both EN and ZH souls get processed (e.g. 特朗普 has zh-CN + en souls)
+    persona_souls: dict[tuple[str, str], PersonaSoul] = {}
     for s in souls:
-        if s.persona_id not in persona_souls:
-            persona_souls[s.persona_id] = s
+        lang_key = "zh" if (s.lang or "").startswith("zh") else "en"
+        key = (s.persona_id, lang_key)
+        if key not in persona_souls:
+            persona_souls[key] = s
 
     if not persona_souls:
         print("[news_sync] no personas with souls, exiting", flush=True)
