@@ -32,7 +32,14 @@ class MiniMaxClient:
         max_tokens: int = 4096,
         response_format: dict | None = None,
         timeout: float = 120.0,
+        json_mode: bool = False,
     ) -> str:
+        """Send a chat completion request and return the assistant message content.
+
+        json_mode=True sets response_format={"type":"json_object"} which forces
+        the LLM to output valid JSON (skips reasoning blocks). Only works for
+        providers that support it (DeepSeek does, others may ignore).
+        """
         """Send a chat completion request and return the assistant message content."""
         headers = {
             "Authorization": f"Bearer {self.api_key}",
@@ -46,6 +53,8 @@ class MiniMaxClient:
         }
         if response_format:
             payload["response_format"] = response_format
+        elif json_mode:
+            payload["response_format"] = {"type": "json_object"}
 
         async with httpx.AsyncClient(timeout=timeout) as client:
             try:
