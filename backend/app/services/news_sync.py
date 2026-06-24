@@ -23,6 +23,7 @@ import time
 import uuid
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
+from urllib.parse import quote_plus
 from typing import Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
@@ -64,7 +65,58 @@ NEWSNOW_SOURCES_EN = [
 NEWSNOW_SOURCES_ZH = [
     "weibo", "zhihu", "ithome", "bilibili-hot-search",
     "coolapk", "v2ex-share", "tencent-hot", "cls-hot",
+    # Newly added 2026-06-24:
+    "toutiao", "baidu", "thepaper", "ifeng", "tieba", "douyin",
+    "wallstreetcn-hot", "jin10",
 ]
+
+# ── Google News RSS (free EN source) ─────────────────────────
+GOOGLE_NEWS_QUERIES = [
+    # Broad category searches — covers most persona types
+    ("business OR finance OR stock OR market", "us"),
+    ("technology OR AI OR science OR research", "us"),
+    ("entertainment OR music OR movie OR celebrity", "us"),
+    ("politics OR government OR diplomacy", "us"),
+    ("sports OR football OR basketball OR olympic", "us"),
+]
+
+
+async def _fetch_google_news(query: str, region: str = "us", count: int = 15) -> list[dict]:
+    """Fetch headlines from Google News RSS search. Free, no API key.
+
+    RSS endpoint: https://news.google.com/rss/search?q=<query>&hl=en-US&gl=US&ceid=US:en
+    Returns items formatted like NewsNow: {title, url, source, score}.
+    """
+    try:
+        url = f"https://news.google.com/rss/search?q={quote_plus(query)}&hl=en-US&gl=US&ceid=US:en"
+        async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as c:
+            r = await c.get(url,
+                headers={"User-Agent": "Mozilla/5.0 (compatible; ElarisBot/1.0)"})
+            if r.status_code != 200:
+                return []
+            import xml.etree.ElementTree as ET
+            root = ET.fromstring(r.text)
+            items = []
+            for el in root.findall('.//item')[:count]:
+                title_el = el.find('title')
+                link_el = el.find('link')
+                source_el = el.find('source')
+                title = (title_el.text or "").strip() if title_el is not None else ""
+                link = (link_el.text or "").strip() if link_el is not None else ""
+                source_name = (source_el.text or "").strip() if source_el is not None else ""
+                if not title or not link:
+                    continue
+                items.append({
+                    "title": title,
+                    "url": link,
+                    "score": "",
+                    "source": f"google-news-{source_name[:12]}" if source_name else "google-news",
+                })
+            return items
+    except Exception as e:
+        print(f"[news_sync] GoogleNews[{query[:30]}] error: {e}", flush=True)
+        return []
+
 
 # ── Hot list fetch ───────────────────────────────────────────
 async def _pull_source(source_id: str, count: int = 15) -> list[dict]:
@@ -114,6 +166,11 @@ async def fetch_hot_list() -> dict[str, list[dict]]:
         all_tasks.append(_pull_source(sid, count=15))
         all_labels.append(("zh", sid))
 
+    # Also pull from Google News RSS (free EN source) for broader EN coverage
+    for query, region in GOOGLE_NEWS_QUERIES:
+        all_tasks.append(_fetch_google_news(query, region, count=15))
+        all_labels.append(("en", f"google:{query[:20]}"))
+
     raw = await asyncio.gather(*all_tasks, return_exceptions=True)
 
     en_items: list[dict] = []
@@ -128,7 +185,9 @@ async def fetch_hot_list() -> dict[str, list[dict]]:
             if key in seen or len(key) < 4:
                 continue
             seen.add(key)
-            it["source"] = sid
+            # Google News items already have their source set; NewsNow items get sid
+            if "source" not in it or it["source"] == sid:
+                it["source"] = sid
             if lang == "en":
                 en_items.append(it)
             else:
