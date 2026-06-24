@@ -30,6 +30,21 @@ def _hash_url(url: str) -> str:
     return hashlib.md5(url.encode("utf-8")).hexdigest()
 
 
+def _utc_aware(dt: datetime | None) -> datetime | None:
+    """Force-attach UTC tzinfo on naive datetimes read from SQLite.
+
+    SQLite doesn't preserve timezone info, so `datetime.now(timezone.utc)` rows
+    come back naive. Without this, Pydantic emits ISO strings without a 'Z'
+    suffix and the browser's `new Date()` treats them as local time — which
+    shifts display 8h off for Asia/Shanghai users.
+    """
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
 def _is_paid_tier(tier: str) -> bool:
     return tier in ("plus", "pro", "admin")
 
@@ -204,6 +219,10 @@ async def list_moments(
 
     out = []
     for m, p, wt in rows:
+        # DB stores naive datetimes in UTC (since SQLite doesn't preserve tzinfo).
+        # Force UTC tzinfo so Pydantic serializes with 'Z' suffix; otherwise the
+        # frontend's `new Date(iso)` interprets naive strings as local time,
+        # shifting everything 8h off for Asia/Shanghai users.
         out.append(MomentOut(
             id=m.id,
             persona_id=m.persona_id,
@@ -213,15 +232,15 @@ async def list_moments(
             watch_topic=wt.topic if wt else None,
             source_url=m.source_url,
             source_title=m.source_title,
-            source_published_at=m.source_published_at,
+            source_published_at=_utc_aware(m.source_published_at),
             source_lang=m.source_lang,
             persona_comment=m.persona_comment,
             emotion=m.emotion,
             hook_question=m.hook_question,
             status=m.status,
-            created_at=m.created_at,
-            read_at=m.read_at,
-            expires_at=m.expires_at,
+            created_at=_utc_aware(m.created_at),
+            read_at=_utc_aware(m.read_at),
+            expires_at=_utc_aware(m.expires_at),
         ))
 
     unread_res = await db.execute(
