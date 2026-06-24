@@ -559,7 +559,7 @@ async def _get_current_facts(
 
     # Step A: LLM generates 2 search queries (json_mode=True + brace extraction)
     queries: list[str] = []
-    for attempt in (1, 2):
+    for attempt in (1,):  # single attempt: if it fails, we go without facts
         try:
             qprompt = FACT_QUERY_PROMPT.format(
                 persona_name=persona_name,
@@ -571,7 +571,7 @@ async def _get_current_facts(
                     {"role": "system", "content": "You output ONLY valid JSON."},
                     {"role": "user", "content": qprompt},
                 ],
-                temperature=0.5 if attempt == 1 else 0.0,
+                temperature=0.5,
                 max_tokens=200,
                 json_mode=True,
             )
@@ -658,7 +658,7 @@ async def _get_current_facts(
 
     # Step C: LLM extracts 3-5 facts (json_mode=True + brace extraction)
     facts: list[str] = []
-    for attempt in (1, 2):
+    for attempt in (1,):  # single attempt: 24h cache means >90% hit rate
         try:
             eprompt = FACT_EXTRACT_PROMPT.format(
                 persona_name=persona_name,
@@ -670,7 +670,7 @@ async def _get_current_facts(
                     {"role": "system", "content": "You output ONLY valid JSON. Respond in " + lang_label + "."},
                     {"role": "user", "content": eprompt},
                 ],
-                temperature=0.3 if attempt == 1 else 0.0,
+                temperature=0.3,
                 max_tokens=500,
                 json_mode=True,
             )
@@ -763,13 +763,15 @@ async def persona_picks(
 
     # If filter produced nothing, fallback to top 30 so persona isn't completely silent
     if len(filtered) == 0:
-        print(f"[news_sync] {persona_name}: no category-matched news, relaxing to top 30", flush=True)
-        fallback = list(enumerate(hot_list[:30]))
+        print(f"[news_sync] {persona_name}: no category-matched news, relaxing to top 15", flush=True)
+        fallback = list(enumerate(hot_list[:15]))
         hot_list_for_pick = [item for _, item in fallback]
         remap = [i for i, _ in fallback]
     else:
-        # Cap at 30 by source diversity to avoid one source dominating
-        top_n = 30
+        # Cap at 12 by source diversity (was 30): cron runs hourly, 34 personas
+        # must finish in <60min. 12 candidates is plenty for 1-3 picks. Shorter
+        # prompt = faster LLM = fewer reasoning-block parse failures.
+        top_n = 12
         by_src: dict[str, list[int]] = {}
         for orig_i, item in filtered:
             by_src.setdefault(item.get("source", "?"), []).append(orig_i)
@@ -800,18 +802,14 @@ async def persona_picks(
         # json_mode — retry up to 3 times with stronger prompts.
         data = None
         last_text = ""  # saved for debug logging on failure
-        user_msg = pick_prompt  # used as-is for attempts 1-3, replaced for attempt 4
-        for pick_attempt in (1, 2, 3, 4):
+        user_msg = pick_prompt  # used as-is for attempt 1, replaced for attempt 2
+        for pick_attempt in (1, 2):
             if pick_attempt == 1:
                 sys_msg = "You output ONLY valid JSON."
-            elif pick_attempt == 2:
-                sys_msg = "CRITICAL: Output ONLY a JSON object. NO thinking, NO reasoning, NO explanation. Example: {\"picks\": [{\"index\": 0}]}"
-            elif pick_attempt == 3:
-                sys_msg = "Respond with a single JSON object and nothing else. No preamble. Example: {\"picks\": [{\"index\": 0}]}"
             else:
-                # Last resort: ultra-short prompt — just titles + "pick 1 index"
+                # 2nd attempt: ultra-short prompt to force JSON
                 sys_msg = "Output ONLY: {\"picks\":[{\"index\":N}]}"
-                user_msg = f"Pick 1-3 headlines for {persona_name}:\n" + "\n".join(lines[:15])
+                user_msg = f"Pick 1-2 headlines for {persona_name}:\n" + "\n".join(lines[:10])
             text = await minimax_client.chat(
                 [
                     {"role": "system", "content": sys_msg},
@@ -846,7 +844,7 @@ async def persona_picks(
                 data = json.loads(text)
                 break
             except Exception:
-                if pick_attempt == 3:
+                if pick_attempt == 2:
                     raise
                 continue
         raw_indices = [p.get("index", -1) for p in data.get("picks", [])]
@@ -909,13 +907,11 @@ async def persona_picks(
         try:
             # json_mode=True forces valid JSON. Retry up to 3 times on parse fail.
             data = None
-            for digest_attempt in (1, 2, 3):
+            for digest_attempt in (1, 2):
                 if digest_attempt == 1:
                     sys_msg = "You output ONLY valid JSON. Respond in " + lang_label + "."
-                elif digest_attempt == 2:
-                    sys_msg = "CRITICAL: Output ONLY a JSON object. NO thinking. Start with '{'. Respond in " + lang_label + "."
                 else:
-                    sys_msg = "Respond with a single JSON object and nothing else. Respond in " + lang_label + ". Example: {\"comment\": \"text\", \"emotion\": \"reflecting\"}"
+                    sys_msg = "CRITICAL: Output ONLY a JSON object. NO thinking. Respond in " + lang_label + "."
                 text = await minimax_client.chat(
                     [
                         {"role": "system", "content": sys_msg},
@@ -948,7 +944,7 @@ async def persona_picks(
                     data = json.loads(text)
                     break
                 except Exception:
-                    if digest_attempt == 3:
+                    if digest_attempt == 2:
                         raise
                     continue
             comment = (data.get("comment") or "").strip()
