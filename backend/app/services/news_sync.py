@@ -90,6 +90,20 @@ EN_RSS_FEEDS = [
     ("https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml", "nyt"),
     ("https://feeds.npr.org/1001/rss.xml", "npr"),
     ("https://www.theguardian.com/world/rss", "guardian"),
+    # Additional EN RSS feeds 2026-06-24
+    ("https://www.cnbc.com/id/100727362/device/rss/rss.html", "cnbc"),
+    ("https://techcrunch.com/feed/", "techcrunch"),
+    ("https://arstechnica.com/feed/", "arstechnica"),
+    ("https://www.engadget.com/rss.xml", "engadget"),
+    ("https://www.aljazeera.com/xml/rss/all.xml", "aljazeera"),
+    ("https://www.france24.com/en/rss", "france24"),
+    ("https://feeds.bloomberg.com/markets/news.rss", "bloomberg"),
+    ("https://www.sciencedaily.com/rss/all.xml", "sciencedaily"),
+    ("https://www.space.com/feeds/all", "space"),
+    ("https://www.newscientist.com/feed/home", "newscientist"),
+    ("https://www.espn.com/espn/rss/news", "espn"),
+    ("https://www.skysports.com/rss/12040", "skysports"),
+    ("https://deadline.com/feed/", "deadline"),
 ]
 
 
