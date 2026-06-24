@@ -61,6 +61,8 @@ NEWSNOW_HEADERS = {
 NEWSNOW_SOURCES_EN = [
     "hackernews", "producthunt", "github-trending-today",
     "jin10", "wallstreetcn-quick",
+    # Round 3 2026-06-24
+    "mktnews", "steam",
 ]
 NEWSNOW_SOURCES_ZH = [
     "weibo", "zhihu", "ithome", "bilibili-hot-search",
@@ -68,6 +70,11 @@ NEWSNOW_SOURCES_ZH = [
     # Newly added 2026-06-24:
     "toutiao", "baidu", "thepaper", "ifeng", "tieba", "douyin",
     "wallstreetcn-hot", "jin10",
+    # Round 3: full NewsNow source audit 2026-06-24
+    "aihot", "cankaoxiaoxi", "chongbuluo", "douban", "fastbull",
+    "freebuf", "gelonghui", "hupu", "iqiyi", "juejin", "kaopu",
+    "nowcoder", "pcbeta", "qqvideo", "solidot", "sputniknewscn", "sspai",
+    "tencent", "xueqiu", "zaobao",
 ]
 
 # ── Google News RSS (free EN source) ─────────────────────────
@@ -104,6 +111,20 @@ EN_RSS_FEEDS = [
     ("https://www.espn.com/espn/rss/news", "espn"),
     ("https://www.skysports.com/rss/12040", "skysports"),
     ("https://deadline.com/feed/", "deadline"),
+    # Round 3 2026-06-24
+    ("https://www.semafor.com/rss.xml", "semafor"),
+    ("https://www.latimes.com/world-nation/rss2.0.xml", "latimes"),
+    ("https://www.livescience.com/feeds/all", "livescience"),
+    ("https://www.cbsnews.com/latest/rss/main", "cbs"),
+    ("https://abcnews.go.com/abcnews/topstories", "abc"),
+    ("https://www.technologyreview.com/feed/", "mit-tr"),
+    ("https://venturebeat.com/feed/", "venturebeat"),
+    ("https://www.billboard.com/feed/", "billboard"),
+    ("https://www.rollingstone.com/feed/", "rollingstone"),
+    ("https://pitchfork.com/feed/", "pitchfork"),
+    ("https://www.nme.com/feed", "nme"),
+    ("https://variety.com/feed/", "variety"),
+    ("https://www.hollywoodreporter.com/feed/", "hollywoodreporter"),
 ]
 
 
