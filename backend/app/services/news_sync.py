@@ -81,6 +81,48 @@ GOOGLE_NEWS_QUERIES = [
 ]
 
 
+
+# Additional free EN RSS feeds (BBC, NYT, NPR, Guardian — no API keys)
+EN_RSS_FEEDS = [
+    ("https://feeds.bbci.co.uk/news/world/rss.xml", "bbc-world"),
+    ("https://feeds.bbci.co.uk/news/business/rss.xml", "bbc-business"),
+    ("https://feeds.bbci.co.uk/news/technology/rss.xml", "bbc-tech"),
+    ("https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml", "nyt"),
+    ("https://feeds.npr.org/1001/rss.xml", "npr"),
+    ("https://www.theguardian.com/world/rss", "guardian"),
+]
+
+
+async def _fetch_rss(url: str, label: str, count: int = 15) -> list[dict]:
+    """Fetch headlines from a standard RSS/Atom feed."""
+    try:
+        async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as c:
+            r = await c.get(url,
+                headers={"User-Agent": "Mozilla/5.0 (compatible; ElarisBot/1.0)"})
+            if r.status_code != 200:
+                return []
+            import xml.etree.ElementTree as ET
+            root = ET.fromstring(r.text)
+            items = []
+            for el in root.findall('.//item')[:count]:
+                title_el = el.find('title')
+                link_el = el.find('link')
+                title = (title_el.text or "").strip() if title_el is not None else ""
+                link = (link_el.text or "").strip() if link_el is not None else ""
+                if not title or not link:
+                    continue
+                items.append({
+                    "title": title,
+                    "url": link,
+                    "score": "",
+                    "source": f"rss-{label}",
+                })
+            return items
+    except Exception as e:
+        print(f"[news_sync] RSS[{label}] error: {e}", flush=True)
+        return []
+
+
 async def _fetch_google_news(query: str, region: str = "us", count: int = 15) -> list[dict]:
     """Fetch headlines from Google News RSS search. Free, no API key.
 
@@ -170,6 +212,11 @@ async def fetch_hot_list() -> dict[str, list[dict]]:
     for query, region in GOOGLE_NEWS_QUERIES:
         all_tasks.append(_fetch_google_news(query, region, count=15))
         all_labels.append(("en", f"google:{query[:20]}"))
+
+    # Also pull from free EN RSS feeds (BBC, NYT, NPR, Guardian)
+    for url, label in EN_RSS_FEEDS:
+        all_tasks.append(_fetch_rss(url, label, count=15))
+        all_labels.append(("en", f"rss:{label}"))
 
     raw = await asyncio.gather(*all_tasks, return_exceptions=True)
 
