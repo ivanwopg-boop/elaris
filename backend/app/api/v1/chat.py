@@ -18,6 +18,7 @@ from app.core.prompts import CHAT_SYSTEM_PROMPT
 from app.api.v1.chat_utils import needs_web_search
 from app.services.web_search import search_web
 from app.services.memory_service import get_memory_context, generate_memory_summary
+from app.services.planning_service import get_todays_plan
 from app.core.auth_deps import require_auth, require_auth_optional
 from app.core.safety_filter import check_input, check_output, check_restricted_output
 from app.core.auth import decode_token
@@ -430,6 +431,20 @@ async def chat_stream(persona_id: str, message: str, conv: str = None, request: 
 
     # Inject persona memory (Phase 1: Bond System)
     _memory_ctx = await get_memory_context(persona_id, user_id, db)
+    try:
+        _plan = await get_todays_plan(persona_id, db)
+        if _plan:
+            import json as _j2
+            _pd = _j2.loads(_plan.plan_json) if _plan.plan_json else []
+            if _pd:
+                from datetime import datetime as _dt2, timezone as _tz2
+                _ns = _dt2.now(_tz2).strftime("%H:%M")
+                _pc = f"\n\nTODAY: {_dt2.now(_tz2).strftime('%Y-%m-%d')} {_ns}. Mood: {_plan.mood}. "
+                for _a in _pd:
+                    if _a.get('time', '99:99') <= _ns: _pc += f"Recently: {_a.get('time','')} - {_a.get('activity','')}. "
+                _pc += f"Morning: {_plan.reflection_note}"
+                _memory_ctx = (_memory_ctx or "") + _pc
+    except: pass
 
     system_prompt = CHAT_SYSTEM_PROMPT.format(
             current_date=datetime.now().strftime("%Y-%m-%d"),
@@ -688,6 +703,21 @@ async def _handle_mode(request: ChatRequest, user_id: str, db: AsyncSession, use
         pass
     # Inject persona memory (Phase 1: Bond System)
     _memory_ctx = await get_memory_context(request.persona_id, user_id, db)
+    try:
+        _plan_blk = await get_todays_plan(request.persona_id, db)
+        if _plan_blk:
+            import json as _j3
+            _pdb = _j3.loads(_plan_blk.plan_json) if _plan_blk.plan_json else []
+            if _pdb:
+                from datetime import datetime as _dt3, timezone as _tz3
+                _nbs = _dt3.now(_tz3).strftime("%H:%M")
+                _pcb = f"\n\nTODAY: {_dt3.now(_tz3).strftime('%Y-%m-%d')} {_nbs}. Mood: {_plan_blk.mood}. "
+                for _a in _pdb:
+                    if _a.get('time', '99:99') <= _nbs: _pcb += f"Recently: {_a.get('time','')} - {_a.get('activity','')}. "
+                _pcb += f"Morning: {_plan_blk.reflection_note}"
+                _memory_ctx = (_memory_ctx or "") + _pcb
+    except: pass
+
     system_prompt = CHAT_SYSTEM_PROMPT.format(
         current_date=datetime.now().strftime("%Y-%m-%d"),
         name=info["name"], soul_json=json.dumps(info["soul"], indent=2, ensure_ascii=False),

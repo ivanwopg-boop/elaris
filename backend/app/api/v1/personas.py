@@ -12,6 +12,7 @@ from app.database import get_db
 from app.services.proactive_service import run_proactive_check
 from app.core.minimax_client import minimax_client
 from app.services.memory_service import LEVEL_NAMES, LEVEL_THRESHOLDS, get_level, get_next_level_xp
+from app.services.planning_service import get_todays_plan, generate_daily_plan
 from app.models.schemas import PersonaCreate, PersonaUpdate, PersonaOut, PersonaDetail
 from app.models.db_models import Contact, Persona, PersonaFile, PersonaSoul, PersonaUserMemory, User, WebSearchResult
 
@@ -284,3 +285,27 @@ async def trigger_proactive_messages(
         return {"success": True, "sent": len(results), "details": results}
     except Exception as e:
         return {"success": False, "error": str(e)}
+
+@router.get('/{persona_id}/plan')
+async def get_persona_daily_plan(
+    persona_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_auth),
+):
+    pr = await db.execute(select(Persona).where(Persona.id == persona_id))
+    persona = pr.scalars().first()
+    if not persona:
+        raise HTTPException(status_code=404, detail='Persona not found')
+    plan = await get_todays_plan(persona_id, db)
+    if not plan:
+        plan = await generate_daily_plan(persona_id, persona.name, db, minimax_client)
+    if not plan:
+        return {'plan': [], 'mood': 'neutral', 'reflection': ''}
+    import json
+    return {
+        'plan': json.loads(plan.plan_json),
+        'mood': plan.mood,
+        'reflection': plan.reflection_note,
+        'date': str(plan.date),
+    }
+
