@@ -74,7 +74,7 @@ NEWSNOW_SOURCES_ZH = [
     "aihot", "cankaoxiaoxi", "chongbuluo", "douban", "fastbull",
     "freebuf", "gelonghui", "hupu", "iqiyi", "juejin", "kaopu",
     "nowcoder", "pcbeta", "qqvideo", "solidot", "sputniknewscn", "sspai",
-    "tencent", "xueqiu", "zaobao",
+    "tencent", "zaobao",
 ]
 
 # ── Google News RSS (free EN source) ─────────────────────────
