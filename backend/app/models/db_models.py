@@ -283,6 +283,23 @@ class PersonaUserMemory(Base):
         UniqueConstraint("persona_id", "user_id", name="uq_persona_user_memory"),
     )
 
+# Phase 8 v3: Daily Plans (Stanford Generative Agents)
+class PersonaDailyPlan(Base):
+    __tablename__ = "persona_daily_plans"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    persona_id: Mapped[str] = mapped_column(String(36), ForeignKey("personas.id", ondelete="CASCADE"), nullable=False)
+    date: Mapped[date] = mapped_column(Date, nullable=False)
+    mood: Mapped[str] = mapped_column(String(64), default="neutral")
+    plan_json: Mapped[str] = mapped_column(Text, default="[]")
+    reflection_note: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+    __table_args__ = (
+        UniqueConstraint("persona_id", "date", name="uq_persona_daily_plan"),
+    )
+
+
 # ── ProactiveLog (Phase 3: Proactive Outreach) ──────────
 class ProactiveLog(Base):
     __tablename__ = "proactive_log"
