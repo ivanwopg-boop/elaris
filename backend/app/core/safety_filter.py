@@ -93,7 +93,7 @@ LEGAL_ADVICE_PATTERNS = [
 
 FINANCIAL_ADVICE_PATTERNS = [
     r"\b(you\s*should\s*(invest|buy|sell|short|trade)\s+(in\s+)?(this|that|the)\s*(stock|bond|crypto|coin|token|option))\b",
-    r"(全仓|满仓|梭哈|all\s*in|重仓)",
+    r"(全仓|满仓|梭哈|重仓|all\s*in\s*(on\s+)?(crypto|stock|bitcoin|btc|eth))",
     r"(我保证|稳赚|必涨|必跌|内幕|内部消息)",
     r"\b(this\s*(stock|crypto|coin|token)\s*(will|is\s*going\s*to)\s*(moon|pump|crash))\b",
 ]
