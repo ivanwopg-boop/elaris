@@ -64,6 +64,7 @@ async def generate_watch_topics(
             persona_name=persona.name,
             description=persona.description or persona.name,
             soul_summary=soul_summary[:1500],  # truncate for token cost
+            lang=lang,
         )
         text = await minimax_client.chat(
             [

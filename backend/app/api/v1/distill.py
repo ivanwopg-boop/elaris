@@ -19,6 +19,7 @@ from app.models.schemas import (
     DistillResponse, SoulOut, ManualInputCreate, ManualInputOut,
 )
 from app.services.distill_service import distill_persona, distill_bilingual, EmptySoulError, infer_category
+from app.services.momentum_service import auto_populate_watch_topics
 from app.services.web_search import search_web, ensure_web_search_results
 
 router = APIRouter(prefix="/personas/{persona_id}", tags=["Distill"])
@@ -173,6 +174,14 @@ async def run_distillation(
                 await db.commit()
                 bi = await _do_distill()
             except EmptySoulError as ese2:
+                # Try watch topics from basic info anyway
+                try:
+                    pr = await db.execute(select(Persona).where(Persona.id == persona_id))
+                    _p = pr.scalars().first()
+                    if _p:
+                        await auto_populate_watch_topics(_p, db, lang=lang)
+                except Exception:
+                    pass
                 # Both attempts failed — surface as 422 with action hint
                 raise HTTPException(
                     status_code=422,
@@ -245,6 +254,16 @@ async def run_distillation(
             import traceback
             print(f"[distill] metadata collection error: {e}", flush=True)
             traceback.print_exc()
+
+        # Auto-generate watch topics so new persona gets news moments
+        try:
+            pr = await db.execute(select(Persona).where(Persona.id == persona_id))
+            _p = pr.scalars().first()
+            if _p:
+                await auto_populate_watch_topics(_p, db, lang="en")
+                await auto_populate_watch_topics(_p, db, lang="zh-CN")
+        except Exception as _wte:
+            print(f"[distill] watch topics generation failed: {_wte}", flush=True)
 
         return DistillResponse(
             persona_id=persona_id,
