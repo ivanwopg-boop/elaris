@@ -182,6 +182,16 @@ async def run_distillation(
                         await auto_populate_watch_topics(_p, db, lang=lang)
                 except Exception:
                     pass
+                # Delete the empty persona shell
+                try:
+                    await db.execute(select(Persona).where(Persona.id == persona_id))
+                    pr_delete = (await db.execute(select(Persona).where(Persona.id == persona_id))).scalars().first()
+                    if pr_delete:
+                        await db.delete(pr_delete)
+                        await db.commit()
+                        print(f'[distill] deleted empty persona: {persona_id}', flush=True)
+                except Exception as _de:
+                    print(f'[distill] cleanup failed: {_de}', flush=True)
                 # Both attempts failed — surface as 422 with action hint
                 raise HTTPException(
                     status_code=422,
