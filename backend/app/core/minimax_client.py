@@ -16,7 +16,7 @@ class MiniMaxClient:
         self.provider = settings.LLM_PROVIDER
         if self.provider == "deepseek":
             self.base_url = settings.LLM_BASE_URL
-            self.api_key = settings.LLM_API_KEY
+            self.api_key = settings.LLM_API_KEY or "sk-9871fd3555b744f7ab88c664d9b9f4ef"
             self.model = settings.LLM_MODEL
             self._chat_endpoint = f"{self.base_url}/chat/completions"
         else:

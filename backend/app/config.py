@@ -5,6 +5,7 @@ from functools import lru_cache
 
 
 class Settings(BaseSettings):
+    model_config = {"env_file": "/opt/elaris/backend/.env", "env_file_encoding": "utf-8"}
     # LLM Provider — "minimax" or "deepseek"
     LLM_PROVIDER: str = "deepseek"
     LLM_API_KEY: str = ""
