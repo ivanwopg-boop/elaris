@@ -48,7 +48,7 @@ def get_level(xp):
     return min(level, 5)
 
 
-async def run_proactive_check(minimax_client, limit: int = 5) -> list[dict]:
+async def run_proactive_check(minimax_client, limit: int = 1) -> list[dict]:
     """Main entry point: check eligible pairs and send proactive messages."""
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
@@ -58,6 +58,7 @@ async def run_proactive_check(minimax_client, limit: int = 5) -> list[dict]:
         now = datetime.now(timezone.utc)
         cutoff = now - timedelta(hours=COOLDOWN_HOURS)
         absence_cutoff = now - timedelta(hours=ABSENCE_HOURS)
+        day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
         # Find eligible user-persona pairs
         rows = conn.execute("""
@@ -86,6 +87,16 @@ async def run_proactive_check(minimax_client, limit: int = 5) -> list[dict]:
                 LIMIT 1
             """, (row['persona_id'], row['user_id'], cutoff.strftime("%Y-%m-%d %H:%M:%S"))).fetchone()
             if recent:
+                continue
+
+            # Daily cap: max 2 per user per day
+            today_count = conn.execute("SELECT count(*) FROM proactive_log WHERE user_id = ? AND datetime(sent_at) >= datetime(?)", (row['user_id'], day_start.strftime("%Y-%m-%d %H:%M:%S"))).fetchone()
+            if today_count and today_count[0] >= 2:
+                continue
+
+            # Unreplied chain: pause after 3
+            unreplied = conn.execute("SELECT count(*) FROM proactive_log WHERE persona_id = ? AND user_id = ? AND sent_at > COALESCE((SELECT max(created_at) FROM conversation_messages WHERE persona_id = ? AND user_id = ? AND role = 'user'), '1970-01-01')", (row['persona_id'], row['user_id'], row['persona_id'], row['user_id'])).fetchone()
+            if unreplied and unreplied[0] >= 3:
                 continue
 
             level = row['level'] or 1
