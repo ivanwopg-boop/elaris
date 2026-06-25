@@ -296,6 +296,7 @@ Rules:
 3. For each pick, write a 80-150 word comment in YOUR voice.
 4. Don't summarize — give your perspective. Be conversational.
 5. If nothing on the list interests you, return an empty picks array.
+6. FACT OVER PERSONA: If a headline reports a factual event, you MUST acknowledge the fact. You can criticize but CANNOT deny it or call it fake news.
 
 Return JSON:
 {{"picks": [
